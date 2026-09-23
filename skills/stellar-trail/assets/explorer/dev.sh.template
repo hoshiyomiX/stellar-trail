@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# ============================================================================
+# dev.sh — PERSISTENT BOOT HOOK (dijalankan otomatis oleh /start.sh setiap boot)
+#
+# Dipanggil oleh /start.sh:
+#   sudo -u z bash /home/z/my-project/.zscripts/dev.sh
+#
+# TUJUAN:
+#   1. MITIGASI POPUP "All files in task": panel & popup preview di sisi
+#      browser tidak bisa di-override dari container (frontend dimuat dari
+#      server platform). Yang bisa dikontrol adalah INVENTARIS file yang
+#      didaftarkan — hook ini menjaga download/ tetap ramping dengan
+#      memindahkan artifact eval/audit/intermediate ke /home/z/my-project/archive/
+#      secara otomatis di setiap boot.
+#   2. FULLSTACK GUARD: bila kelak ada package.json (proyek Next.js),
+#      skrip ini mendelegasikan flow standar (bun install -> db:push ->
+#      dev server + mini-services) supaya hook tidak pernah merusak
+#      proyek web. Catatan: jika skill fullstack-dev menulis dev.sh-nya
+#      sendiri, milik skill itu yang berlaku (perilaku benar).
+#   3. TASK FILES EXPLORER (v1.2): menyalakan explorer.py di
+#      127.0.0.1:3000 — upstream ingress preview platform — sebagai
+#      pengganti fungsional popup "All files in task". Guard konflik
+#      port ada di explorer.sh (package.json/Next.js selalu menang).
+#   4. SKILL HEAL (v3, stellar-trail v3.5.2 — location-aware): instalasi
+#      stellar-trail disembuhkan via scripts/heal-skill.sh bawaan skill pada
+#      KEDUA konvensi lokasi install clawhub: flat skills/stellar-trail dan
+#      owner-scoped skills/@owner/stellar-trail (clawhub CLI >= 0.23.3
+#      memasang fresh install owner-scoped) — melindungi dari degrade pasca
+#      restart container; guard [ -f ]: no-op bila belum terinstal.
+#   5. REPO REFRESH (v2): repo-snapshot.sh --apply-auto menyegarkan
+#      arsip restore (debounce + cooldown internal) — lapis primer
+#      anti-rollback.
+#
+# CARA PAKAI MANUAL:
+#   bash .zscripts/dev.sh            # jalankan tidy sekarang (tanpa nunggu boot)
+#   bash .zscripts/dev.sh --status   # lihat inventaris download/ + boot log
+#
+# UNDO: file yang diarsipkan bisa dikembalikan kapan saja:
+#   mv /home/z/my-project/archive/<nama> /home/z/my-project/download/
+# ============================================================================
+
+PROJECT="/home/z/my-project"
+DOWNLOAD="$PROJECT/download"
+ARCHIVE="$PROJECT/archive"
+BOOTLOG="$PROJECT/.zscripts/boot.log"
+LOCKDIR="/tmp/dev-sh.lock"
+
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+log() { echo "[$(ts)] $*" >> "$BOOTLOG"; echo "[dev.sh] $*"; }
+
+# ---------------------------------------------------------------------------
+# MODE --status: hanya inspeksi, tanpa mengubah apa pun
+# ---------------------------------------------------------------------------
+if [ "$1" = "--status" ]; then
+    echo "=== download/ (top-level) ==="
+    ls -1 "$DOWNLOAD" 2>/dev/null
+    echo
+    echo "=== archive/ ==="
+    ls -1 "$ARCHIVE" 2>/dev/null || echo "(kosong)"
+    echo
+    echo "=== boot.log (15 baris terakhir) ==="
+    tail -15 "$BOOTLOG" 2>/dev/null || echo "(belum ada)"
+    echo
+    bash "$PROJECT/.zscripts/watcher.sh" --status 2>/dev/null || true
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 0. Anti double-run (lock 10 menit, basi otomatis diambil alih)
+# ---------------------------------------------------------------------------
+if [ -d "$LOCKDIR" ]; then
+    if [ -z "$(find "$LOCKDIR" -maxdepth 0 -mmin -10 2>/dev/null)" ]; then
+        rm -rf "$LOCKDIR"   # lock lebih tua dari 10 menit -> basi
+    else
+        log "LOCK aktif, skip eksekusi ganda"
+        exit 0
+    fi
+fi
+mkdir "$LOCKDIR" 2>/dev/null || exit 0
+trap 'rm -rf "$LOCKDIR"' EXIT
+UP_S=$(awk '{printf "%.0f", $1}' /proc/uptime 2>/dev/null || echo "?")
+log "dev.sh start (container uptime ${UP_S}s; <300s = via hook /start.sh, besar = manual)"
+
+# ---------------------------------------------------------------------------
+# 0.5 SKILL HEAL (v3 — stellar-trail v3.5.2, location-aware): pulihkan
+#     instalasi stellar-trail bila degrade terdeteksi (manifest SHA-256,
+#     sumber multi-level — skrip membawa resolusinya sendiri). Dua konvensi
+#     lokasi install clawhub keduanya dicari; guard [ -f ]: tidak berjalan
+#     bila skill belum terinstal di proyek ini.
+# ---------------------------------------------------------------------------
+for CAND in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
+    [ -f "$CAND/scripts/heal-skill.sh" ] || continue
+    bash "$CAND/scripts/heal-skill.sh" --check >> "$BOOTLOG" 2>&1 \
+        || log "WARN: skill heal (${CAND#"$PROJECT"/}) gagal"
+done
+
+# ---------------------------------------------------------------------------
+# 1. FULLSTACK GUARD — delegasi flow standar bila ada package.json
+#    (/start.sh memakai if/elif: keberadaan dev.sh MENGGANTIKAN flow bun,
+#    jadi flow bun harus direplikasi di sini agar proyek web tetap jalan)
+# ---------------------------------------------------------------------------
+if [ -f "$PROJECT/package.json" ]; then
+    log "package.json terdeteksi -> delegasi flow fullstack standar"
+    cd "$PROJECT" || true
+    bun install        >> "$BOOTLOG" 2>&1 || log "WARN: bun install gagal"
+    bun run db:push    >> "$BOOTLOG" 2>&1 || log "WARN: db:push gagal"
+    nohup bun run dev  >> "$BOOTLOG" 2>&1 &
+    log "Next.js dev server dinyalakan di background"
+    for d in "$PROJECT"/mini-services/*/; do
+        [ -f "${d}package.json" ] || continue
+        (
+            cd "$d" || exit 0
+            bun install >> "$BOOTLOG" 2>&1
+            nohup bun run dev >> "$BOOTLOG" 2>&1 &
+        )
+        log "mini-service dinyalakan: $d"
+    done
+fi
+
+# ---------------------------------------------------------------------------
+# 2. MITIGASI POPUP — rapikan download/ (idempoten, aman dijalankan berulang)
+# ---------------------------------------------------------------------------
+tidy_download() {
+    if [ ! -d "$DOWNLOAD" ]; then
+        log "download/ tidak ada, skip tidy"
+        return 0
+    fi
+    mkdir -p "$ARCHIVE"
+    cd "$DOWNLOAD" || return 0
+    local moved=0 item dest
+    for item in *; do
+        [ -e "$item" ] || continue
+
+        # -- 2a. LINDUNGI deliverable utama (tidak pernah dipindah) --
+        case "$item" in
+            README.md|*.md|*.skill|*.pdf|*.docx|*.xlsx|*.pptx|*.csv|*.png|*.jpg|*.jpeg|*.gif|*.zip|stellar-trail)
+                continue
+                ;;
+        esac
+
+        # -- 2b. POLA artifact yang diarsipkan --
+        case "$item" in
+            *-eval|*-results.json|*-audit-results.json|audit-results.json|*-cover.html|workflow-guardian|memory-guardian)
+                dest="$ARCHIVE/$item"
+                if [ -e "$dest" ]; then
+                    dest="$ARCHIVE/${item}.$(date +%Y%m%d%H%M%S)"
+                fi
+                if mv -- "$item" "$dest" 2>>"$BOOTLOG"; then
+                    moved=$((moved+1))
+                    log "ARSIP: $item -> $dest"
+                else
+                    log "WARN: gagal memindah $item"
+                fi
+                ;;
+        esac
+    done
+    log "tidy selesai: $moved item dipindah ke archive/"
+    return 0
+}
+
+tidy_download
+
+# ---------------------------------------------------------------------------
+# 3. PASTIKAN WATCHER DAEMON HIDUP (berlaku di boot maupun run manual)
+#    watcher.sh --ensure = no-op bila sudah jalan; double-fork orphan bila belum
+#    -> jaring pengaman: boot hook + M0 per-session + manual, tiga jalur menuju
+#       satu daemon
+# ---------------------------------------------------------------------------
+if [ -f "$PROJECT/.zscripts/watcher.sh" ]; then
+    bash "$PROJECT/.zscripts/watcher.sh" --ensure >> "$BOOTLOG" 2>&1 || log "WARN: watcher --ensure gagal"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. PASTIKAN TASK FILES EXPLORER HIDUP (pengganti fungsional popup preview)
+#    explorer.sh --ensure idempoten; guard Next.js ada di dalamnya.
+# ---------------------------------------------------------------------------
+if [ -f "$PROJECT/.zscripts/explorer.sh" ]; then
+    bash "$PROJECT/.zscripts/explorer.sh" --ensure >> "$BOOTLOG" 2>&1 || log "WARN: explorer --ensure gagal"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. REPO REFRESH (v2): segarkan arsip restore dgn gerbang ganda di dalam
+#    repo-snapshot.sh --apply-auto (debounce + cooldown). Aman dipanggil
+#    berkala; no-op bila tidak ada perubahan material.
+# ---------------------------------------------------------------------------
+if [ -f "$PROJECT/.zscripts/repo-snapshot.sh" ]; then
+    bash "$PROJECT/.zscripts/repo-snapshot.sh" --apply-auto >> "$BOOTLOG" 2>&1 || log "WARN: repo refresh gagal"
+fi
+
+log "dev.sh selesai (download/ ramping, explorer dijaga, skill di-heal, repo.tar segar)"
