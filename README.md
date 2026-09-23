@@ -8,12 +8,39 @@ stellar-trail governs **how a task executes** inside a turn — a mandatory 6-ph
 
 ## Install
 
+### Option 1 — git clone + verify (recommended)
+
+Zero remote code execution: this downloads static files only and runs nothing from the repo. The SHA-256 manifest turns "trust the publisher" into a deterministic check you can audit yourself.
+
+```bash
+git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/stellar-trail-src
+# copy into your agent's skills directory, e.g. skills/ (OpenClaw) or .claude/skills/ (Claude Code)
+cp -r /tmp/stellar-trail-src/skills/stellar-trail <skills-dir>/stellar-trail
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 24/24 OK
+```
+
+### Option 2 — ClawHub registry (OpenClaw)
+
+```bash
+clawhub install hoshiyomix/stellar-trail
+```
+
+Installs from the ClawHub registry, which statically scans every published package (third-party vouching). Note: the registry currently serves v3.5.5 — this repository is the canonical channel for the latest release.
+
+### Option 3 — skills.sh installer (one command)
+
 ```bash
 # OpenClaw
 npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw
 
 # Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Cline, AMP, Antigravity…
 npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a claude
+```
+
+The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
+
+```bash
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 24/24 OK
 ```
 
 > **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. The SKILL.md enforces this itself.
