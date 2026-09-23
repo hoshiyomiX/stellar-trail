@@ -1,6 +1,6 @@
 # stellar-trail
 
-[![skills.sh](https://skills.sh/badge/hoshiyomiX/stellar-trail)](https://skills.sh/hoshiyomiX/stellar-trail)
+[![skills.sh](https://skills.sh/b/hoshiyomiX/stellar-trail)](https://skills.sh/hoshiyomiX/stellar-trail)
 
 Unified execution discipline + persistent cross-session memory protocol for AI agents.
 
