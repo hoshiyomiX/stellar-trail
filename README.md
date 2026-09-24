@@ -16,18 +16,10 @@ Zero remote code execution: this downloads static files only and runs nothing fr
 git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/stellar-trail-src
 # copy into your agent's skills directory, e.g. skills/ (OpenClaw) or .claude/skills/ (Claude Code)
 cp -r /tmp/stellar-trail-src/skills/stellar-trail <skills-dir>/stellar-trail
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 24/24 OK
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
 ```
 
-### Option 2 — ClawHub registry (OpenClaw)
-
-```bash
-clawhub install hoshiyomix/stellar-trail
-```
-
-Installs from the ClawHub registry, which statically scans every published package (third-party vouching). Note: the registry currently serves v3.5.5 — this repository is the canonical channel for the latest release.
-
-### Option 3 — skills.sh installer (one command)
+### Option 2 — skills.sh installer (one command)
 
 ```bash
 # OpenClaw
@@ -37,11 +29,13 @@ npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw
 npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a claude
 ```
 
-The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
+The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. Both routes above are verified end-to-end on a live consumer sandbox (real installs, tree re-verified 25/25 against the manifest). If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
 
 ```bash
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 24/24 OK
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
 ```
+
+> **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 
 > **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. The SKILL.md enforces this itself.
 
@@ -87,7 +81,7 @@ skills/stellar-trail/     the skill (installable)
 
 ## Version
 
-Current release: **v3.6.0** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.1** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 
@@ -97,4 +91,4 @@ sha256sum -c assets/integrity.sha256
 
 ## Background
 
-Previously distributed via ClawHub (publisher [hoshiyomix](https://clawhub.ai/user/hoshiyomix)); this repository is now the canonical public distribution channel after registry-side publication stalls. License: MIT-0 — see [LICENSE](LICENSE).
+Previously distributed via ClawHub (publisher [hoshiyomix](https://clawhub.ai/user/hoshiyomix)); this repository is now the canonical public distribution channel. Registry distribution is currently suspended by an automated security review that is under appeal — the package passes the registry's own static analyzer; the heuristic flag targets the skill's disclosed reset-survival features (boot hook, self-heal, activation seed) that exist to keep agent work alive across container resets, fully documented in `skills/stellar-trail/references/environment-resilience.md`. License: MIT-0 — see [LICENSE](LICENSE).
