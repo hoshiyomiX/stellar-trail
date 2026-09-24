@@ -124,7 +124,11 @@ PYEOF
       [ -f "$SKILL_DIR/$ref" ] || { bad "referensi hilang: $ref"; miss=1; }; done
     [ "$miss" -eq 0 ] && ok "semua references/*.md yang dirujuk ada"
     miss=0
-    for scr in $(grep -o 'scripts/[A-Za-z0-9_-]*\.sh' "$S" | sort -u); do
+    # v3.6.1 (Task 56 / F11): pola lama 'scripts/[…].sh' tanpa anchor cocok substring
+    # di '.zscripts/dev.sh' → false "script hilang". Anchor: karakter sebelum 'scripts/'
+    # tidak boleh angka/huruf/'.'/'-'/'_' (mengecualikan .zscripts/, npx-scripts/ dll);
+    # karakter boundary (spasi/backtick) dibuang oleh sed sebelum cek keberadaan file.
+    for scr in $(grep -oE '(^|[^.A-Za-z0-9_-])scripts/[A-Za-z0-9_-]+\.sh' "$S" | sed -E 's/^[^s]scripts\//scripts\//' | sort -u); do
       [ -f "$SKILL_DIR/$scr" ] || { bad "script hilang: $scr"; miss=1; }; done
     [ "$miss" -eq 0 ] && ok "semua scripts/*.sh yang dirujuk ada"
   fi
