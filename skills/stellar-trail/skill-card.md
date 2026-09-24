@@ -12,6 +12,8 @@ Since v3.3.0 the skill bundles its own repair mechanism: heal-skill.sh verifies 
 
 Since v3.5.8 the repair chain verifies the health of its own repair sources: a candidate source that carries a release manifest must match it tree-for-tree before it can be selected, so a poisoned canonical copy (a real 2026-09-22 platform-reset finding: an edit landed after the manifest regen, the corrupted source won version selection, was copied faithfully, and boot-heal failed at the worst possible moment) is skipped in favor of the next healthy source such as the class-A vault, an explicit env override is honored with a loud warning, and an all-poisoned candidate field fails hard instead of copying the corruption — while release packaging gains a symmetric tree-equals-manifest gate so a forgotten manifest regen after a last-minute edit can never ship a self-inconsistent package.
 
+Since v3.6.1 the shipped package closes the consumer gap documented by the Task 55 field forensics (three confirmed failure modes on reset-prone sandboxes: skill files wiped because the platform packer excludes skills/ from the restore archive, services killed by a reset with no boot hook to revive them, and the activation chain broken because worklog.md was never created): the new bundled scripts/bootstrap-sandbox.sh arms the whole persistence layer in one command — it seeds a canonical copy under download/stellar-trail/ (a directory the packer preserves), installs a .zscripts/dev.sh boot hook that verifies the live skill installation against the release manifest and restores it from that canonical copy on every boot (one proven path per module, no redundant fallbacks, idempotent, offline, self-locating), seeds worklog.md carrying the activation hook, and scaffolds memory/ with a consent-pending marker the first session honors. The bundled explorer launcher is now self-locating (fixing an initialization-order bug in the packaged copy), the protocol body gained Activation rule 14 plus an M0 step that runs bootstrap --ensure at cold boot, and the heal-chain release history moved from the protocol body to the environment-resilience reference (progressive disclosure, body stays under 500 lines).
+
 This skill is ready for commercial/non-commercial use.
 
 ## Publisher:
@@ -79,7 +81,7 @@ Mitigation: v3.5.5 layers defenses that do not depend on model discipline — an
 
 ## Skill Version(s):
 
-3.6.0 (source: release metadata)
+3.6.1 (source: release metadata)
 
 ## Ethical Considerations:
 

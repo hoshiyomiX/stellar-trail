@@ -26,8 +26,13 @@
 #   bash explorer.sh --status   # cek kesehatan + kesegaran + log tail
 #   bash explorer.sh --stop     # matikan explorer
 # ============================================================================
-ZDIR="$PROJECT/.zscripts"
-PROJECT="${STELLAR_PROJECT:-/home/z/my-project}"
+# Self-locating (v3.6.1): ZDIR = direktori skrip ini, PROJECT = induknya —
+# bekerja di sandbox manapun tanpa hardcode; STELLAR_PROJECT diekspor utk
+# explorer.py. (Perbaikan Task 56: sebelumnya ZDIR dihitung SEBELUM PROJECT
+# didefinisikan → "/.zscripts" — bug ordering di salinan paket.)
+ZDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT="$(dirname "$ZDIR")"
+export STELLAR_PROJECT="$PROJECT"
 PY="$ZDIR/explorer.py"
 UI="$ZDIR/explorer-ui/index.html"
 LOG="$ZDIR/explorer.log"

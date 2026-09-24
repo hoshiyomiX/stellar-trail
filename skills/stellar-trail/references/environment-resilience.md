@@ -5,6 +5,8 @@
 > "hilang" setelah restart, versi file terdegradasi ke kondisi lama, atau skill/skrip custom lenyap.
 > Bila Anda bekerja di mesin lokal/statis yang tidak pernah di-reset, seksi ini tidak berlaku — abaikan.
 
+**Daftar Isi (sejak v3.6.1 — file melewati 300 baris):** 1. Model Ancaman · 2. Lapisan Pertahanan · 3. Memakai Skrip (3a snapshot · 3b heal · 3c vault · 3d audit) · 4. Prosedur Pasca-Reset · 5. Batasan & Etika · 6. Bukti Lapangan · 7. Consumer Sandbox Deployment (bootstrap-sandbox.sh) · Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body v3.6.0)
+
 ## 1. Model Ancaman: Bagaimana Container Me-Rollback State Anda
 
 Banyak platform container memulihkan direktori proyek dari sebuah **arsip restore** (contoh nyata:
@@ -247,6 +249,63 @@ desainnya bisa diaudit, bukan diterima dengan iman:
 | **Defek alur rilis 3.5.7 (ditemukan pasca-submit, diperbaiki kanonik)** | 1) `vault-sync.sh`: backtick markdown dalam string `README_BODY` berkutip-ganda dieksekusi bash (noise stderr + placeholder `<direktori-instalasi>` termakan) — fix: escape backtick; 2) disiplin urutan: ubah file kanonik WAJIB disusul `--manifest` sebelum `--apply`/paket (pelanggaran kecil tertangkap verifikasi vault); 3) sed bump versi TIDAK menyentuh pola regex ter-escape (`3\.5\.6`) di suite — 18 FAIL semuanya bug fixture; 4) asersi suite yang bergantung state lingkungan nyata (T6: vault kelas-A masih tua) harus hermetik sejak awal | Suite +2 asersi regresi (109/109); T6 hermetik; paket final SHA cc9dbd38… — pelajaran: verifikasi pasca-setiap-edit, bukan hanya pasca-batch |
 | **Audit pasca-reset platform 2026-09-22 22:28 UTC (Task 43, sesi 26)** | Container mati ~16 jam (sejak ~06:29 UTC) → boot 22:27:57; restore arsip platform membawa kondisi final kemarin secara UTUH (mtime terawetkan tar). Audit jendela 6 jam: **NOL rollback versi** — 3.5.7 selamat di live flat + kanonik + kedua vault; lock 3.5.5 (out-of-band; disk ≥ lock = sehat, bukan DOWNGRADED); watcher + explorer bangkit otomatis (pid baru, healthz ok, `fresh` vs kanonik ok); repo.tar disegarkan boot (2773 entri). Satu-satunya temuan: boot-heal force melapor **GAGAL — 1 rusak** (`environment-resilience.md` vs manifest) — **bukan kerusakan reset**: edit receipt pamungkas kemarin (05:50:06) mendarat SETELAH manifest final (05:47:12) + paket (05:47:35) + vault-sync, meninggalkan kanonik inkonsisten-manifest; reset hanya mengungkapnya. Remediasi: receipt ini → `--manifest` → propagate live → `vault-sync --apply` → rebuild paket | Dua pelajaran: (1) verifikasi wajib PASCA setiap edit **termasuk edit terakhir** — klaim "semua selaras" di checkpoint kemarin berasal dari verifikasi pra-edit-pamungkas; (2) boot-heal force-mode terbukti di lapangan (tak terencana) sebagai penangkap manifest-lag — GAGAL kerasnya adalah deteksi yang BENAR, bukan false alarm |
 | **Hardening v3.5.8 dari temuan audit pasca-reset (Task 44, 2026-09-23)** | Dua lapis lahir dari insiden manifest-lag 2026-09-22: (1) **source self-verify** di `heal-skill.sh` — kandidat sumber bermanifest wajib lolos pohon ≡ manifest-nya sendiri sebelum dipilih (sumber racun dilewati → failover vault kelas-A; semua kandidat eligan racun = GAGAL keras; env override dihormati + peringatan keras; sumber tanpa manifest tetap eligibel); (2) **gate pohon ≡ manifest** di packaging — build GAGAL exit 1 sebelum zip ditulis bila kanonik ≠ manifest dua arah (kunci kelas jebakan "edit tanpa regen") | Failover menggantikan kegagalan: pertahanan terakhir harus kebal terhadap keracunan SUMBERNYA sendiri; gerbang build = titik cek otomatis terakhir sebelum kerusakan menyebar ke konsumer |
+
+## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh` (v3.6.1, Task 56)
+
+Sandbox referensi membangun lapisan pertahanan seksi 2–4 secara manual lintas Task 26–47; paket publik
+hanya mengirim protokol + skrip + aset. Forensik Task 55 (3/3 klaim lapangan terkonfirmasi) membuktikan
+akibatnya di sandbox konsumer: (1) file skill hilang pasca reset — packer mengecualikan `skills/` dari
+arsip restore (bukti: arsip packer asli 3807 entri, 0 entri `skills/`); (2) layanan (explorer) mati
+permanen — tidak ada boot hook yang menghidupkannya kembali; (3) rantai aktivasi putus — `worklog.md`
+tidak pernah dibuat, hook R1 absen, dan pasca wipe total skill hilang dari system prompt sementara
+`memory/` selamat di disk tanpa pembaca.
+
+`scripts/bootstrap-sandbox.sh` memasang arsitektur yang sama dalam SATU perintah:
+
+| Modul | Dipasang | Jalur tunggal (tanpa fallback redundan) | Bug ditutup |
+|---|---|---|---|
+| core (selalu) | kanonik `download/stellar-trail/` + `.zscripts/dev.sh` + seed `worklog.md` (hook R1) + scaffold `memory/` | seed = salinan instalasi hidup (self-locating, offline); dev.sh memulihkan `skills/stellar-trail` dari kanonik tiap boot (verifikasi manifest SHA-256) | #1 #3 |
+| `--with-explorer` | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + langkah `--ensure` di dev.sh | launcher self-locating + drift-sync dari kanonik; guard Next.js tetap berlaku | #2 |
+| `--with-snapshot` | `.zscripts/repo-snapshot.sh` + langkah `--apply-auto` di dev.sh | env `WMG_PROJECT` diteruskan dev.sh (utk platform dengan `/home/sync`) | #1 (lapis tambahan) |
+
+Yang bertahan reset (kontrak packer, diverifikasi dari arsip asli): `download/` + `.zscripts/` +
+`memory/` + `worklog.md`. Yang ter-wipe: `skills/` — dan justru itu yang dipulihkan dev.sh dari kanonik.
+
+Perintah: `bash scripts/bootstrap-sandbox.sh` (core) · `--ensure` (idempoten, dipanggil Activation
+rule 14 di M0) · `--with-explorer` / `--with-snapshot` · `--status` (read-only) · `--project-dir` ·
+`--force-devsh` (timpa dev.sh non-bootstrap — deployment referensi tidak pernah ditimpa tanpa flag ini).
+
+Disiplin yang dijaga: idempoten (menulis hanya bila konten berbeda); TIDAK PERNAH menimpa konten
+`memory/`, `worklog.md`, atau dev.sh asing; tidak menyentuh `.clawhub/` (domain heal-skill.sh);
+scaffold memory menyandang status consent-pending (SKILL.md 4b) — sesi pertama wajib meminta
+konfirmasi user sebelum menulis state substansial. Bukti verifikasi (smoke idempotensi + simulasi
+fresh-reset 3/3 bug tertutup): `scripts/tmp-task56/` di sandbox referensi.
+
+## Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
+
+> Riwayat lengkap dipertahankan di sini agar body tetap operasional (lensa audit Task 56: fokus,
+> terarah, tak lepas kendali — sejarah panjang hidup di referensi, bukan di protokol yang dibaca
+> setiap turn). Teks berikut verbatim dari SKILL.md v3.6.0 seksi 4c.
+
+`scripts/heal-skill.sh` (sejak v3.3.0; location-aware sejak v3.5.2) — self-heal instalasi skill INI
+pada KEDUA konvensi lokasi install clawhub: flat `skills/stellar-trail` (lock key `stellar-trail`) dan
+owner-scoped `skills/@owner/stellar-trail` (lock key `@owner/stellar-trail` — clawhub CLI ≥ 0.23.3
+memasang fresh install di sini). Verifikasi manifest SHA-256 (`assets/integrity.sha256`) + cross-check
+versi rilis; perbaikan multi-sumber dengan walk-up multi-level dari lokasi skill → vault kelas-A
+(v3.5.4) → arsip restore sesuai layout aktual → hint `clawhub update <lock-key> --force` yang membaca
+lock key AKTUAL dari `.clawhub/lock.json` (bukan hardcoded). Identitas install clawhub tidak pernah
+ditimpa; `_meta.json`/`origin.json` dibuat ulang bila instalasi ter-wipe total saat boot. Tanpa
+manifest DAN tanpa sumber = GAGAL KERAS exit 1. Sejak v3.5.3: laporan state pin SEMUA skill di
+`.clawhub/lock.json` (pinned = WARN — memblokir update/install skill itu dan membuat `update --all`
+melewatkannya SENYAP), info-line sehat-tapi-tua, sumber heal berlabel (env/walk-up-N/platform/arsip).
+Sejak v3.5.4: vault kelas-A (`/home/sync/skill-vault` + `upload/skill-vault`, diisi
+`scripts/vault-sync.sh`) masuk rantai — pemilihan sumber berbasis versi + version-assert
+anti-timpa-baru. Sejak v3.5.7: cross-check lock clawhub (versi skill di lock vs disk: lock > disk =
+verdict `DOWNGRADED` + hint update; pasca-heal masih < lock = GAGAL exit 1 — insiden konsumer
+2026-09-22), sumber saudara konvensi (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail` saling
+kandidat), hint self-arm vault. Sejak v3.5.8: source self-verify — kandidat sumber bermanifest wajib
+lolos verifikasi internal sebelum dipilih; sumber racun (insiden boot-heal pasca-reset 2026-09-22)
+DILEWATI; seluruh kandidat eligan racun = GAGAL keras; env override dihormati dengan peringatan keras.
 
 **Penjelasan (ID):** Mengapa ada seksi ini di skill memory? Karena protokol memory hanya sekuat
 lingkungannya: SESSION-STATE dan MEMORY tidak berarti bila direktorinya sendiri di-rollback ke masa
