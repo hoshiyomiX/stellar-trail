@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # bootstrap-sandbox.sh — ARMIN PERSISTENCE LAYER utk sandbox yang bisa di-reset
-# stellar-trail v3.6.1 · Task 56 · 2026-09-24
+# stellar-trail v3.6.1 · Task 56 · 2026-09-24 · core+watcher v3.6.3 (Task 62)
 #
 # MASALAH YANG DISEMBUHKAN (forensik Task 55, 3/3 terkonfirmasi):
 #   #1 skill files hilang pasca reset  — packer platform mengecualikan
@@ -16,7 +16,10 @@
 #              (packer MEMPERTAHANKAN download/ + .zscripts/ + memory/ +
 #              worklog.md — terverifikasi dari arsip packer asli) lalu pasang
 #              .zscripts/dev.sh (boot hook kontrak /start.sh) yang memulihkan
-#              skills/stellar-trail dari kanonik di TIAP boot.
+#              skills/stellar-trail dari kanonik di TIAP boot, plus
+#              .zscripts/watcher.sh (daemon auto-heal runtime v1.7 — Task 62,
+#              v3.6.3; explorer healthz + heal berkala + repo refresh +
+#              compliance alarm; dihidupkan dev.sh + M0).
 #   explorer : --with-explorer  → pasang .zscripts/{explorer.sh,explorer.py,
 #              explorer-ui/} + langkah --ensure di dev.sh.
 #   snapshot : --with-snapshot  → pasang .zscripts/repo-snapshot.sh + langkah
@@ -189,6 +192,7 @@ if [ "$MODE" = "status" ]; then
         done
     }
     has_module snapshot && echo "snapshot   : .zscripts/repo-snapshot.sh $([ -f "$ZDIR/repo-snapshot.sh" ] && echo OK || echo HILANG)"
+    echo "watcher   : .zscripts/watcher.sh $([ -f "$ZDIR/watcher.sh" ] && echo OK || echo "TIDAK ADA (core v3.6.3+)")"
     echo "memory     : $([ -f "$MEMORY_DIR/SESSION-STATE.md" ] && echo "scaffold/aktif ($MEMORY_DIR)" || echo "BELUM ADA")"
     echo "worklog    : $([ -f "$WORKLOG" ] && { grep -q '⚡ACTIVATE' "$WORKLOG" && echo "ada + hook R1 OK" || echo "ada TANPA hook R1"; } || echo "BELUM ADA")"
     echo "state file : $([ -f "$STATE_FILE" ] && cat "$STATE_FILE" | tr '\n' ' ' || echo "belum ada")"
@@ -259,12 +263,14 @@ DEVSH_HEAD
 #   2. FULLSTACK GUARD: keberadaan dev.sh MENGGANTIKAN flow bun milik
 #      /start.sh — flow itu direplikasi di sini agar proyek web tetap hidup.
 #   3. TIDY download/ : artifact eval/audit dipindah ke archive/ (undo-able).
+#   4. WATCHER --ensure : hidupkan daemon auto-heal runtime bila mati
+#      (explorer healthz + heal berkala + repo refresh + compliance alarm).
 DEVSH_BODY
     has_module explorer && cat <<'DEVSH_EXPL'
-#   4. EXPLORER --ensure : hidupkan explorer bila mati + segarkan drift.
+#   5. EXPLORER --ensure : hidupkan explorer bila mati + segarkan drift.
 DEVSH_EXPL
     has_module snapshot && cat <<'DEVSH_SNAP'
-#   5. SNAPSHOT --apply-auto : segarkan arsip restore (debounce internal).
+#   6. SNAPSHOT --apply-auto : segarkan arsip restore (debounce internal).
 DEVSH_SNAP
     cat <<'DEVSH_VARS'
 
@@ -368,10 +374,22 @@ tidy_download() {
 tidy_download
 DEVSH_TIDY
 
+    cat <<'DEVSH_WATCH'
+
+# --- 4. WATCHER DAEMON --ensure (v1.7, core sejak v3.6.3 — Task 62) --------
+#     no-op bila sudah jalan; double-fork orphan bila belum. Loop 30 dtk:
+#     explorer healthz + auto-heal, heal-skill --check tiap ~10 mnt,
+#     repo-snapshot --apply-auto tiap ~15 mnt, compliance sentinel.
+if [ -f "$PROJECT/.zscripts/watcher.sh" ]; then
+    bash "$PROJECT/.zscripts/watcher.sh" --ensure >> "$BOOTLOG" 2>&1 \
+        || log "WARN: watcher --ensure gagal"
+fi
+DEVSH_WATCH
+
     if has_module explorer; then
         cat <<'DEVSH_EXPL2'
 
-# --- 4. TASK FILES EXPLORER --ensure ---------------------------------------
+# --- 5. TASK FILES EXPLORER --ensure ---------------------------------------
 if [ -f "$PROJECT/.zscripts/explorer.sh" ]; then
     if bash "$PROJECT/.zscripts/explorer.sh" --ensure >> "$BOOTLOG" 2>&1; then
         log "explorer --ensure: OK (hidup / guard aktif)"
@@ -385,7 +403,7 @@ DEVSH_EXPL2
     if has_module snapshot; then
         cat <<'DEVSH_SNAP2'
 
-# --- 5. REPO SNAPSHOT --apply-auto (debounce + cooldown internal) ----------
+# --- 6. REPO SNAPSHOT --apply-auto (debounce + cooldown internal) ----------
 if [ -f "$PROJECT/.zscripts/repo-snapshot.sh" ]; then
     WMG_PROJECT="$PROJECT" bash "$PROJECT/.zscripts/repo-snapshot.sh" --apply-auto \
         >> "$BOOTLOG" 2>&1 || log "WARN: repo refresh gagal"
@@ -414,6 +432,20 @@ if [ -f "$ZDIR/dev.sh" ] && ! head -n 2 "$ZDIR/dev.sh" | grep -qF "$STATE_MARKER
 else
     R=$(write_if_changed "$DEVSH_SRC" "$ZDIR/dev.sh")
     log "dev.sh: $R"
+fi
+
+# ---------------------------------------------------------------------------
+# 7b. MODUL CORE-B2 — PASANG .zscripts/watcher.sh (daemon auto-heal runtime
+#     v1.7 bawaan paket sejak v3.6.3; dev.sh step-4 --ensure menghidupkannya;
+#     kontrak antarmuka lama — dev.sh.template §3, explorer.sh, guardian —
+#     kini benar-benar memiliki filenya; laporan konsumer T46 F2)
+# ---------------------------------------------------------------------------
+W_SRC="$SKILL_ROOT/scripts/watcher.sh"
+if [ -f "$W_SRC" ]; then
+    R=$(write_if_changed "$W_SRC" "$ZDIR/watcher.sh")
+    log "watcher  : .zscripts/watcher.sh $R"
+else
+    log "WARN: scripts/watcher.sh tidak ada di paket — daemon watcher tidak dipasang"
 fi
 
 # ---------------------------------------------------------------------------

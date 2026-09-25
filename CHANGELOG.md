@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.6.3 — 2026-09-25
+
+Ships the watcher daemon the package always referenced — fixes from a consumer forensic report on a 3.5.4 → 3.6.2 npx migration (T46: watcher analysis during skill installation, 2026-09-25).
+
+- **New `scripts/watcher.sh` v1.7** — the boot-hook template, the explorer launcher header, and the explorer guardian card all referenced a watcher that no release ever shipped (on the reporting sandbox the references dangled silently behind `[ -f ]` guards). Productized from the reference sandbox's battle-tested v1.6 (live across boots since 2026-09-15): a 30-second orphan loop (double-fork + setsid, surviving the platform's per-tool-call process cleanup) that health-checks the explorer and revives it, runs the location-aware installation heal every ~10 minutes, refreshes the restore archive every ~15 minutes, and raises a compliance alarm when a growing work log has no memory checkpoint. Self-locating (runs from `.zscripts/` or the install tree), fixes a hardcoded project path in the explorer guard, `dev.sh` now optional. Manifest 25 → 26 files.
+- **bootstrap core now arms the watcher** — `bootstrap-sandbox.sh` installs `.zscripts/watcher.sh` as part of the core module and the generated boot hook ensures it at every boot.
+- **Fix: guardian version visibility on non-registry installs** — npx/git installs carry no `_meta.json`, so the explorer guardian API reported `version: null` even though `assets/integrity.version` was present; the guardian now falls back to the shipped release version.
+- **Fix: `heal_last` was always null** — the guardian has always read `.zscripts/.skill-heal.last`, but no component ever wrote it; `heal-skill.sh` now stamps the marker on every completed check/heal.
+- **Docs: crash-safe migration order + immune-restore forensics** — the resilience playbook now documents the safe upgrade order (refresh every resilience layer first, swap the working install last — the reported ~4-minute mixed-version window would have converged to the old version on a crash) and the M0 forensic sources that survive post-hook archive re-extraction (the boot log was proven rewritable: the hook ran, then its log was rolled back). `audit-compliance.sh` is now recommended at major M0/M1 checkpoints (SKILL.md section 3).
+- Verification: watcher deploy/run/stop simulation **23/23 PASS** (self-location from both layouts, PIDFILE contract, idempotent ensure, stop-flag) + guardian version-fallback smoke (npx-style tree without `_meta.json`) + heal-marker run + heal suite v3.5.7 regression **109/109** + v3.5.8 **42/42** + lint + `enforce-gates` + `audit-compliance`.
+
 ## v3.6.2 — 2026-09-25
 
 Consumer-report remediation — fixes three defects confirmed by a fresh-install report from another sandbox (Installation & Explorer Report on v3.6.1).

@@ -252,6 +252,28 @@ find_root() {  # v3.5.3: ancestor terdekat dari SKILL_DIR yang punya
     return 1
 }
 
+mark_heal() {  # v3.6.3 (Task 62, R3 laporan konsumer T46): tulis marker
+               # "heal terakhir" ke <root>/.zscripts/.skill-heal.last — file
+               # yang selama ini DIBACA guardian explorer (explorer.py) tapi
+               # tidak pernah ditulis komponen mana pun (heal_last selalu
+               # null). Root proyek: layout skills/ (flat/owner-scoped) ->
+               # fallback find_root (lock clawhub) -> fallback platform.
+               # Best-effort: gagal menulis BUKAN kegagalan heal.
+    local root="" d="$SKILL_DIR"
+    while [ "$d" != "/" ] && [ "$(basename "$d")" != "skills" ]; do
+        d="$(dirname "$d")"
+    done
+    [ "$(basename "$d")" = "skills" ] && root="$(dirname "$d")"
+    if [ -z "$root" ]; then
+        root="$(find_root 2>/dev/null)" || root=""
+    fi
+    [ -n "$root" ] && [ -d "$root" ] || root="$PLATFORM_PROJECT"
+    mkdir -p "$root/.zscripts" 2>/dev/null || return 0
+    printf '%s heal-skill %s: %s\n' "$(date '+%F %T')" "${MODE:-check}" "${1:-ok}" \
+        > "$root/.zscripts/.skill-heal.last" 2>/dev/null || true
+    return 0
+}
+
 heal_hint() {  # v3.6.2 (Task 60): fallback manual terakhir = pasang ulang via
                # GitHub git-clone + verify — rute terbukgi Task 59 (25/25,
                # tanpa login, nol eksekusi remote). clawhub update --force
@@ -761,10 +783,12 @@ do_heal() {
         else
             say "HEAL SELESAI dari sumber tanpa manifest — verifikasi otomatis tidak tersedia; cek manual bila perlu"
         fi
+        mark_heal "heal ok (sumber tanpa manifest)"
         return 0
     fi
     if [ "$DRIFT" -eq 0 ]; then
         say "HEAL OK: instalasi disinkronkan dari $(source_desc) — drift nol (versi rilis $(release_version))"
+        mark_heal "heal ok (drift nol)"
         return 0
     fi
     say "GAGAL: pasca-heal masih drift — $DRIFT_DESC"
@@ -857,6 +881,7 @@ check|force)
         fi
         if [ "$SRC_BASED" -eq 1 ]; then
             say "check: manifest tidak ada, tapi verifikasi vs sumber: BERSIH — tidak ada aksi"
+            mark_heal "check bersih (via sumber)"
             exit 0
         fi
         # v3.5.2 LOUD-FAIL: tanpa manifest DAN tanpa sumber, verifikasi MUSTAHIL.
@@ -867,6 +892,7 @@ check|force)
     fi
     if [ "$DRIFT" -eq 0 ]; then
         say "check: BERSIH (drift nol) — tidak ada aksi"
+        mark_heal "check bersih (drift nol)"
         age_info say
         vault_hint say
         exit 0

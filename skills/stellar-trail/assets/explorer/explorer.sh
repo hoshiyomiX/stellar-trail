@@ -11,7 +11,7 @@
 #
 # Dipanggil dari tiga jalur (sama seperti watcher):
 #   1. Boot container -> dev.sh v1.2 (hook /start.sh)
-#   2. watcher.sh v1.1 -> auto-heal tiap 30 detik bila healthz gagal
+#   2. watcher.sh (v1.7, dikirim paket sejak v3.6.3) -> auto-heal tiap 30 detik bila healthz gagal
 #   3. Manual
 #
 # v1.2 (Task 43, 2026-09-22): FRESHNESS SYNC — salinan deployment .zscripts/

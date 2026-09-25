@@ -57,6 +57,7 @@ Fakta kunci:
    `cp assets/explorer/explorer.py assets/explorer/explorer.sh <proyek>/.zscripts/`
    `mkdir -p <proyek>/.zscripts/explorer-ui && cp assets/explorer/explorer-ui/index.html <proyek>/.zscripts/explorer-ui/`
    `cp assets/explorer/dev.sh.template <proyek>/.zscripts/dev.sh && chmod +x <proyek>/.zscripts/dev.sh`
+   `cp scripts/watcher.sh <proyek>/.zscripts/`   # daemon auto-heal v1.7 — dirujuk dev.sh §3; otomatis via bootstrap core sejak v3.6.3
 2. Jalankan sekali: `bash <proyek>/.zscripts/explorer.sh --ensure`
 3. Setiap boot berikutnya, /start.sh menjalankan dev.sh -> explorer + watcher hidup otomatis.
 
@@ -64,7 +65,7 @@ Fakta kunci:
    memory scaffold + explorer): `bash scripts/bootstrap-sandbox.sh --with-explorer`.
 
 ### Kasus B — dev.sh sudah ada (JANGAN ditimpa)
-1. Salin explorer.py, explorer.sh, explorer-ui/ seperti di atas.
+1. Salin explorer.py, explorer.sh, explorer-ui/ seperti di atas — plus `scripts/watcher.sh` ke `<proyek>/.zscripts/` (daemon yang dirujuk dev.sh §3; sejak v3.6.3 dikirim paket dan dipasang otomatis oleh bootstrap core).
 2. Tambahkan blok ensure di akhir dev.sh:
    ```bash
    if [ -f "$PROJECT/.zscripts/explorer.sh" ]; then

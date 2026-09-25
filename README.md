@@ -16,7 +16,7 @@ Zero remote code execution: this downloads static files only and runs nothing fr
 git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/stellar-trail-src
 # copy into your agent's skills directory, e.g. skills/ (OpenClaw) or .claude/skills/ (Claude Code)
 cp -r /tmp/stellar-trail-src/skills/stellar-trail <skills-dir>/stellar-trail
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 26/26 OK
 ```
 
 ### Option 2 — skills.sh installer (one command)
@@ -34,7 +34,7 @@ The installer is the open-source [vercel-labs/skills](https://github.com/vercel-
 Both routes are verified end-to-end on live consumer sandboxes — Option 1 by manifest re-verification (25/25 OK), Option 2 by a fresh v3.6.2 install (2026-09-25): exit 0, the skill listed by `npx skills list`, and the `computedHash` written to `skills-lock.json` matching the hash reported on stdout. If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
 
 ```bash
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 26/26 OK
 npx skills list   # Option 2: expect stellar-trail, source hoshiyomiX/stellar-trail
 ```
 
@@ -69,7 +69,7 @@ What it installs — one proven path per module, no redundant fallbacks:
 
 | Module | Installs | Closes |
 |---|---|---|
-| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken |
+| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook + `.zscripts/watcher.sh` auto-heal daemon (v3.6.3) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
 | `--with-explorer` | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
 | `--with-snapshot` | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
 
@@ -98,18 +98,19 @@ The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-execu
 ## Repository layout
 
 ```
-skills/stellar-trail/     the skill (installable) — ~460 KB installed
+skills/stellar-trail/     the skill (installable) — ~470 KB installed
   SKILL.md                protocol body (bilingual: EN rules + ID explanations)
   skill-card.md           canonical version + manifest card
   references/             13 deep references: one per phase & per memory mechanism
-  scripts/                6 deterministic scripts: bootstrap-sandbox.sh, enforce-gates.sh,
-                          audit-compliance.sh, heal-skill.sh, snapshot-repo.sh, vault-sync.sh
+  scripts/                7 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
+                          enforce-gates.sh, audit-compliance.sh, heal-skill.sh,
+                          snapshot-repo.sh, vault-sync.sh
   assets/                 SHA-256 integrity manifest + Task Files Explorer (opt-in)
 ```
 
 ## Version
 
-Current release: **v3.6.2** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.3** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

@@ -255,7 +255,7 @@ desainnya bisa diaudit, bukan diterima dengan iman:
 | **Audit pasca-reset platform 2026-09-22 22:28 UTC (Task 43, sesi 26)** | Container mati ~16 jam (sejak ~06:29 UTC) → boot 22:27:57; restore arsip platform membawa kondisi final kemarin secara UTUH (mtime terawetkan tar). Audit jendela 6 jam: **NOL rollback versi** — 3.5.7 selamat di live flat + kanonik + kedua vault; lock 3.5.5 (out-of-band; disk ≥ lock = sehat, bukan DOWNGRADED); watcher + explorer bangkit otomatis (pid baru, healthz ok, `fresh` vs kanonik ok); repo.tar disegarkan boot (2773 entri). Satu-satunya temuan: boot-heal force melapor **GAGAL — 1 rusak** (`environment-resilience.md` vs manifest) — **bukan kerusakan reset**: edit receipt pamungkas kemarin (05:50:06) mendarat SETELAH manifest final (05:47:12) + paket (05:47:35) + vault-sync, meninggalkan kanonik inkonsisten-manifest; reset hanya mengungkapnya. Remediasi: receipt ini → `--manifest` → propagate live → `vault-sync --apply` → rebuild paket | Dua pelajaran: (1) verifikasi wajib PASCA setiap edit **termasuk edit terakhir** — klaim "semua selaras" di checkpoint kemarin berasal dari verifikasi pra-edit-pamungkas; (2) boot-heal force-mode terbukti di lapangan (tak terencana) sebagai penangkap manifest-lag — GAGAL kerasnya adalah deteksi yang BENAR, bukan false alarm |
 | **Hardening v3.5.8 dari temuan audit pasca-reset (Task 44, 2026-09-23)** | Dua lapis lahir dari insiden manifest-lag 2026-09-22: (1) **source self-verify** di `heal-skill.sh` — kandidat sumber bermanifest wajib lolos pohon ≡ manifest-nya sendiri sebelum dipilih (sumber racun dilewati → failover vault kelas-A; semua kandidat eligan racun = GAGAL keras; env override dihormati + peringatan keras; sumber tanpa manifest tetap eligibel); (2) **gate pohon ≡ manifest** di packaging — build GAGAL exit 1 sebelum zip ditulis bila kanonik ≠ manifest dua arah (kunci kelas jebakan "edit tanpa regen") | Failover menggantikan kegagalan: pertahanan terakhir harus kebal terhadap keracunan SUMBERNYA sendiri; gerbang build = titik cek otomatis terakhir sebelum kerusakan menyebar ke konsumer |
 
-## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh` (v3.6.1, Task 56)
+## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh` (v3.6.1 Task 56; core+watcher v3.6.3 Task 62)
 
 Sandbox referensi membangun lapisan pertahanan seksi 2–4 secara manual lintas Task 26–47; paket publik
 hanya mengirim protokol + skrip + aset. Forensik Task 55 (3/3 klaim lapangan terkonfirmasi) membuktikan
@@ -269,7 +269,7 @@ tidak pernah dibuat, hook R1 absen, dan pasca wipe total skill hilang dari syste
 
 | Modul | Dipasang | Jalur tunggal (tanpa fallback redundan) | Bug ditutup |
 |---|---|---|---|
-| core (selalu) | kanonik `download/stellar-trail/` + `.zscripts/dev.sh` + seed `worklog.md` (hook R1) + scaffold `memory/` | seed = salinan instalasi hidup (self-locating, offline); dev.sh memulihkan `skills/stellar-trail` dari kanonik tiap boot (verifikasi manifest SHA-256) | #1 #3 |
+| core (selalu) | kanonik `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` (v3.6.3) + seed `worklog.md` (hook R1) + scaffold `memory/` | seed = salinan instalasi hidup (self-locating, offline); dev.sh memulihkan `skills/stellar-trail` dari kanonik tiap boot (verifikasi manifest SHA-256); watcher v1.7 = daemon auto-heal runtime (explorer healthz + heal berkala + repo refresh + compliance alarm) yang dihidupkan dev.sh — menutup gap laporan konsumer T46 F2: kontraknya dirujuk 4 komponen tapi filenya tak pernah dikirim | #1 #2 #3 |
 | `--with-explorer` | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + langkah `--ensure` di dev.sh | launcher self-locating + drift-sync dari kanonik; guard Next.js tetap berlaku | #2 |
 | `--with-snapshot` | `.zscripts/repo-snapshot.sh` + langkah `--apply-auto` di dev.sh | env `WMG_PROJECT` diteruskan dev.sh (utk platform dengan `/home/sync`) | #1 (lapis tambahan) |
 
@@ -285,6 +285,36 @@ Disiplin yang dijaga: idempoten (menulis hanya bila konten berbeda); TIDAK PERNA
 scaffold memory menyandang status consent-pending (SKILL.md 4b) — sesi pertama wajib meminta
 konfirmasi user sebelum menulis state substansial. Bukti verifikasi (smoke idempotensi + simulasi
 fresh-reset 3/3 bug tertutup): `scripts/tmp-task56/` di sandbox referensi.
+
+## 8. Migrasi Versi Crash-Safe + Forensik M0 (v3.6.3, Task 62)
+
+Dua pelajaran dari laporan forensik konsumer (2026-09-25, migrasi npx 3.5.4 → 3.6.2):
+
+**Urutan migrasi crash-safe (R2/F5).** Urutan "swap direktori kerja DULU, baru
+segar lapisan resilience" membuka window campur-versi (~4 menit pada laporan)
+tanpa jaring pengaman runtime: crash di window itu → boot berikutnya
+merestore arsip lama → heal konvergen ke versi LAMA dan migrasi harus diulang
+manual. Urutan aman: (1) siapkan sumber versi baru (clone GitHub + verifikasi
+manifest), (2) segarkan vault kelas-A (`vault-sync.sh --apply` dari kanonik
+baru), (3) swap kanonik `download/stellar-trail/` ke versi baru, (4) BARU
+TERAKHIR swap instalasi kerja `skills/stellar-trail`. Dengan urutan ini, crash
+kapan pun justru mengkonvergikan boot berikutnya ke versi BARU (semua sumber
+repair sudah baru; swap kerja adalah langkah termurah untuk diulang).
+
+**Sumber forensik imun-restore untuk M0 (R4/F3).** Jejak boot di
+`.zscripts/boot.log` TERBUKTI bisa diputar balik pasca-hook: aktor root-level
+mengekstraksi ulang arsip workspace SETELAH dev.sh selesai (insiden
+2026-09-25: hook jalan 03:25:54–03:26:11, tapi boot.log hidup byte-identik
+dengan salinan arsip + 6 baris — seluruh jejak hook pagi itu hilang; pid/log
+kembali mtime lama; hook tampak "tidak pernah jalan"). Untuk forensik M0,
+pakai sumber yang DI LUAR pohon restore: `/tmp/boot-timeline.log` (ditulis
+/start.sh), `/home/sync/repo-state/*` (snapshot auto-apply), dan `ps` (proses
+hidup) — jangan mengandalkan boot.log saja.
+
+**Ritme audit (R6).** Jalankan `scripts/audit-compliance.sh` pada M0/M1 besar
+— audit eksternal ini satu-satunya alat yang menangkap drift versi-lock dan
+hook secara mekanis (insiden 3-session 2026-09-21 hanya terdeteksi audit
+manual; lihat juga SKILL.md seksi 3 M1).
 
 ## Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
 

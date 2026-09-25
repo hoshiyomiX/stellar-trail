@@ -58,20 +58,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 Respons ID:
 
-## 🌠 stellar-trail v3.6.2 — protokol aktif
+## 🌠 stellar-trail v3.6.3 — protokol aktif
 ## 🌠 FASE n — LABEL
 isi fase pada baris-baris di bawah marker
 [MEM | LABEL] isi singkat
 
 Respons EN (banner & label fase bahasa Inggris):
 
-## 🌠 stellar-trail v3.6.2 — protocol active
+## 🌠 stellar-trail v3.6.3 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEM | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.2) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.3) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -215,7 +215,7 @@ Target: **~95% cross-session context integrity** — tidak ada task yang dikerja
 ### 3. Lifecycle M0–M3 (Condensed) / Daur Ulang M0–M3 (Ringkas)
 
 - **M0 — Cold Boot / Restore:** **quarantine any continuation summary FIRST (4d H8–H13)** — version-ground its claims, resolve "the last task" via the Active table only, report any summary-vs-memory conflict in the first response → read SESSION-STATE + MEMORY (mandatory minimum) → **version sanity alarm (4c)**: installed banner version older than the release recorded in memory = degraded installation → `heal-skill.sh --check` before trusting the body → **bootstrap --ensure** (reset-prone sandboxes only — Activation rule 14; idempotent arm of the persistence layer; a failure is reported, never a blocker) → **triage the task table (section 4d)** — only ACTIVE/BLOCKED rows are work-eligible, STALE rows need user reconfirmation, sealed rows are quarantined → run the Recall Check (section 8) → gap-fill with minimum reads (see 4b) from handoffs → worklog tail → actual files until ≥95% → cross-check any auto-summary (conflict: memory files win; summary-only facts: promote them) → emit marker → present restored context → confirm the restored plan with the user before executing new work.
-- **M1 — Checkpoint:** rewrite SESSION-STATE.md atomically (full snapshot, not append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records a task DONE/CANCELLED must **seal it in the same write** — remove the Active row, append the Sealed line (section 4d H3). Append worklog only for major milestones (with Task ID). Emit `[MEM | CHECKPOINT]` inline.
+- **M1 — Checkpoint:** rewrite SESSION-STATE.md atomically (full snapshot, not append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records a task DONE/CANCELLED must **seal it in the same write** — remove the Active row, append the Sealed line (section 4d H3). Append worklog only for major milestones (with Task ID). Emit `[MEM | CHECKPOINT]` inline. Pada checkpoint besar, jalankan `scripts/audit-compliance.sh` bila tersedia — audit eksternal menangkap drift yang luput dari disiplin model (R6; insiden 2026-09-21).
 - **M2 — Emergency Compression:** on pressure signals, write SESSION-STATE NOW — CRITICAL items first, then a handoff draft if severe. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never the manifest.
 - **M3 — Handoff:** write `handoffs/YYYY-MM-DD-<slug>.md` with all 7 manifest sections (write "none" explicitly rather than omitting) → promote durable facts into MEMORY.md → rewrite SESSION-STATE to final state (Active table ACTIVE-only, this session's finished tasks sealed — 4d) → emit marker + state what was persisted and how the next session restores it.
 
@@ -433,6 +433,7 @@ Read the matching reference file when you need depth (all bilingual EN rules + I
 
 **Bundled scripts (deterministic):**
 - `scripts/bootstrap-sandbox.sh` — SATU perintah arming persistence layer utk sandbox reset-prone (seed kanonik `download/stellar-trail/` + pasang `.zscripts/dev.sh` boot hook + seed worklog hook R1 + scaffold memory/; modular `--with-explorer` / `--with-snapshot`; idempoten; self-locating; offline; dipanggil oleh Activation rule 14 di M0 — panduan: `references/environment-resilience.md` seksi 7)
+- `scripts/watcher.sh` — daemon auto-heal runtime v1.7 (v3.6.3, Task 62; dipasang bootstrap ke `.zscripts/`, dihidupkan dev.sh tiap boot + M0 per-sesi): loop 30 dtk — healthz explorer + auto-heal, `heal-skill.sh --check` berkala (location-aware), `repo-snapshot.sh --apply-auto` berkala, compliance sentinel (alarm bila worklog aktif tanpa checkpoint M1); kontrak `--ensure/--status/--stop` + PIDFILE (dibaca guardian explorer); laporan konsumer T46 F2: kontraknya lama dirujuk 4 komponen tapi filenya tak pernah dikirim
 - `scripts/enforce-gates.sh` — penegakan terminal track (artifact, lint, check-skill, check-worklog); lihat seksi 8b untuk pemetaan lengkap
 - `scripts/audit-compliance.sh` — audit kepatuhan protokol dari LUAR model (R3, v3.5.5): hygiene Active-table (H2), staleness SESSION-STATE vs worklog, sanity versi instalasi-vs-kanonik, hook R1 di tail worklog; verdict PASS/WARN/FAIL + exit code — alat audit mandiri user (laporan insiden 2026-09-21: non-compliance senyap 3 session hanya terdeteksi audit manual)
 - `scripts/snapshot-repo.sh` — refresh arsip restore platform (manual `--apply` atau berkala `--apply-auto` dengan debounce+cooldown) dengan verifikasi penuh; baca referensi di atas SEBELUM menjalankannya
@@ -456,7 +457,7 @@ ACTIVATION (turn pertama tiap session):
     (sandbox reset-prone — rule 14) → baru respons dengan marker
 
 EXECUTION (per turn — banner dulu, lalu marker = sub-judul, isi di baris di bawahnya):
-## 🌠 stellar-trail v3.6.2 — protokol aktif
+## 🌠 stellar-trail v3.6.3 — protokol aktif
 ## 🌠 FASE 1 — KLASIFIKASI
 Type __ · bahasa __ · kompleksitas __
 ## 🌠 FASE 2 — KLARIFIKASI

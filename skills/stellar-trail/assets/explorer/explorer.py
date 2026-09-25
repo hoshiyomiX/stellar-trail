@@ -163,6 +163,15 @@ def skill_info():
             info["version"] = json.load(f).get("version")
     except (OSError, ValueError):
         info["version"] = None
+    if info.get("version") is None:
+        # v1.2 (v3.6.3, Task 62): instalasi non-registry (npx/git) tidak
+        # membawa _meta.json — guardian dulu melaporkan version:null padahal
+        # assets/integrity.version ada di tree (laporan konsumer T46 F6).
+        try:
+            with open(os.path.join(SKILL_DIR, "assets", "integrity.version"), encoding="utf-8") as f:
+                info["version"] = f.read().strip() or None
+        except OSError:
+            pass
     try:
         info["heal_last"] = int(os.stat(HEAL_MARKER).st_mtime)
     except OSError:
