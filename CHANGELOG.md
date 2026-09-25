@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.6.5 — 2026-09-25
+
+Documentation-of-intent release — closes the two optional recommendations from the internal audit (Task 63, R5 + R6). No behavior change.
+
+- **R5 — controlled-copy annotation for `version_lt()` (audit finding F6).** The 8-line semver comparator is the package's only exact duplicate (byte-identical in `heal-skill.sh` and `vault-sync.sh`). Consolidation into a shared library is forbidden by the standalone doctrine (heal-skill must be able to repair vault-sync while vault-sync — and any shared library — is itself broken); instead both copies now carry an explicit controlled-copy comment: change both together, never merge. The implicit sync contract becomes a greppable one — a future edit to one copy can no longer drift silently from its sibling.
+- **R6 — standalone-helper doctrine documented (audit finding F5).** `references/environment-resilience.md` gains Appendix B stating the doctrine explicitly: every bundled script keeps its own tiny `log`/`say`/`ts`/`die`/`version_lt` helpers — the 3–8 duplicated lines per helper are the consciously paid price of failure-domain isolation (lesson of the 2026-09-22 incident, where an entire fallback chain died together because it shared its point of failure). Future audits — and consumer forensic reports, which have flagged this class too — can now cite the appendix instead of re-litigating the duplication from scratch. The playbook's table of contents lists the new appendix.
+- **Final audit with skill-creator (latest installed version, unchanged since the Task 63 audit — no newer release exists).** Structural: **7 PASS / 0 FAIL / 1 documented SKIP** (glm CLI absent for the description-optimization loop; the shipped description remains the 40/40 two-jury trigger-eval result from v3.5.5) — the Task 63 structural FAIL (missing TOC) is now PASS. Behavioral paired eval, hermetic fix for the Task 63 methodology limitation F8 (both arms now receive the same isolated fixture): with-skill **6/6 (100%)** vs baseline **4/6 (67%)**, delta **+0.33**; the two baseline failures are exactly the structural guarantees (protocol banner, phase markers) — the semantic quarantine behavior was improvised correctly even by the strong baseline model, confirming that the skill's marginal value is deterministic structure and auditability rather than raw correctness.
+- Verification: functional sim **13/13 PASS** (lint, a 6-case `version_lt` behavioral test on both copies, cross-references between the two annotations, appendix + TOC presence, four-way version alignment, manifest-vs-tree clean) + `enforce-gates --check-skill` 7/7. Two detector defects in the audit script itself were found and fixed during the audit (YAML multi-line description length normalization; `.zscripts/dev.sh` false-flagged as a ghost bundled reference — the same F11 class the Task 63 audit documented).
+
+
 ## v3.6.4 — 2026-09-25
 
 Release-file guard for the non-manifest release files — from the package's own internal audit (Task 63: orphan / dead-code / redundancy audit + skill-creator final audit; verdict: very clean package, the one structural blind spot sat outside it).

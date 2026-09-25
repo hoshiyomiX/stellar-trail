@@ -110,7 +110,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v3.6.4** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.5** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

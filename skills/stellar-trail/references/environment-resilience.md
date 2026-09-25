@@ -20,6 +20,7 @@ yang tertinggal: §8 ditambahkan v3.6.3 tapi tak pernah masuk daftar lama.)
 7. Consumer Sandbox Deployment — bootstrap-sandbox.sh (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; guard rilis watcher v1.8 v3.6.4 Task 64)
 8. Migrasi Versi Crash-Safe + Forensik M0 (v3.6.3, Task 62)
 Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
+Appendix B: Doktrin Standalone-Helper — duplikasi kecil lintas skrip = by-design (R6 audit T63)
 
 ## 1. Model Ancaman: Bagaimana Container Me-Rollback State Anda
 
@@ -365,3 +366,21 @@ justru membuktikan prinsipnya dari arah sebaliknya — backup yang restore-nya t
 menambah mode kegagalan alih-alih menguranginya, dan akhirnya dihapus. Semua intervensi infrastruktur
 harus eksplisit dan bisa di-undo; penjaga yang diam-diam mengubah platform adalah penjaga yang
 berubah jadi risiko.
+
+## Appendix B: Doktrin Standalone-Helper — Duplikasi Kecil Lintas Skrip = By-Design (R6 audit T63, sejak v3.6.5)
+
+> Direkam eksplisit agar audit masa depan tidak menandai ulang sebagai temuan redundansi
+> (F5 laporan audit T63; laporan forensik konsumer T46 menyinggung kelas yang sama).
+
+Setiap skrip dalam paket ini (`heal-skill.sh`, `vault-sync.sh`, `snapshot-repo.sh`,
+`bootstrap-sandbox.sh`, `watcher.sh`, `explorer.sh`, `dev.sh.template`) membawa helper
+kecilnya sendiri — varian `log`/`say`/`ts`/`die`/`version_lt`. Refactor DRY klasik akan
+menyatukan ini ke satu pustaka bersama; doktrin resilience paket ini justru MELARANGNYA:
+**setiap skrip harus tetap berdiri sendiri ketika saudaranya rusak atau terhapus**.
+`heal-skill.sh` harus bisa memperbaiki `vault-sync.sh` justru ketika `vault-sync.sh` — dan
+pustaka bersama apa pun — ikut rusak; pelajaran empiris insiden 2026-09-22, saat seluruh
+rantai fallback mati bersamaan karena berbagi titik-kegagalan yang sama. Duplikasi 3–8
+baris per helper adalah harga yang dibayar sadar untuk **isolasi domain-kegagalan**;
+konsolidasi lintas file TIDAK direkomendasikan. Satu-satunya duplikat eksak di paket ini
+adalah `version_lt()` (8 baris, `heal-skill.sh` ↔ `vault-sync.sh`) — dibiarkan dengan
+komentar salinan-terkendali di kedua lokasi (R5): ubah keduanya bersamaan, jangan satukan.

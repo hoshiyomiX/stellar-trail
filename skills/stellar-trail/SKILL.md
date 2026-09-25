@@ -58,20 +58,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 Respons ID:
 
-## 🌠 stellar-trail v3.6.4 — protokol aktif
+## 🌠 stellar-trail v3.6.5 — protokol aktif
 ## 🌠 FASE n — LABEL
 isi fase pada baris-baris di bawah marker
 [MEM | LABEL] isi singkat
 
 Respons EN (banner & label fase bahasa Inggris):
 
-## 🌠 stellar-trail v3.6.4 — protocol active
+## 🌠 stellar-trail v3.6.5 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEM | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.4) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.5) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -457,7 +457,7 @@ ACTIVATION (turn pertama tiap session):
     (sandbox reset-prone — rule 14) → baru respons dengan marker
 
 EXECUTION (per turn — banner dulu, lalu marker = sub-judul, isi di baris di bawahnya):
-## 🌠 stellar-trail v3.6.4 — protokol aktif
+## 🌠 stellar-trail v3.6.5 — protokol aktif
 ## 🌠 FASE 1 — KLASIFIKASI
 Type __ · bahasa __ · kompleksitas __
 ## 🌠 FASE 2 — KLARIFIKASI

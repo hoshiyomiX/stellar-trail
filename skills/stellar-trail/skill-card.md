@@ -20,6 +20,8 @@ Since v3.6.3 the package ships the runtime auto-heal daemon it always referenced
 
 Since v3.6.4 the runtime daemon gains a release-file guard born from the package's own internal audit (Task 63, 2026-09-25: zero orphan files, zero dead code, one intentional duplicate — the one structural blind spot sat outside the audit's clean package): skill-card.md and assets/integrity.sha256 are release files that live outside the SHA-256 manifest by construction (a manifest cannot hash itself, and the skill card is the version source for the manifest generator), so across four post-boot incidents (three deletions and one reversion to version-stale content, all traced via millisecond mtime forensics to the platform's skill-manager layer reconciling the install at boot) no bundled layer ever noticed — heal --check kept reporting CLEAN while a release file was missing or stale. watcher.sh v1.8 now checks existence and version freshness of both files on every 30-second cycle and auto-restores them from the freshest class-A vault whose card matches the shipped release version (anti-downgrade by construction: older and newer vault cards are both skipped, version upgrades remain the release process's job), with a 10-minute retry debounce and a silent no-op on consumer installs without a canonical copy. The same release refreshes the resilience playbook's table of contents to the skill-creator heading standard (the old one-line TOC had silently missed the section 8 added in v3.6.3) and annotates its one out-of-package script citation as a project-scope drill receipt.
 
+Since v3.6.5 the package documents its one intentional duplication instead of refactoring it away: version_lt() — the 8-line semver comparator — exists byte-identical in heal-skill.sh and vault-sync.sh, and both copies now carry a controlled-copy annotation (change both together, never consolidate into a shared library), while the resilience playbook gains an appendix stating the standalone-helper doctrine explicitly: every bundled script keeps its own tiny log/say/ts/die/version_lt helpers so heal-skill can repair vault-sync even when vault-sync — and any shared library — is itself broken, the 3–8 duplicated lines per helper being the consciously paid price of failure-domain isolation (the 2026-09-22 incident killed an entire fallback chain precisely because it shared its point of failure). The annotations exist so future audits and consumer forensic reports read the duplication as documented doctrine, not as drift to be flagged.
+
 This skill is ready for commercial/non-commercial use.
 
 ## Publisher:
@@ -87,7 +89,7 @@ Mitigation: v3.5.5 layers defenses that do not depend on model discipline — an
 
 ## Skill Version(s):
 
-3.6.4 (source: release metadata)
+3.6.5 (source: release metadata)
 
 ## Ethical Considerations:
 

@@ -52,6 +52,10 @@ card_version() {
     grep -A3 -i '^## *Skill Version' "$1/skill-card.md" 2>/dev/null \
         | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
 }
+# SALINAN TERKENDALI (R5 audit T63, sejak v3.6.5): salinan eksak dari
+# heal-skill.sh version_lt() — doktrin standalone-helper (Appendix B
+# environment-resilience.md) MELARANG konsolidasi ke pustaka bersama;
+# ubah KEDUANYA bersamaan.
 version_lt() {  # $1 < $2 pada pola x.y.z (semver longgar)
     local a1=0 a2=0 a3=0 b1=0 b2=0 b3=0
     IFS=. read -r a1 a2 a3 <<< "${1:-0}"

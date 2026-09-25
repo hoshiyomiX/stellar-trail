@@ -388,6 +388,10 @@ PY
 # Info usia (v3.5.3, edge Task 36): instalasi BERSIH vs manifest sendiri
 # tapi kanonik lebih baru → penangkap restore-basi yang lolos --check.
 # Remedy tetap disengaja (--force) — disiplin heal ≠ upgrade (D22).
+# SALINAN TERKENDALI (R5 audit T63, sejak v3.6.5): duplikat eksak fungsi
+# version_lt di bawah ada di vault-sync.sh — doktrin standalone-helper
+# (Appendix B environment-resilience.md) MELARANG konsolidasi ke pustaka
+# bersama; ubah KEDUANYA bersamaan.
 # ---------------------------------------------------------------------------
 version_lt() {  # $1 < $2 pada pola x.y.z (semver longgar)
     local a1=0 a2=0 a3=0 b1=0 b2=0 b3=0
