@@ -3,6 +3,12 @@
 # audit-compliance.sh — AUDIT KEPATUHAN PROTOCOL stellar-trail DARI LUAR MODEL
 # (R3, v3.5.5 — lahir dari laporan insiden 2026-09-21: 3 session non-compliance
 #  senyap, hanya terdeteksi audit manual user)
+# v3.6.2 (Task 60, 2026-09-25 — laporan konsumer fresh-install): C1/C5 kini
+#  membawa HINT BOOTSTRAP satu baris — di instalasi CLI-only tanpa persistence
+#  layer, C1 FAIL (memory/ absen) + C5 WARN (hook R1 belum di-append) adalah
+#  state EXPECTED pasca-install, bukan pelanggaran; hint mengarahkan ke
+#  scripts/bootstrap-sandbox.sh (memory consent-gated — SKILL.md §4b) agar
+#  konsumer fresh-install tidak mengira auditnya rusak.
 #
 # FILOSOFI: pelanggaran senyap karena TIDAK ADA sinyal alarm — respons tanpa
 #   marker tidak menimbulkan error apa pun. Skrip ini memberi user satu
@@ -58,7 +64,7 @@ say "[audit-compliance] root: $ROOT"
 SS="$ROOT/memory/SESSION-STATE.md"
 WL="$ROOT/worklog.md"
 if [ -f "$SS" ]; then res PASS "C1 memory" "SESSION-STATE.md ada ($(wc -l < "$SS") baris)"
-else res FAIL "C1 memory" "memory/SESSION-STATE.md TIDAK ADA — protokol memory tanpa fondasi"; fi
+else res FAIL "C1 memory" "memory/SESSION-STATE.md TIDAK ADA — protokol memory tanpa fondasi — fresh install? bash scripts/bootstrap-sandbox.sh (memory consent-gated — SKILL.md §4b)"; fi
 
 # --- C2: Active-table hygiene (H2) ----------------------------------------------
 if [ -f "$SS" ]; then
@@ -113,7 +119,7 @@ if [ -f "$WL" ]; then
     if tail -50 "$WL" | grep -q '⚡ACTIVATE'; then
         res PASS "C5 hook-R1" "pemicu aktivasi ada di tail worklog"
     else
-        res WARN "C5 hook-R1" "baris ⚡ACTIVATE tidak di 50 baris terakhir worklog — hook R1 belum di-append (v3.5.5+)"
+        res WARN "C5 hook-R1" "baris ⚡ACTIVATE tidak di 50 baris terakhir worklog — hook R1 belum di-append (v3.5.5+) — fresh install? bash scripts/bootstrap-sandbox.sh"
     fi
 fi
 

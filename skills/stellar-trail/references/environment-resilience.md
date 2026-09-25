@@ -128,9 +128,10 @@ bash scripts/heal-skill.sh --dir <path> <mode>   # target instalasi stellar-trai
   (`STELLAR_RESTORE_TAR`, default `/home/sync/repo.tar`, subtree sesuai **layout aktual**
   instalasi) → **saudara konvensi** (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail`,
   v3.5.7 — `clawhub update --force` hanya menyegarkan owner-scoped, maka flat yang dibaca
-  platform kini bisa pulih dari saudaranya yang segar) → hint manual `clawhub update
-  <lock-key> --force` (butuh login; lock key dibaca dari `.clawhub/lock.json` instalasi,
-  bukan hardcoded). Bila semua sumber lokal gagal, skrip **gagal keras**: tanpa manifest
+  platform kini bisa pulih dari saudaranya yang segar) → hint manual pasang ulang
+  via GitHub git-clone + verify (v3.6.2, Task 60 — rute terbukgi Task 59, tanpa
+  login; `clawhub update <lock-key> --force` hanya alternatif BILA registry pulih:
+  suspended 2026-09-24, appeal pending). Bila semua sumber lokal gagal, skrip **gagal keras**: tanpa manifest
   DAN tanpa sumber, `--check` exit 1 dengan pesan eksplisit (sejak v3.5.2 — sebelumnya
   WARN senyap exit 0) — verifikasi yang mustahil tidak pernah menyamar jadi sukses.
 - **Version-assert anti-timpa-baru (v3.5.4)**: kandidat sumber yang versinya lebih TUA dari
@@ -140,7 +141,7 @@ bash scripts/heal-skill.sh --dir <path> <mode>   # target instalasi stellar-trai
   total → versi tertinggi yang tersedia.
 - **Cross-check lock clawhub (v3.5.7, §6.1 insiden konsumer 2026-09-22)**: versi skill di
   `.clawhub/lock.json` dibandingkan vs disk — lock > disk = verdict **DOWNGRADED** + hint
-  `clawhub update`, dan `--check` exit ≠ 0 sampai tertutup; pasca-heal masih < lock = GAGAL
+  pasang ulang (v3.6.2: GitHub; dulu `clawhub update`), dan `--check` exit ≠ 0 sampai tertutup; pasca-heal masih < lock = GAGAL
   exit 1. `lock.json` TIDAK ikut di-restore arsip `skills/` → jangkar out-of-band termurah:
   rollback arsip-restore terdeteksi BAHKAN saat semua sumber lokal mati — jebakan false-CLEAN
   "manifest-vs-diri-sendiri" (sehat-tapi-tua) tertutup. `--status` menampilkan baris `lock:`.
@@ -204,18 +205,21 @@ Checks: **C1** memory/SESSION-STATE.md ada · **C2** hygiene Active-table (H2 �
    arsip restore; lalu jalankan L1 `--apply` agar sumber ikut segar; `git status` untuk file ekstra
    sisa restore (rsync-heal menghapus ekstra di dalam skill dir, bukan seluruh proyek).
 3. **Kanonik ikut hilang** ⇒ heal dari arsip restore (repo.tar membawa `skills/stellar-trail`);
-   bila arsip pun basi ⇒ `clawhub update <lock-key> --force` setelah re-login — lock key dilihat
-   dari `.clawhub/lock.json` (instalasi flat: `stellar-trail`; owner-scoped:
-   `@hoshiyomix/stellar-trail`; hint akurat juga tercetak otomatis oleh heal-skill). Ingat:
-   `~/.config` tidak persisten lintas restart — token login harus di-set ulang.
+   bila arsip pun basi ⇒ pasang ulang via GitHub git-clone + verify (v3.6.2, Task 60 —
+   rute terbukgi Task 59, tanpa login):
+   `git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/st-src && rm -rf <skills-dir>/stellar-trail && cp -r /tmp/st-src/skills/stellar-trail <skills-dir>/stellar-trail && cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256`
+   (hint lengkap tercetak otomatis oleh heal-skill — lock key aktual ikut terbawa).
+   `clawhub update <lock-key> --force` hanya bila registry pulih (suspended 2026-09-24,
+   appeal pending; `~/.config` tidak persisten lintas restart — token login harus di-set ulang).
 3b. **`clawhub update --force` hanya menyegarkan lokasi owner-scoped** (`skills/@owner/stellar-trail`)
    — instalasi flat yang dibaca platform TIDAK tersentuh (temuan empiris insiden konsumer
-   2026-09-22). Setelah update, jalankan `bash skills/stellar-trail/scripts/heal-skill.sh --check`
-   — flat sembuh otomatis dari **saudara konvensi**. **Re-arm satu baris pasca-insiden rollback**:
-   `clawhub update <lock-key> --force && bash skills/stellar-trail/scripts/heal-skill.sh --check &&
-   bash skills/stellar-trail/scripts/vault-sync.sh --apply` (update registry → heal flat dari
-   saudara → isi ulang vault). Bila banner versi di respons agent masih tua setelah semua ini,
-   lihat Known Risks skill-card: failure mode aktivasi continuation (rule 11).
+   2026-09-22; tetap relevan bila registry pulih). Setelah update, jalankan
+   `bash skills/stellar-trail/scripts/heal-skill.sh --check` — flat sembuh otomatis dari
+   **saudara konvensi**. **Re-arm satu baris pasca-insiden rollback (rute GitHub, v3.6.2)**:
+   `git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/st-src && rm -rf skills/stellar-trail && cp -r /tmp/st-src/skills/stellar-trail skills/stellar-trail && bash skills/stellar-trail/scripts/heal-skill.sh --check && bash skills/stellar-trail/scripts/vault-sync.sh --apply`
+   (pasang ulang terverifikasi → heal flat → isi ulang vault). Bila banner versi di respons
+   agent masih tua setelah semua ini, lihat Known Risks skill-card: failure mode aktivasi
+   continuation (rule 11).
 4. **Tidak terjadi** ⇒ cukup pastikan L1 segar bila hendak berhenti/istirahat.
 5. **memory/ ikut hilang** (reset total) ⇒ pulihkan dari handoff terbaru di mount persistent;
    bila tidak ada, jalankan cold-start protocol (Part II seksi 2) — jangan pernah mengklaim
@@ -227,7 +231,8 @@ Checks: **C1** memory/SESSION-STATE.md ada · **C2** hygiene Active-table (H2 �
   adalah intervensi terhadap infrastruktur; hanya sah bila user yang memiliki environment memintanya.
 - `skills/` dulunya konvensi pengecualian packer platform; sejak v3.3.0 arsip L1 menyertakan
   `skills/stellar-trail` via append bedah, dan kanal pemulihannya berlapis: arsip itu (L1) →
-  `heal-skill.sh` dari kanonik/arsip (L2) → paket `.skill` + `clawhub update --force` (registry).
+  `heal-skill.sh` dari kanonik/arsip (L2) → pasang ulang git-clone GitHub (L3, v3.6.2 —
+  paket `.skill` / registry clawhub hanya bila registry pulih: suspended 2026-09-24).
 - Skrip ini menangani ARSIP RESTORE dan INSTALASI SKILL, bukan menggantikan `git`: commit tetap
   sumber kebenaran untuk diff/status; snapshot hanya untuk pemulihan bencana.
 

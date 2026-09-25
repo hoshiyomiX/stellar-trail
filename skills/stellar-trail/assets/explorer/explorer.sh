@@ -21,6 +21,15 @@
 #   restart server bila explorer.py berubah (UI dibaca per-request — cukup
 #   copy). Hidup-tapi-basi kini ikut diperbaiki, bukan hanya mati-dihidupkan.
 #
+# v1.3 (Task 60, 2026-09-25): AUTO-DEPLOY — launcher yang dijalankan
+#   langsung dari POHON INSTALASI (skills/stellar-trail/assets/explorer/)
+#   kini mendeteksi layoutnya, menyalin diri ke <root>/.zscripts/, lalu
+#   re-exec dari sana. Sebelumnya: PROJECT jatuh ke .../assets -> explorer.py
+#   open(PIDFILE) pada .../assets/.zscripts/explorer.pid (dir tak pernah
+#   dibuat) -> FileNotFoundError -> server mati sebelum bind (HTTP 000),
+#   plus explorer.log tertulis di pohon instalasi (heal drift ekstra).
+#   (Laporan konsumer sandbox lain, Installation & Explorer Report v3.6.1.)
+#
 # PERINTAH:
 #   bash explorer.sh --ensure   # idempoten: segarkan + hidupkan bila perlu
 #   bash explorer.sh --status   # cek kesehatan + kesegaran + log tail
@@ -30,6 +39,8 @@
 # bekerja di sandbox manapun tanpa hardcode; STELLAR_PROJECT diekspor utk
 # explorer.py. (Perbaikan Task 56: sebelumnya ZDIR dihitung SEBELUM PROJECT
 # didefinisikan → "/.zscripts" — bug ordering di salinan paket.)
+# CATATAN v1.3: bila "induk ZDIR" bukan root proyek (kasus pohon instalasi
+# di atas), auto_deploy() di bawah mengambil alih SEBELUM variabel dipakai.
 ZDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$(dirname "$ZDIR")"
 export STELLAR_PROJECT="$PROJECT"
@@ -40,6 +51,53 @@ PIDFILE="$ZDIR/explorer.pid"
 PORT=3000
 HEALTH="http://127.0.0.1:${PORT}/healthz"
 CANON_EXP="$PROJECT/download/stellar-trail/assets/explorer"
+
+# --- v1.3 (Task 60): AUTO-DEPLOY dari pohon instalasi ------------------------
+# Dijalankan SEBELUM variabel di atas dipakai untuk efek samping apa pun.
+# Layout */assets/explorer = launcher hidup di pohon instalasi (bukan .zscripts):
+# proyek root sebenarnya dicari ke atas (ancestor yang memuat skills/ —
+# mendukung flat skills/stellar-trail/... maupun owner-scoped
+# skills/@owner/stellar-trail/...), seluruh aset disalin ke <root>/.zscripts/
+# (idempoten: hanya bila beda), lalu re-exec dari sana — sehingga PID/log
+# selalu tertulis di .zscripts/ dan POHON INSTALASI TERSISA MURNI (nol drift).
+# Anti-loop: hanya layout assets yang memicu (target re-exec = .zscripts,
+# layout berbeda) + guard env STELLAR_EXPLORER_AUTODEPLOYED.
+auto_deploy() {
+    case "$ZDIR" in */assets/explorer) ;; *) return 1 ;; esac
+    if [ -n "${STELLAR_EXPLORER_AUTODEPLOYED:-}" ]; then
+        echo "[explorer] AUTO-DEPLOY: loop terdeteksi (pasca re-exec masih layout assets) — berhenti; salin manual assets/explorer/ ke <proyek>/.zscripts/" >&2
+        exit 1
+    fi
+    local p="$ZDIR" root=""
+    while [ "$p" != "/" ]; do
+        p="$(dirname "$p")"
+        [ -d "$p/skills" ] && { root="$p"; break; }
+    done
+    if [ -z "$root" ]; then
+        echo "[explorer] AUTO-DEPLOY: root proyek tak ditemukan (tak ada ancestor bermuat skills/) — salin manual assets/explorer/ ke <proyek>/.zscripts/ lalu jalankan dari sana" >&2
+        exit 1
+    fi
+    local dep="$root/.zscripts" f changed=0
+    mkdir -p "$dep/explorer-ui" || { echo "[explorer] AUTO-DEPLOY: gagal mkdir $dep" >&2; exit 1; }
+    for f in explorer.sh explorer.py explorer-ui/index.html; do
+        if ! cmp -s "$ZDIR/$f" "$dep/$f" 2>/dev/null; then
+            cp -p "$ZDIR/$f" "$dep/$f" || { echo "[explorer] AUTO-DEPLOY: gagal salin $f" >&2; exit 1; }
+            changed=1
+        fi
+    done
+    # server hidup dari salinan lama? matikan bila explorer.py baru saja
+    # disegarkan agar --ensure re-exec yang menstart ulang; arg lain tak
+    # membunuh apa pun (--status/--stop tetap read-only terhadap proses)
+    if [ "$changed" = 1 ] && [ "${1:---ensure}" = "--ensure" ] \
+        && pgrep -f "$dep/explorer.py" >/dev/null 2>&1; then
+        pkill -f "$dep/explorer.py" 2>/dev/null
+        sleep 1
+    fi
+    echo "[explorer] AUTO-DEPLOY: diluncurkan dari pohon instalasi -> deploy $dep ($([ "$changed" = 1 ] && echo disegarkan || echo sudah-sinkron)), re-exec dari sana"
+    export STELLAR_EXPLORER_AUTODEPLOYED=1
+    exec bash "$dep/explorer.sh" "$@"
+}
+auto_deploy "$@"
 
 alive() { curl -fsS -m 2 "$HEALTH" >/dev/null 2>&1; }
 

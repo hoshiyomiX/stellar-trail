@@ -58,20 +58,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 Respons ID:
 
-## 🌠 stellar-trail v3.6.1 — protokol aktif
+## 🌠 stellar-trail v3.6.2 — protokol aktif
 ## 🌠 FASE n — LABEL
 isi fase pada baris-baris di bawah marker
 [MEM | LABEL] isi singkat
 
 Respons EN (banner & label fase bahasa Inggris):
 
-## 🌠 stellar-trail v3.6.1 — protocol active
+## 🌠 stellar-trail v3.6.2 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEM | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.1) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.2) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -437,7 +437,7 @@ Read the matching reference file when you need depth (all bilingual EN rules + I
 - `scripts/audit-compliance.sh` — audit kepatuhan protokol dari LUAR model (R3, v3.5.5): hygiene Active-table (H2), staleness SESSION-STATE vs worklog, sanity versi instalasi-vs-kanonik, hook R1 di tail worklog; verdict PASS/WARN/FAIL + exit code — alat audit mandiri user (laporan insiden 2026-09-21: non-compliance senyap 3 session hanya terdeteksi audit manual)
 - `scripts/snapshot-repo.sh` — refresh arsip restore platform (manual `--apply` atau berkala `--apply-auto` dengan debounce+cooldown) dengan verifikasi penuh; baca referensi di atas SEBELUM menjalankannya
 - `scripts/vault-sync.sh` — penyegaran skill-vault kelas-A (v3.5.4, adopsi Task 35/41): salin kanonik → `/home/sync/skill-vault` + `upload/skill-vault` dengan anti-timpa-baru simetris + verifikasi manifest; `--apply` saat rilis (write yang sama dengan publish), `--check` untuk drill berkala
-- `scripts/heal-skill.sh` — self-heal instalasi skill ini (verifikasi manifest SHA-256 + perbaikan multi-sumber: kanonik → vault kelas-A → arsip restore → registry); lihat seksi 4c
+- `scripts/heal-skill.sh` — self-heal instalasi skill ini (verifikasi manifest SHA-256 + perbaikan multi-sumber: kanonik → vault kelas-A → arsip restore → saudara konvensi → pasang ulang via GitHub git-clone + verify [v3.6.2; registry clawhub hanya alternatif bila pulih]); lihat seksi 4c
 
 **Catatan exec bit (sejak v3.2.0):** file hasil `clawhub install`/`update` dari registry datang tanpa exec bit (0644) — normalisasi keamanan platform, bukan defect, dan ter-reset lagi pada tiap update. Karena itu semua invokasi protokol selalu berbentuk `bash scripts/<nama>.sh` / `python3 <nama>.py` (exec-bit-independent by design); `chmod +x` hanya opsional untuk paritas kosmetik dengan kanonik. Hasil `heal-skill.sh` pun sengaja 0644 — identik dengan perilaku registry, satu perilaku di semua jalur.
 
@@ -456,7 +456,7 @@ ACTIVATION (turn pertama tiap session):
     (sandbox reset-prone — rule 14) → baru respons dengan marker
 
 EXECUTION (per turn — banner dulu, lalu marker = sub-judul, isi di baris di bawahnya):
-## 🌠 stellar-trail v3.6.1 — protokol aktif
+## 🌠 stellar-trail v3.6.2 — protokol aktif
 ## 🌠 FASE 1 — KLASIFIKASI
 Type __ · bahasa __ · kompleksitas __
 ## 🌠 FASE 2 — KLARIFIKASI

@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # ============================================================================
 # heal-skill.sh — SELF-HEAL INSTALASI stellar-trail (bundled sejak v3.3.0)
+# v3.6.2 (Task 60, 2026-09-25 — laporan konsumer sandbox lain, v3.6.1
+#        fresh-install + explorer): FALLBACK MANUAL TERAKHIR = GITHUB.
+#        Rute lama `clawhub update --force` adalah dead route sejak registry
+#        menyuspend akun publisher (Task 58, 2026-09-24 — appeal pending):
+#        konsumer yang kehabisan semua sumber lokal mendapat instruksi yang
+#        mustahil dijalankan. Kini hint manual = pasang ulang git-clone +
+#        verify (rute terbukgi Task 59: 25/25, tanpa login, nol eksekusi
+#        remote); clawhub update tetap dicetak sebagai ALTERNATIF KONDISIONAL
+#        bila registry pulih. Vault self-arm hint (v3.5.7) tidak berubah.
 # v3.5.8: SOURCE SELF-VERIFY (temuan audit pasca-reset 2026-09-22, sesi 26):
 #        kandidat sumber yang membawa manifest rilis WAJIB lolos verifikasi
 #        internal (pohon ≡ manifest-nya sendiri) sebelum dipilih — sumber
@@ -72,8 +81,10 @@
 #   Lingkungan container yang bisa di-reset dapat memulihkan skills/ dari
 #   arsip restore / salinan cache LAMA — instalasi skill terdegradasi
 #   diam-diam: versi _meta.json mundur, file hilang, aset lenyap.
-#   Memulihkannya biasanya butuh `clawhub update --force` + login registry
-#   (yang juga ikut hilang saat ~/.config ter-reset saat restart).
+#   Memulihkannya: heal multi-sumber dari lokal (kanonik → vault kelas-A →
+#   arsip restore → saudara konvensi); bila SEMUA sumber lokal habis →
+#   pasang ulang via GitHub git-clone + verify (v3.6.2 — rute terbukgi
+#   Task 59; clawhub update --force hanya bila registry pulih).
 #
 # SOLUSI — empat kemampuan dalam satu skrip (opt-in, 100% lokal bila mungkin):
 #   1. VERIFIKASI: manifest SHA-256 (assets/integrity.sha256 + integrity.version,
@@ -92,8 +103,10 @@
 #           v3.5.7 — clawhub update hanya menyegarkan owner-scoped)
 #        d. subtree instalasi di arsip restore sesuai layout aktual
 #           (STELLAR_RESTORE_TAR, default /home/sync/repo.tar)
-#        e. hint terakhir: clawhub update <lock-key> --force (butuh login;
-#           lock key dibaca dari .clawhub/lock.json — bukan hardcoded)
+#        e. hint terakhir (v3.6.2, Task 60): pasang ulang via GitHub
+#           git-clone + verify (rute terbukgi Task 59; clawhub update
+#           <lock-key> --force hanya dicatat sbg alternatif BILA registry
+#           pulih — suspended 2026-09-24, appeal pending)
 #   3. NORMALISASI metadata: _meta.json & .clawhub/origin.json dipatch
 #      versinya agar konsisten dgn konten hasil heal — identitas install
 #      clawhub (ownerId, installedAt, fingerprint) tidak pernah ditimpa;
@@ -162,9 +175,11 @@ sumber perbaikan (v3.5.7 — pemilihan berbasis versi, berlabel): env STELLAR_CA
 (/home/sync/skill-vault · upload/skill-vault — diisi scripts/vault-sync.sh) →
 platform default → saudara konvensi (skills/stellar-trail ↔ skills/@owner/
 stellar-trail, v3.5.7) → arsip restore (STELLAR_RESTORE_TAR) → hint manual
-clawhub update <lock-key> --force. Sumber lebih tua dari instalasi DILEWATI
+pasang ulang via GitHub git-clone + verify (v3.6.2, Task 60 — rute terbukgi
+Task 59; clawhub update --force hanya bila registry pulih: suspended
+2026-09-24). Sumber lebih tua dari instalasi DILEWATI
 (anti-timpa-baru). Cross-check lock clawhub: lock > disk = DOWNGRADED + hint
-update; pasca-heal masih < lock = GAGAL exit 1. Vault kelas-A kosong → hint
+pasang ulang; pasca-heal masih < lock = GAGAL exit 1. Vault kelas-A kosong → hint
 self-arm vault-sync --apply. pin TIDAK mempengaruhi verdict drift / exit code.
 HELP
     exit 0;;
@@ -237,20 +252,26 @@ find_root() {  # v3.5.3: ancestor terdekat dari SKILL_DIR yang punya
     return 1
 }
 
-clawhub_hint() {  # hint update memakai lock key AKTUAL instalasi ini
-    local root rel key
+heal_hint() {  # v3.6.2 (Task 60): fallback manual terakhir = pasang ulang via
+               # GitHub git-clone + verify — rute terbukgi Task 59 (25/25,
+               # tanpa login, nol eksekusi remote). clawhub update --force
+               # hanya dicetak sbg alternatif BILA registry pulih (suspended
+               # 2026-09-24, appeal pending), memakai lock key AKTUAL
+               # instalasi ini (dibaca dari .clawhub/lock.json).
+    local root rel key claw="clawhub update @hoshiyomix/stellar-trail --force"
+    local target="${SKILL_DIR:-skills/stellar-trail}"
     if root="$(find_root)"; then
         case "$SKILL_DIR" in
             "$root"/skills/*)
                 rel="${SKILL_DIR#"$root"/skills/}"
                 for key in "$rel" "stellar-trail" "@hoshiyomix/stellar-trail"; do
                     grep -Fq "\"$key\"" "$root/.clawhub/lock.json" 2>/dev/null || continue
-                    echo "clawhub update $key --force"; return 0
+                    claw="clawhub update $key --force"; break
                 done
                 ;;
         esac
     fi
-    echo "clawhub update @hoshiyomix/stellar-trail --force"
+    echo "git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/st-src && rm -rf '$target' && cp -r /tmp/st-src/skills/stellar-trail '$target' && cd '$target' && sha256sum -c assets/integrity.sha256 [rute GitHub terbukgi · $claw hanya bila registry pulih]"
 }
 
 lock_version() {  # v3.5.7 §6.1: versi skill INI di .clawhub/lock.json
@@ -442,7 +463,7 @@ detect_drift() {
         lv="$(lock_version)"; iv="$vm"; [ -z "$iv" ] && iv="$(release_version)"
         if [ -n "$lv" ] && [ -n "$iv" ] && version_lt "$iv" "$lv"; then
             DOWNGRADED=1; DRIFT=1
-            DRIFT_DESC="${DRIFT_DESC:+$DRIFT_DESC; }DOWNGRADED (lock $lv > disk $iv) — jalankan: $(clawhub_hint)"
+            DRIFT_DESC="${DRIFT_DESC:+$DRIFT_DESC; }DOWNGRADED (lock $lv > disk $iv) — jalankan: $(heal_hint)"
         fi
         return 0
     fi
@@ -498,7 +519,7 @@ detect_drift() {
     [ "$DAMAGED"  -gt 0 ] && parts="$parts ${DAMAGED} rusak ·"
     [ "$EXTRA"    -gt 0 ] && parts="$parts ${EXTRA} ekstra ·"
     [ "$VDRIFT"   -eq 1 ] && parts="$parts versi _meta ${vm} != rilis ${rv} ·"
-    [ "$DOWNGRADED" -eq 1 ] && parts="$parts DOWNGRADED (lock ${lv} > disk ${iv}) — jalankan: $(clawhub_hint) ·"
+    [ "$DOWNGRADED" -eq 1 ] && parts="$parts DOWNGRADED (lock ${lv} > disk ${iv}) — jalankan: $(heal_hint) ·"
     if [ -n "$parts" ]; then DRIFT=1; DRIFT_DESC="${parts% ·}"; fi
 }
 
@@ -664,7 +685,7 @@ source_desc() {
     if [ -n "$REAL_SRC" ]; then
         echo "${SRC_LABEL:-kanonik} — $REAL_SRC"
     else
-        echo "(tidak ditemukan — fallback manual: $(clawhub_hint))"
+        echo "(tidak ditemukan — fallback manual: $(heal_hint))"
     fi
 }
 
@@ -674,12 +695,12 @@ source_desc() {
 # ---------------------------------------------------------------------------
 do_heal() {
     command -v rsync >/dev/null 2>&1 \
-        || { say "GAGAL: rsync tidak tersedia — fallback manual: $(clawhub_hint)"; return 1; }
+        || { say "GAGAL: rsync tidak tersedia — fallback manual: $(heal_hint)"; return 1; }
     resolve_source
     if [ "$?" -ne 0 ]; then
         local pnote=""
         [ -n "$POISONED" ] && pnote=" — sumber racun (pohon ≠ manifest) dilewati: ${POISONED%; }"
-        say "GAGAL: tidak ada sumber sehat yang lolos version-assert (kanonik/vault/arsip restore tidak ada atau lebih tua dari instalasi)${pnote} — fallback manual: $(clawhub_hint) (butuh login)"
+        say "GAGAL: tidak ada sumber sehat yang lolos version-assert (kanonik/vault/arsip restore tidak ada atau lebih tua dari instalasi)${pnote} — fallback manual: $(heal_hint)"
         return 1
     fi
     mkdir -p "$SKILL_DIR" 2>/dev/null || { say "GAGAL: tidak bisa menulis ke $SKILL_DIR"; return 1; }
@@ -783,7 +804,7 @@ status)
     echo "=== STELLAR-TRAIL SELF-HEAL ==="
     echo "skill dir : $SKILL_DIR"
     LAYOUT_REL="$(install_rel)"
-    echo "layout    : ${LAYOUT_REL:-(bukan instalasi skills/ — salinan sumber)} · hint: $(clawhub_hint)"
+    echo "layout    : ${LAYOUT_REL:-(bukan instalasi skills/ — salinan sumber)} · hint: $(heal_hint)"
     echo "versi     : rilis=$(release_version || echo '?') · _meta=$(meta_version "$SKILL_DIR" || echo '-')"
     _lv="$(lock_version)"
     if [ -n "$_lv" ]; then echo "lock      : v$_lv"; else echo "lock      : (tidak tercatat di lock clawhub)"; fi
@@ -807,10 +828,10 @@ status)
     [ -n "$TAR_TMP" ] && rm -rf "$TAR_TMP"; TAR_TMP=""
     detect_drift
     if [ "$MMISS" -eq 1 ] && [ "$SRC_BASED" -ne 1 ]; then
-        echo "verdict   : TIDAK TERVERIFIKASI (tanpa manifest & tanpa sumber pembanding) — heal --force dari sumber, pasang manifest rilis, atau pasang ulang: $(clawhub_hint)"
+        echo "verdict   : TIDAK TERVERIFIKASI (tanpa manifest & tanpa sumber pembanding) — heal --force dari sumber, pasang manifest rilis, atau pasang ulang: $(heal_hint)"
     elif [ "$DOWNGRADED" -eq 1 ]; then
         echo "verdict   : DOWNGRADED — $DRIFT_DESC"
-        echo "aksi      : bash scripts/heal-skill.sh --check (heal dari sumber lokal ≥ lock) atau $(clawhub_hint)"
+        echo "aksi      : bash scripts/heal-skill.sh --check (heal dari sumber lokal ≥ lock) atau $(heal_hint)"
     elif [ "$DRIFT" -eq 1 ]; then
         echo "verdict   : DRIFT — $DRIFT_DESC"
         echo "aksi      : bash scripts/heal-skill.sh --check"
@@ -841,7 +862,7 @@ check|force)
         # v3.5.2 LOUD-FAIL: tanpa manifest DAN tanpa sumber, verifikasi MUSTAHIL.
         # Dulu WARN + exit 0 (senyap di mata boot hook/watcher); kini exit 1
         # supaya kegagalan terlihat dan diagnostik mengarah ke solusi benar.
-        say "GAGAL: manifest instalasi hilang & tidak ada sumber pembanding — verifikasi MUSTAHIL; sediakan kanonik (STELLAR_CANONICAL / <proyek>/download/stellar-trail) atau pasang ulang: $(clawhub_hint)"
+        say "GAGAL: manifest instalasi hilang & tidak ada sumber pembanding — verifikasi MUSTAHIL; sediakan kanonik (STELLAR_CANONICAL / <proyek>/download/stellar-trail) atau pasang ulang: $(heal_hint)"
         exit 1
     fi
     if [ "$DRIFT" -eq 0 ]; then

@@ -37,19 +37,31 @@ Fakta kunci:
 | File | Peran |
 |------|-------|
 | `explorer.py` | Server stdlib Python v1.1 (ThreadingHTTPServer); /api/files walk depth-4, parse task dari worklog.md, **blok skill guardian** (versi stellar-trail + heal terakhir + status watcher), serve file dgn guard path realpath (hanya dalam ROOTS) plus **`?dl=1`** untuk mode attachment (unduhan paksa); PIDFILE; env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
-| `explorer.sh` | Launcher --ensure/--status/--stop; guard Next.js (package.json menang); double-fork orphan; env `STELLAR_PROJECT` |
+| `explorer.sh` | Launcher --ensure/--status/--stop; guard Next.js (package.json menang); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — dijalankan dari pohon instalasi (`skills/stellar-trail/assets/explorer/`), launcher mendeteksi layout, menyalin diri ke `<root>/.zscripts/`, lalu re-exec dari sana (PID/log selalu di .zscripts/, pohon instalasi nol drift; anti-loop via guard env + deteksi layout) |
 | `explorer-ui/index.html` | UI MD3 Expressive adaptif v3.0 (compact/medium/expanded/large/XL + landscape; list-detail ≥1240px; tema gelap/terang **adaptif** — ikut `prefers-color-scheme` + toggle persist; zero-dependency) — fitur v3.0: pencarian live (debounce 200 ms), filter tipe dinamis dengan hitungan, sort kolom nama/ukuran/waktu dengan toggle arah, copy-path per item, render bertahap 100 item (IntersectionObserver + tombol Muat lagi), state loading/kosong/error; fitur v2.2: kartu Guardian, quick-download per kartu, waktu relatif, refresh saat fokus |
 | `dev.sh.template` | Template hook boot v2: tidy download/ -> archive/, fullstack guard, heal skill stellar-trail, ensure watcher + explorer, refresh repo.tar berkala |
 
 ## 3. Langkah Deploy
 
 ### Kasus A — container baru (belum ada .zscripts/dev.sh)
+
+> **Cara termudah sejak v1.3 (v3.6.2): AUTO-DEPLOY.** Jalankan langsung dari
+> pohon instalasi — `bash skills/stellar-trail/assets/explorer/explorer.sh --ensure`
+> — launcher mendeteksi layout instalasi, menyalin diri + explorer.py + UI ke
+> `<proyek>/.zscripts/`, lalu re-exec dari sana. Tidak ada langkah manual,
+> tidak ada tulisan di pohon instalasi. (Sebelum v1.3: crash FileNotFoundError
+> — PROJECT jatuh ke `.../assets`, PIDFILE di `assets/.zscripts/` tak pernah
+> dibuat; laporan konsumer 2026-09-25.) Langkah manual di bawah tetap sah.
+
 1. Salin aset ke lokasi aktif (root proyek default /home/z/my-project):
    `cp assets/explorer/explorer.py assets/explorer/explorer.sh <proyek>/.zscripts/`
    `mkdir -p <proyek>/.zscripts/explorer-ui && cp assets/explorer/explorer-ui/index.html <proyek>/.zscripts/explorer-ui/`
    `cp assets/explorer/dev.sh.template <proyek>/.zscripts/dev.sh && chmod +x <proyek>/.zscripts/dev.sh`
 2. Jalankan sekali: `bash <proyek>/.zscripts/explorer.sh --ensure`
 3. Setiap boot berikutnya, /start.sh menjalankan dev.sh -> explorer + watcher hidup otomatis.
+
+   Alternatif satu perintah untuk seluruh persistence layer (skill + worklog +
+   memory scaffold + explorer): `bash scripts/bootstrap-sandbox.sh --with-explorer`.
 
 ### Kasus B — dev.sh sudah ada (JANGAN ditimpa)
 1. Salin explorer.py, explorer.sh, explorer-ui/ seperti di atas.

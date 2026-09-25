@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.6.2 — 2026-09-25
+
+Consumer-report remediation — fixes three defects confirmed by a fresh-install report from another sandbox (Installation & Explorer Report on v3.6.1).
+
+- **Fix: explorer launcher run from the install tree crashed** (`explorer.sh` v1.3 auto-deploy) — running `skills/stellar-trail/assets/explorer/explorer.sh` directly resolved `PROJECT` to the `assets/` directory and `explorer.py` died with `FileNotFoundError` before binding a port (its PID file lived under a `.zscripts/` path that was never created), leaving the preview URL answering HTTP 000; an `explorer.log` also leaked into the install tree, adding heal drift. The launcher now detects the install-tree layout, copies itself + server + UI to `<project>/.zscripts/`, and re-execs from there — loop-guarded (layout detection + environment flag), idempotent, zero writes into the install tree.
+- **Fix: heal's last-resort manual fallback was a dead route** — `clawhub update --force` stopped working when the registry suspended the publisher account (under appeal). The hint now prints the verified GitHub reinstall route (`git clone` + `sha256sum -c` — no login, no remote execution; verified end-to-end on a live consumer sandbox), with the clawhub command noted only as a conditional alternative should the registry recover. All nine hint call sites updated; the vault self-arm hint is unchanged.
+- **Fix: compliance audit UX on fresh installs** — on a CLI-only install without the persistence layer, `audit-compliance.sh` reported C1 FAIL (memory scaffold absent) and C5 WARN (activation hook not yet appended) with no guidance; both findings now carry a one-line bootstrap hint (`scripts/bootstrap-sandbox.sh`), with the memory scaffold remaining consent-gated.
+- Verification: auto-deploy regression simulation **12/12 PASS** (negative control reproduces the original crash; assertions that the install tree stays byte-identical and the container's own `.zscripts` is never touched) + heal suite v3.5.7 regression **109/109** (v3.5.3–v3.5.6 / v3.5.8 at parity with the pre-change baseline) + lint **8/8**.
+
 ## v3.6.1 — 2026-09-24
 
 Consumer-sandbox remediation, born from field forensics on reset-prone sandboxes (three confirmed failure modes: skill files wiped because the packer excludes `skills/` from the restore archive; services killed with no boot hook to revive them; activation chain broken because `worklog.md` was never created).

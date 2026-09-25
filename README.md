@@ -81,7 +81,7 @@ skills/stellar-trail/     the skill (installable)
 
 ## Version
 
-Current release: **v3.6.1** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.2** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 
