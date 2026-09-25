@@ -22,22 +22,37 @@ cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect
 ### Option 2 — skills.sh installer (one command)
 
 ```bash
-# OpenClaw
-npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw
+# OpenClaw — the -y --json flags make it fully non-interactive (see Troubleshooting)
+npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y --json
 
 # Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Cline, AMP, Antigravity…
-npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a claude
+npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a claude -y --json
 ```
 
-The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. Both routes above are verified end-to-end on a live consumer sandbox (real installs, tree re-verified 25/25 against the manifest). If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
+The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. Keep the `-y --json` flags: they skip the interactive confirmation prompts and are **required in any environment without a TTY** (agent sandboxes, CI) — without them the CLI can hang after the download (see [Troubleshooting](#troubleshooting)).
+
+Both routes are verified end-to-end on live consumer sandboxes — Option 1 by manifest re-verification (25/25 OK), Option 2 by a fresh v3.6.2 install (2026-09-25): exit 0, the skill listed by `npx skills list`, and the `computedHash` written to `skills-lock.json` matching the hash reported on stdout. If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
 
 ```bash
 cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
+npx skills list   # Option 2: expect stellar-trail, source hoshiyomiX/stellar-trail
 ```
+
+To update later: `npx skills update stellar-trail` (Option 2), or re-run the Option 1 copy.
 
 > **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 
 > **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. The SKILL.md enforces this itself.
+
+## Troubleshooting
+
+**`npx skills add` seems to hang, then times out (~5 minutes)** — confirmed on a real sandbox install (skills CLI v1.7.0): the command ends with an interactive `readline` prompt (agent/scope selection) that never resolves without a TTY, even though the skill files are already on disk and `skills-lock.json` is already written by the time it hangs. Re-run with the non-interactive flags:
+
+```bash
+npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y --json
+```
+
+`-y` skips the confirmations and `--json` forces structured non-interactive output (exit 0 on success); exporting `CI=true` works too. Re-running after a hang is safe — the installer overwrites cleanly and re-records the lock entry (observed live: `overwrites: OpenClaw` in the summary, stdout hash identical to the `skills-lock.json` `computedHash`).
 
 ## Reset-prone sandbox deployment
 
@@ -62,6 +77,18 @@ The directories it writes (`download/`, `.zscripts/`, `memory/`, `worklog.md`) a
 
 The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sandbox.sh --ensure` during M0), so arming no longer depends on remembering this page.
 
+**Expected audit output before the first bootstrap:** on a fresh install `bash skills/stellar-trail/scripts/audit-compliance.sh` reports `C1 memory FAIL` (no `memory/` scaffold yet) and `C5 hook-R1 WARN` (worklog activation hook not appended yet) — by design. Both messages are installation-stage hints pointing at the fix; run `bootstrap-sandbox.sh` once and both checks flip to PASS.
+
+### Task Files Explorer (opt-in)
+
+`--with-explorer` also installs a built-in file browser — a stdlib Python server plus a Material 3 web UI (search with debounce, dynamic filter chips, column sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
+
+```bash
+bash skills/stellar-trail/assets/explorer/explorer.sh --ensure
+```
+
+The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-executes from there, leaving the install tree untouched; the boot hook then revives it after resets. Day-to-day control is idempotent: `bash .zscripts/explorer.sh --status | --stop | --ensure`. It serves on port 3000 by default and stands down automatically when a Next.js dev server owns that port; the boot chain health-checks it via `/healthz` and restores a stale copy from the canonical tree.
+
 ## What it does
 
 - **6-phase execution discipline** — every user message, every session: classification grounded in a canonical rule book (Ground Base Knowledge), batched clarification, visible planning, tracked implementation, 5-layer validation, and concise reporting — all auditable via `## 🌠 FASE n` phase markers and the protocol banner.
@@ -71,11 +98,12 @@ The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sa
 ## Repository layout
 
 ```
-skills/stellar-trail/     the skill (installable)
+skills/stellar-trail/     the skill (installable) — ~460 KB installed
   SKILL.md                protocol body (bilingual: EN rules + ID explanations)
-  references/             deep references per phase & per memory mechanism
-  scripts/                deterministic gates: enforce-gates.sh, audit-compliance.sh,
-                          heal-skill.sh, snapshot-repo.sh, vault-sync.sh
+  skill-card.md           canonical version + manifest card
+  references/             13 deep references: one per phase & per memory mechanism
+  scripts/                6 deterministic scripts: bootstrap-sandbox.sh, enforce-gates.sh,
+                          audit-compliance.sh, heal-skill.sh, snapshot-repo.sh, vault-sync.sh
   assets/                 SHA-256 integrity manifest + Task Files Explorer (opt-in)
 ```
 
