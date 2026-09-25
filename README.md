@@ -69,7 +69,7 @@ What it installs — one proven path per module, no redundant fallbacks:
 
 | Module | Installs | Closes |
 |---|---|---|
-| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook + `.zscripts/watcher.sh` auto-heal daemon (v3.6.3) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
+| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook + `.zscripts/watcher.sh` auto-heal daemon (v3.6.3; release-file guard since v3.6.4) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
 | `--with-explorer` | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
 | `--with-snapshot` | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
 
@@ -110,7 +110,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v3.6.3** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.4** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

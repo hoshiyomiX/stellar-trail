@@ -58,20 +58,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 Respons ID:
 
-## 🌠 stellar-trail v3.6.3 — protokol aktif
+## 🌠 stellar-trail v3.6.4 — protokol aktif
 ## 🌠 FASE n — LABEL
 isi fase pada baris-baris di bawah marker
 [MEM | LABEL] isi singkat
 
 Respons EN (banner & label fase bahasa Inggris):
 
-## 🌠 stellar-trail v3.6.3 — protocol active
+## 🌠 stellar-trail v3.6.4 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEM | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.3) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.4) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -433,7 +433,7 @@ Read the matching reference file when you need depth (all bilingual EN rules + I
 
 **Bundled scripts (deterministic):**
 - `scripts/bootstrap-sandbox.sh` — SATU perintah arming persistence layer utk sandbox reset-prone (seed kanonik `download/stellar-trail/` + pasang `.zscripts/dev.sh` boot hook + seed worklog hook R1 + scaffold memory/; modular `--with-explorer` / `--with-snapshot`; idempoten; self-locating; offline; dipanggil oleh Activation rule 14 di M0 — panduan: `references/environment-resilience.md` seksi 7)
-- `scripts/watcher.sh` — daemon auto-heal runtime v1.7 (v3.6.3, Task 62; dipasang bootstrap ke `.zscripts/`, dihidupkan dev.sh tiap boot + M0 per-sesi): loop 30 dtk — healthz explorer + auto-heal, `heal-skill.sh --check` berkala (location-aware), `repo-snapshot.sh --apply-auto` berkala, compliance sentinel (alarm bila worklog aktif tanpa checkpoint M1); kontrak `--ensure/--status/--stop` + PIDFILE (dibaca guardian explorer); laporan konsumer T46 F2: kontraknya lama dirujuk 4 komponen tapi filenya tak pernah dikirim
+- `scripts/watcher.sh` — daemon auto-heal runtime v1.8 (dikirim v3.6.3 Task 62 · guard file rilis v3.6.4 Task 64; dipasang bootstrap ke `.zscripts/`, dihidupkan dev.sh tiap boot + M0 per-sesi): loop 30 dtk — healthz explorer + auto-heal, guard file rilis non-manifest (`skill-card.md` + `assets/integrity.sha256`: keberadaan + kesegaran versi vs `integrity.version`, auto-restore dari vault kelas-A segar — menutup celah 4 insiden pasca-boot yang tak terlihat `heal --check`; R1 audit T63), `heal-skill.sh --check` berkala (location-aware), `repo-snapshot.sh --apply-auto` berkala, compliance sentinel (alarm bila worklog aktif tanpa checkpoint M1); kontrak `--ensure/--status/--stop` + PIDFILE (dibaca guardian explorer); laporan konsumer T46 F2: kontraknya lama dirujuk 4 komponen tapi filenya tak pernah dikirim
 - `scripts/enforce-gates.sh` — penegakan terminal track (artifact, lint, check-skill, check-worklog); lihat seksi 8b untuk pemetaan lengkap
 - `scripts/audit-compliance.sh` — audit kepatuhan protokol dari LUAR model (R3, v3.5.5): hygiene Active-table (H2), staleness SESSION-STATE vs worklog, sanity versi instalasi-vs-kanonik, hook R1 di tail worklog; verdict PASS/WARN/FAIL + exit code — alat audit mandiri user (laporan insiden 2026-09-21: non-compliance senyap 3 session hanya terdeteksi audit manual)
 - `scripts/snapshot-repo.sh` — refresh arsip restore platform (manual `--apply` atau berkala `--apply-auto` dengan debounce+cooldown) dengan verifikasi penuh; baca referensi di atas SEBELUM menjalankannya
@@ -457,7 +457,7 @@ ACTIVATION (turn pertama tiap session):
     (sandbox reset-prone — rule 14) → baru respons dengan marker
 
 EXECUTION (per turn — banner dulu, lalu marker = sub-judul, isi di baris di bawahnya):
-## 🌠 stellar-trail v3.6.3 — protokol aktif
+## 🌠 stellar-trail v3.6.4 — protokol aktif
 ## 🌠 FASE 1 — KLASIFIKASI
 Type __ · bahasa __ · kompleksitas __
 ## 🌠 FASE 2 — KLARIFIKASI

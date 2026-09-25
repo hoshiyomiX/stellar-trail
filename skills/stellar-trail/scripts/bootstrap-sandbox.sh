@@ -17,9 +17,10 @@
 #              worklog.md — terverifikasi dari arsip packer asli) lalu pasang
 #              .zscripts/dev.sh (boot hook kontrak /start.sh) yang memulihkan
 #              skills/stellar-trail dari kanonik di TIAP boot, plus
-#              .zscripts/watcher.sh (daemon auto-heal runtime v1.7 — Task 62,
-#              v3.6.3; explorer healthz + heal berkala + repo refresh +
-#              compliance alarm; dihidupkan dev.sh + M0).
+#              .zscripts/watcher.sh (daemon auto-heal runtime v1.8 — Task 62/64,
+#              v3.6.3/3.6.4; explorer healthz + heal berkala + repo refresh +
+#              compliance alarm + guard file rilis non-manifest; dihidupkan
+#              dev.sh + M0).
 #   explorer : --with-explorer  → pasang .zscripts/{explorer.sh,explorer.py,
 #              explorer-ui/} + langkah --ensure di dev.sh.
 #   snapshot : --with-snapshot  → pasang .zscripts/repo-snapshot.sh + langkah
@@ -376,10 +377,11 @@ DEVSH_TIDY
 
     cat <<'DEVSH_WATCH'
 
-# --- 4. WATCHER DAEMON --ensure (v1.7, core sejak v3.6.3 — Task 62) --------
+# --- 4. WATCHER DAEMON --ensure (v1.8, core sejak v3.6.3 — Task 62/64) ----
 #     no-op bila sudah jalan; double-fork orphan bila belum. Loop 30 dtk:
 #     explorer healthz + auto-heal, heal-skill --check tiap ~10 mnt,
-#     repo-snapshot --apply-auto tiap ~15 mnt, compliance sentinel.
+#     repo-snapshot --apply-auto tiap ~15 mnt, compliance sentinel, guard
+#     file rilis non-manifest (skill-card.md + integrity.sha256).
 if [ -f "$PROJECT/.zscripts/watcher.sh" ]; then
     bash "$PROJECT/.zscripts/watcher.sh" --ensure >> "$BOOTLOG" 2>&1 \
         || log "WARN: watcher --ensure gagal"
@@ -436,7 +438,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # 7b. MODUL CORE-B2 — PASANG .zscripts/watcher.sh (daemon auto-heal runtime
-#     v1.7 bawaan paket sejak v3.6.3; dev.sh step-4 --ensure menghidupkannya;
+#     v1.8 bawaan paket sejak v3.6.3; dev.sh step-4 --ensure menghidupkannya;
 #     kontrak antarmuka lama — dev.sh.template §3, explorer.sh, guardian —
 #     kini benar-benar memiliki filenya; laporan konsumer T46 F2)
 # ---------------------------------------------------------------------------
