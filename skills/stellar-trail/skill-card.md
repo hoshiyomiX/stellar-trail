@@ -22,6 +22,8 @@ Since v3.6.4 the runtime daemon gains a release-file guard born from the package
 
 Since v3.6.5 the package documents its one intentional duplication instead of refactoring it away: version_lt() — the 8-line semver comparator — exists byte-identical in heal-skill.sh and vault-sync.sh, and both copies now carry a controlled-copy annotation (change both together, never consolidate into a shared library), while the resilience playbook gains an appendix stating the standalone-helper doctrine explicitly: every bundled script keeps its own tiny log/say/ts/die/version_lt helpers so heal-skill can repair vault-sync even when vault-sync — and any shared library — is itself broken, the 3–8 duplicated lines per helper being the consciously paid price of failure-domain isolation (the 2026-09-22 incident killed an entire fallback chain precisely because it shared its point of failure). The annotations exist so future audits and consumer forensic reports read the duplication as documented doctrine, not as drift to be flagged.
 
+Since v3.6.6 the package closes its oldest remaining freshness gap: a healthy-but-outdated installation. Healing repairs corruption (by design it refuses to upgrade — that discipline is deliberate) and crash-safe migration only covers upgrades someone remembers to run, so an installation could stay silently several releases behind its origin. The new scripts/update-skill.sh, wired into M0 as Activation rule 15 (immediately after bootstrap --ensure, before the first phase), checks the origin — GitHub, the sole distribution channel, read publicly without any token — at most once per 24 hours (debounced via .zscripts/.update-check.last), and when the origin tag is newer it force-updates through a verified override, never a blind pull: shallow staging clone, full SHA-256 manifest verification, a tag-equals-content assert (a hijacked tag carrying different content aborts hard), an anti-downgrade assert, then a swap in the crash-safe order the resilience playbook prescribes (canonical first, class-A vaults, working install last, watcher restarted from the new canonical, bootstrap re-ensured) with per-target rollback backups and the install identity files (_meta.json, .clawhub/) excluded from overwrite; offline is a printed one-line report with exit 0 so M0 never depends on the network, and every installation step is printed to stdout so the user stays informed and can follow up. The same release reworks the bundled explorer UI from a 69 KB Material-3 card grid into a 29 KB dashboard (sidebar categories with counts, a statistic-card row with the guardian card folded in, and a main file table; search-debounce, category filter, copy-path, preview-and-download all kept; column sort and chunked render simplified), and the version_lt controlled copy becomes a documented trio (update-skill.sh joins heal-skill.sh and vault-sync.sh — the standalone-helper doctrine now names all three).
+
 This skill is ready for commercial/non-commercial use.
 
 ## Publisher:
@@ -89,7 +91,7 @@ Mitigation: v3.5.5 layers defenses that do not depend on model discipline — an
 
 ## Skill Version(s):
 
-3.6.5 (source: release metadata)
+3.6.6 (source: release metadata)
 
 ## Ethical Considerations:
 

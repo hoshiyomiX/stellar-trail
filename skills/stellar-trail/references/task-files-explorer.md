@@ -1,6 +1,6 @@
 # Task Files Explorer (Built-in Asset) — Referensi Deploy & Operasi
 
-> Aset bawaan stellar-trail sejak v3.1.0 (server v1.1; UI v2.2 sejak v3.3.0, UI v3.0 sejak v3.5.4).
+> Aset bawaan stellar-trail sejak v3.1.0 (server v1.1; UI v2.2 sejak v3.3.0, UI v3.0 sejak v3.5.4, UI v4.0 Dashboard sejak v3.6.6).
 > Explorer adalah **alat opsional & opt-in** — bukan bagian dari mandat protokol.
 > Ia menggantikan secara fungsional popup "All files in task" platform dengan
 > halaman custom di preview URL.
@@ -38,7 +38,7 @@ Fakta kunci:
 |------|-------|
 | `explorer.py` | Server stdlib Python v1.1 (ThreadingHTTPServer); /api/files walk depth-4, parse task dari worklog.md, **blok skill guardian** (versi stellar-trail + heal terakhir + status watcher), serve file dgn guard path realpath (hanya dalam ROOTS) plus **`?dl=1`** untuk mode attachment (unduhan paksa); PIDFILE; env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
 | `explorer.sh` | Launcher --ensure/--status/--stop; guard Next.js (package.json menang); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — dijalankan dari pohon instalasi (`skills/stellar-trail/assets/explorer/`), launcher mendeteksi layout, menyalin diri ke `<root>/.zscripts/`, lalu re-exec dari sana (PID/log selalu di .zscripts/, pohon instalasi nol drift; anti-loop via guard env + deteksi layout) |
-| `explorer-ui/index.html` | UI MD3 Expressive adaptif v3.0 (compact/medium/expanded/large/XL + landscape; list-detail ≥1240px; tema gelap/terang **adaptif** — ikut `prefers-color-scheme` + toggle persist; zero-dependency) — fitur v3.0: pencarian live (debounce 200 ms), filter tipe dinamis dengan hitungan, sort kolom nama/ukuran/waktu dengan toggle arah, copy-path per item, render bertahap 100 item (IntersectionObserver + tombol Muat lagi), state loading/kosong/error; fitur v2.2: kartu Guardian, quick-download per kartu, waktu relatif, refresh saat fokus |
+| `explorer-ui/index.html` | UI **Dashboard v4.0** (sejak v3.6.6: sidebar kategori + kartu statistik + tabel file; tema gelap/terang **adaptif** — ikut `prefers-color-scheme` + toggle persist; zero-dependency; `lang="id"`; anggaran ukuran <45 KB dari 69 KB v3.0) — fitur inti: pencarian live debounce 200 ms, filter kategori dinamis, copy-path per baris + toast; sort header tabel (nama/ukuran/waktu) dan render bertahap disederhanakan; kartu Guardian terintegrasi ke kartu statistik; detail di seksi 5d |
 | `dev.sh.template` | Template hook boot v2: tidy download/ -> archive/, fullstack guard, heal skill stellar-trail, ensure watcher + explorer, refresh repo.tar berkala |
 
 ## 3. Langkah Deploy
@@ -147,6 +147,32 @@ Semua murni sisi klien — kontrak API `explorer.py` tidak berubah sama sekali.
   manual; pilihan manual tersimpan di localStorage.
 - **Breadcrumb** direktori pada nama file (segmen folder diredupkan) + state
   loading/kosong/error yang jelas, termasuk tombol "Coba lagi".
+
+## 5d. Fitur UI v4.0 — Dashboard (explorer-ui/index.html, sejak v3.6.6, Task 67)
+
+Refactor konsep + tata letak penuh (mandat user Task 67 #2): dari grid kartu MD3
+v3.0 (69 KB) menjadi **Dashboard** ringkas dengan **anggaran ukuran file <45 KB**
+dan fitur inti saja. Semua tetap murni sisi klien — kontrak API `explorer.py`
+tidak berubah sama sekali; zero-dependency dan tema adaptif tetap.
+
+- **Tata letak Dashboard**: sidebar kategori (nav dengan hitungan per kategori,
+  menyusut jadi chip horizontal pada layar sempit) · baris kartu statistik
+  (total file, ukuran agregat, kategori aktif, Guardian) · tabel file utama
+  (kolom nama+breadcrumb, kategori, ukuran, waktu, aksi).
+- **Kartu Guardian** terintegrasi ke baris kartu statistik (versi skill,
+  indikator watcher, heal terakhir — best-effort, disembunyikan bila skill tak
+  terinstal; menggantikan kartu terpisah v2.2).
+- **Fitur inti dipertahankan**: pencarian live debounce 200 ms (nama / ekstensi /
+  ID task) · filter kategori dinamis · copy-path per baris + toast "Path
+  disalin" (clipboard API + fallback) · unduh via dialog pratinjau `?dl=1` ·
+  waktu relatif + tooltip timestamp · refresh saat fokus (visibilitychange)
+  · state loading/kosong/error + tombol "Coba lagi".
+- **Disederhanakan**: sort = klik header kolom (nama/ukuran/waktu) dengan
+  indikator arah sederhana; render bertahap = render awal 200 baris + tombol
+  "Muat lagi" (IntersectionObserver v3.0 dipensiunkan); quick-download
+  per-kartu dipensiunkan (unduh tetap ada di pratinjau).
+- **Ukuran ganda**: visual (viewport lebih tenang — hierarki tabel menggantikan
+  padatnya grid kartu) dan file (<45 KB via pemangkasan kompleksitas di atas).
 
 ## 6. Perintah Kontrol
 

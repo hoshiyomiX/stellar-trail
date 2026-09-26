@@ -2,1104 +2,525 @@
 <html lang="id" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<title>Task Files Explorer — MD3 Expressive</title>
-<script>/* Set tema sebelum paint (hindari FOUC) — hormati prefers-color-scheme
-   bila user belum punya pilihan manual (persist di localStorage) */
-(function(){try{var t=localStorage.getItem("md3-theme");
-if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light").matches)?"light":"dark"}
-document.documentElement.dataset.theme=t}catch(e){}})();</script>
+<title>Task Files Explorer — Dashboard</title>
+<script>
+/* Tema pra-paint (anti-FOUC): ikuti prefers-color-scheme selama user belum
+   memilih manual — pilihan manual dipersist di localStorage kunci "exp-theme". */
+(function(){try{var t=localStorage.getItem("exp-theme");
+if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}
+document.documentElement.dataset.theme=t}catch(e){}})();
+
+/* ================= util ================= */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const svg=n=>'<svg class="ic" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const strow=(h,cls)=>'<tr class="staterow"><td colspan="5"><div class="st '+(cls||"")+'">'+h+"</div></td></tr>";
+const fmtSize=n=>{if(n<1024)return n+" B";const u=["KB","MB","GB","TB"];let i=-1;
+  do{n/=1024;i++}while(n>=1024&&i<3);return(n>=100?n.toFixed(0):n.toFixed(1))+" "+u[i]};
+const fmtDate=t=>new Date(t*1000).toLocaleString("id-ID",{dateStyle:"medium",timeStyle:"short"});
+const fmtRel=t=>{const d=Date.now()/1000-t;   /* waktu relatif bahasa Indonesia */
+  if(d<60)return"baru saja";
+  if(d<3600)return Math.floor(d/60)+" mnt lalu";
+  if(d<86400)return Math.floor(d/3600)+" jam lalu";
+  if(d<604800)return Math.floor(d/86400)+" hr lalu";
+  return fmtDate(t)};
+
+/* ================= kategori & state ================= */
+/* pdf digabung ke Dokumen; sisanya mengikuti field "type" explorer.py */
+const CATS=[["all","Semua"],["doc","Dokumen"],["img","Gambar"],["data","Data"],
+  ["pkg","Arsip/zip"],["code","Kode"],["office","Office"],["other","Lainnya"]];
+const CATNAME={};for(const c of CATS)CATNAME[c[0]]=c[1];
+const S={q:"",cat:"all",sort:{col:"mtime",dir:"desc"}};
+const CHUNK=200;              /* render bertahap: 200 baris awal + "Muat lagi" */
+let DATA=null,FLAT=[],shown=0,lastHash="",qT=null,toastT=null,lastFocus=null;
+
+/* ================= olah data ================= */
+function prepare(){FLAT=[];
+  for(const r of DATA.roots)for(const f of r.files){
+    f.root=r.label;f._p=r.path+"/"+f.rel;f._cat=f.type==="pdf"?"doc":f.type;FLAT.push(f)}
+  if(S.cat!=="all"&&!FLAT.some(f=>f._cat===S.cat))S.cat="all"} /* degradasi anggun */
+
+function filtered(){const q=S.q.toLowerCase();
+  const out=FLAT.filter(f=>{
+    if(S.cat!=="all"&&f._cat!==S.cat)return false;
+    if(q&&!(f.rel+" "+(f.task?"task "+f.task:"")).toLowerCase().includes(q))return false;
+    return true});
+  const c=S.sort.col,m=S.sort.dir==="asc"?1:-1;
+  out.sort((a,b)=>c==="size"?(a.size-b.size)*m:
+    c==="name"?a.name.localeCompare(b.name,"id")*m:(a.mtime-b.mtime)*m);
+  return out}
+const findFile=k=>FLAT.find(f=>f.key===k)||null;
+
+/* ================= render ================= */
+function renderSide(){const n={all:FLAT.length};
+  for(const f of FLAT)n[f._cat]=(n[f._cat]||0)+1;
+  $("#side").innerHTML=CATS.filter(c=>c[0]==="all"||n[c[0]]>0) /* sembunyikan kategori kosong */
+    .map(c=>'<button class="nav'+(S.cat===c[0]?" on":"")+'" data-cat="'+c[0]+
+    '" aria-pressed="'+(S.cat===c[0])+'"><span>'+c[1]+'</span><span class="nc">'+(n[c[0]]||0)+
+    "</span></button>").join("")}
+
+function renderStats(){if(!DATA)return;const st=DATA.stats,sk=DATA.skill;
+  const n=S.cat==="all"?FLAT.length:FLAT.filter(f=>f._cat===S.cat).length;
+  let h='<div class="stat"><div class="k">Total file</div><div class="v">'+st.total_files+
+    '</div><div class="s">lintas '+st.roots+' lokasi terpantau</div></div>'+
+  '<div class="stat"><div class="k">Ukuran agregat</div><div class="v">'+fmtSize(st.total_size)+
+    '</div><div class="s">download/ + archive/</div></div>'+
+  '<div class="stat"><div class="k">Kategori aktif</div><div class="v vt">'+esc(CATNAME[S.cat]||"Semua")+
+    '</div><div class="s">'+n+' file</div></div>';
+  if(sk&&sk.installed){const heal=sk.heal_last?fmtRel(sk.heal_last):"belum pernah";
+    h+='<div class="stat"><div class="k">Guardian</div><div class="v vt">v'+esc(sk.version||"?")+
+      '</div><div class="s"><span class="dot'+(sk.watcher_alive?" on":"")+'"></span>watcher '+
+      (sk.watcher_alive?"hidup":"mati")+" · heal "+heal+"</div></div>"}
+  $("#stats").innerHTML=h}
+
+function rowHTML(f){
+  const i=f.rel.lastIndexOf("/"),dir=i<0?"":f.rel.slice(0,i);
+  let bc=f.root+(dir?"/"+dir:"");                /* breadcrumb: label root + folder */
+  const seg=bc.split("/");                        /* ringkas segmen tengah bila panjang */
+  if(seg.length>4)bc=seg[0]+"/…/"+seg[seg.length-1];
+  return '<tr class="row" data-key="'+esc(f.key)+'" tabindex="0" title="Pratinjau '+esc(f.name)+'">'+
+'<td><span class="fn">'+esc(f.name)+'</span><span class="fd" title="'+esc(f.root+"/"+f.rel)+'">'+
+  esc(bc)+'/</span></td>'+
+'<td><span class="badge t-'+f._cat+'">'+esc(CATNAME[f._cat])+"</span></td>"+
+'<td class="num">'+fmtSize(f.size)+"</td>"+
+'<td class="tm" title="'+fmtDate(f.mtime)+'">'+fmtRel(f.mtime)+"</td>"+
+'<td class="act"><button class="ibtn" data-copy="'+esc(f.key)+'" title="Salin path di server" aria-label="Salin path '+
+  esc(f.name)+'">'+svg("copy")+'</button><button class="ibtn" data-prev="'+esc(f.key)+
+  '" title="Pratinjau" aria-label="Pratinjau '+esc(f.name)+'">'+svg("eye")+"</button></td></tr>"}
+
+function renderTable(){const tb=$("#tbody");
+  if(!DATA){tb.innerHTML=strow('<div class="spin"></div>memuat inventaris file…');
+    $("#moreWrap").hidden=true;return}
+  const list=filtered();
+  if(!list.length){const f=S.q||S.cat!=="all";
+    tb.innerHTML=strow(svg(f?"search":"folder")+(f
+      ?"Tidak ada file yang cocok — ubah kata kunci atau pilih kategori lain"
+      :"Belum ada file di download/ dan archive/"));
+    $("#moreWrap").hidden=true;return}
+  if(!shown)shown=CHUNK;
+  if(shown>list.length)shown=list.length;
+  tb.innerHTML=list.slice(0,shown).map(rowHTML).join("");
+  updateMore()}
+
+function updateMore(){const w=$("#moreWrap");if(!DATA){w.hidden=true;return}
+  const left=filtered().length-shown;
+  w.hidden=left<=0;
+  if(left>0)$("#moreBtn").textContent="Muat lagi · sisa "+left+" file"}
+
+function renderError(){
+  $("#tbody").innerHTML=strow(svg("warn")+
+    'Gagal memuat data dari explorer.py — server tidak merespons.<br>'+
+    '<button class="btn acc" id="retry">'+svg("refresh")+"Coba lagi</button>","err");
+  $("#moreWrap").hidden=true;
+  $("#retry").addEventListener("click",load)}
+
+function updateSortUI(){$$("th[data-col]").forEach(th=>{const on=th.dataset.col===S.sort.col;
+  th.setAttribute("aria-sort",on?(S.sort.dir==="asc"?"ascending":"descending"):"none");
+  th.querySelector(".arr").textContent=on?(S.sort.dir==="asc"?"▲":"▼"):""})}
+
+/* ================= aksi ================= */
+async function copyPath(f){if(!f)return;
+  const p=f._p;let ok=true;                      /* clipboard API + fallback execCommand */
+  try{await navigator.clipboard.writeText(p)}
+  catch(e1){try{const ta=document.createElement("textarea");ta.value=p;
+      ta.style.cssText="position:fixed;top:0;opacity:0";
+      document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove()}
+    catch(e2){ok=false}}
+  toast(ok?"Path disalin — "+p:"Gagal menyalin path")}
+
+function toast(m){const el=$("#toast");el.textContent=m;el.classList.add("show");
+  clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),2600)}
+
+function md(src){const out=[];let code=false,cb=[],list=false;   /* mini-markdown */
+  const inl=t=>esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\*(.+?)\*/g,"<i>$1</i>")
+    .replace(/`([^`]+)`/g,"<code>$1</code>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  for(const l of String(src).split("\n")){
+    if(l.trim().startsWith("```")){
+      if(code){out.push("<pre><code>"+esc(cb.join("\n"))+"</code></pre>");cb=[]}
+      code=!code;continue}
+    if(code){cb.push(l);continue}
+    const h=l.match(/^(#{1,4})\s+(.*)/);
+    if(h){if(list){out.push("</ul>");list=false}
+      out.push("<h"+h[1].length+">"+inl(h[2])+"</h"+h[1].length+">");continue}
+    const li=l.match(/^\s*[-*]\s+(.*)/);
+    if(li){if(!list){out.push("<ul>");list=true}out.push("<li>"+inl(li[1])+"</li>");continue}
+    if(list){out.push("</ul>");list=false}
+    if(!l.trim())continue;
+    out.push(l.trim().startsWith(">")?"<blockquote>"+inl(l.replace(/^\s*>\s?/,""))+"</blockquote>"
+      :"<p>"+inl(l)+"</p>")}
+  if(list)out.push("</ul>");
+  if(code)out.push("<pre><code>"+esc(cb.join("\n"))+"</code></pre>");
+  return out.join("\n")}
+
+async function openPreview(f){if(!f)return;
+  lastFocus=document.activeElement;
+  $("#mName").textContent=f.root+"/"+f.rel;
+  $("#mMeta").textContent=fmtSize(f.size)+" · "+fmtDate(f.mtime);
+  const dl=$("#mDl");dl.href=f.href+"?dl=1";dl.setAttribute("download",f.name);
+  $("#mCopy").onclick=()=>copyPath(f);
+  const b=$("#mBody");b.innerHTML='<div class="st"><div class="spin"></div>memuat pratinjau…</div>';
+  $("#modal").classList.add("open");$("#mClose").focus();
+  const e=(f.ext||"").toLowerCase();
+  try{
+    if(f.type==="img"){b.innerHTML='<img src="'+esc(f.href)+'" alt="'+esc(f.name)+'">';return}
+    if(e==="pdf"){b.innerHTML='<iframe src="'+esc(f.href)+'" title="Pratinjau PDF"></iframe>';return}
+    if(f.type==="pkg"||f.type==="office"){   /* arsip & office: unduh, bukan pratinjau */
+      b.innerHTML='<div class="st">'+svg("down")+"Format <b>"+esc((e||f.type).toUpperCase())+
+        "</b> tidak dipratinjau langsung di browser.<br>Unduh lalu buka dengan aplikasi terkait.<br>"+
+        '<a class="btn acc" href="'+esc(f.href)+'?dl=1" download="'+esc(f.name)+'">'+svg("down")+
+        "Unduh "+esc(f.name)+"</a></div>";return}
+    const t=await(await fetch(f.href,{cache:"no-store"})).text();
+    if(e==="md"){b.innerHTML='<div class="mdv">'+md(t)+"</div>";return}
+    if(e==="json"){let s=t;try{s=JSON.stringify(JSON.parse(t),null,2)}catch(_){}
+      b.innerHTML="<pre>"+esc(s)+"</pre>";return}
+    b.innerHTML="<pre>"+esc(t.slice(0,200000))+"</pre>";
+  }catch(err){b.innerHTML=stInner(svg("warn")+"Gagal memuat pratinjau: "+esc(err.message),"err")}}
+function stInner(h,cls){return '<div class="st '+(cls||"")+'">'+h+"</div>"}
+function closeModal(){$("#modal").classList.remove("open");
+  if(lastFocus&&lastFocus.focus)lastFocus.focus()}
+
+/* ================= loop data ================= */
+async function load(){try{
+    const r=await fetch("/api/files",{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json(),h=JSON.stringify(d);
+    if(h!==lastHash){lastHash=h;DATA=d;prepare();
+      renderSide();renderStats();renderTable()}
+    $("#ft").textContent="PID "+d.server.pid+" · port "+d.server.port+
+      " · polling 10 dtk · diperbarui "+d.generated;
+  }catch(e){
+    $("#ft").textContent="koneksi ke explorer.py terputus — mencoba lagi otomatis tiap 10 dtk";
+    if(!DATA)renderError();else toast("Koneksi ke explorer.py terputus")}}
+
+/* ================= tema ================= */
+function applyTheme(t,persist){document.documentElement.dataset.theme=t;
+  const b=$("#themeBtn");b.innerHTML=svg(t==="dark"?"sun":"moon");
+  b.title=t==="dark"?"Ganti ke tema terang":"Ganti ke tema gelap";
+  b.setAttribute("aria-label",b.title);
+  if(persist){try{localStorage.setItem("exp-theme",t)}catch(e){}}}
+
+/* ================= wiring ================= */
+function init(){
+  applyTheme(document.documentElement.dataset.theme,false);
+  $("#themeBtn").addEventListener("click",()=>
+    applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true));
+  try{const mq=window.matchMedia("(prefers-color-scheme: light)"); /* adaptif */
+    mq.addEventListener("change",ev=>{let s=null;try{s=localStorage.getItem("exp-theme")}catch(_){}
+      if(s!=="dark"&&s!=="light")applyTheme(ev.matches?"light":"dark",false)})}catch(_){}
+  updateSortUI();
+
+  /* pencarian live — debounce 200 ms (nama / ekstensi / ID task) */
+  const q=$("#q");
+  q.addEventListener("input",()=>{const v=q.value;$("#qClear").hidden=!v;
+    clearTimeout(qT);qT=setTimeout(()=>{S.q=v.trim();shown=CHUNK;renderTable()},200)});
+  $("#qClear").addEventListener("click",()=>{clearTimeout(qT);q.value="";
+    $("#qClear").hidden=true;S.q="";shown=CHUNK;renderTable();q.focus()});
+
+  /* sort: klik header kolom, klik lagi = balik arah */
+  $("#thd").addEventListener("click",e=>{const th=e.target.closest("th[data-col]");if(!th)return;
+    const c=th.dataset.col;
+    if(S.sort.col===c)S.sort.dir=S.sort.dir==="asc"?"desc":"asc";
+    else S.sort={col:c,dir:c==="mtime"?"desc":"asc"};
+    shown=CHUNK;updateSortUI();renderTable()});
+
+  /* filter kategori via sidebar/chip */
+  $("#side").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;
+    S.cat=b.dataset.cat;shown=CHUNK;renderSide();renderStats();renderTable()});
+
+  /* delegasi event tabel: copy-path / pratinjau / klik baris */
+  const tb=$("#tbody");
+  tb.addEventListener("click",e=>{
+    const cp=e.target.closest("[data-copy]");
+    if(cp){copyPath(findFile(cp.dataset.copy));return}
+    const pv=e.target.closest("[data-prev]");
+    if(pv){openPreview(findFile(pv.dataset.prev));return}
+    const r=e.target.closest("tr.row");
+    if(r)openPreview(findFile(r.dataset.key))});
+  tb.addEventListener("keydown",e=>{
+    if(e.key!=="Enter"&&e.key!==" ")return;
+    if(e.target.closest("button,a,input"))return;
+    const r=e.target.closest("tr.row");
+    if(r){e.preventDefault();openPreview(findFile(r.dataset.key))}});
+
+  /* render bertahap: chunk berikutnya */
+  $("#moreBtn").addEventListener("click",()=>{
+    const list=filtered(),next=Math.min(shown+CHUNK,list.length);
+    if(next>shown){tb.insertAdjacentHTML("beforeend",list.slice(shown,next).map(rowHTML).join(""));
+      shown=next}
+    updateMore()});
+
+  /* dialog pratinjau */
+  $("#mClose").addEventListener("click",closeModal);
+  $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&$("#modal").classList.contains("open"))closeModal()});
+
+  /* polling 10 dtk + refresh saat fokus */
+  setInterval(load,10000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
+  load()}
+document.addEventListener("DOMContentLoaded",init);
+</script>
 <style>
-/* ================================================================
-   MATERIAL DESIGN 3 — EXPRESSIVE
-   Task Files Explorer UI v3.0 · zero-dependency (tanpa CDN, tanpa web font)
-   Sistem: color roles tonal (light+dark) · type scale · shape scale
-           + shape morphing · motion spring/emphasized · wavy progress
-           · state layers · ripple · tonal elevation
-   Adaptive: window size classes MD3 — compact <600 · medium 600-839
-           · expanded 840-1239 · large 1240-1599 (list-detail + nav
-           rail) · extra-large ≥1600 · landscape compact · a11y
-           focus-visible · app bar on-scroll elevation
-   ================================================================ */
+/* ================= token & tema ================= */
+:root{color-scheme:light;
+  --bg:#f2f5f6;--card:#fff;--card2:#f6f8f9;--line:#dbe2e5;--line2:#e9eef0;
+  --tx:#1c2830;--tx2:#5c6d76;--tx3:#64757f;
+  --acc:#0e7490;--accbg:#e3f3f7;--acctx:#0a5c73;
+  --ok:#178a44;--bad:#bb2d21;
+  --shadow:0 1px 2px rgba(28,40,48,.05),0 2px 10px rgba(28,40,48,.06)}
+html[data-theme=dark]{color-scheme:dark;
+  --bg:#0d1317;--card:#151d23;--card2:#1a242c;--line:#293640;--line2:#202b33;
+  --tx:#e8eef2;--tx2:#a4b5be;--tx3:#7d909b;
+  --acc:#3ec3db;--accbg:#0f313b;--acctx:#8adcec;
+  --ok:#4fd487;--bad:#f0857c;
+  --shadow:0 1px 3px rgba(0,0,0,.4)}
 
-/* ---- Design tokens -------------------------------------------- */
-:root{
-  /* Shape scale */
-  --md-shape-xs:4px; --md-shape-s:8px; --md-shape-m:12px; --md-shape-l:16px;
-  --md-shape-xl:20px; --md-shape-2xl:28px; --md-shape-full:999px;
+/* ================= dasar ================= */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--acctx)}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 
-  /* Motion — kurva & durasi MD3 */
-  --md-dur-short:150ms; --md-dur-med:300ms; --md-dur-long:500ms; --md-dur-xlong:700ms;
-  --md-ease-standard:cubic-bezier(.2,0,0,1);
-  --md-ease-emph-decel:cubic-bezier(.05,.7,.1,1);
-  --md-ease-emph-accel:cubic-bezier(.3,0,.8,.15);
-  --md-ease-spring:cubic-bezier(.34,1.56,.64,1);       /* back-out: overshoot khas Expressive */
-
-  /* Elevation */
-  --md-elev-1:0 1px 3px 1px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.30);
-  --md-elev-2:0 2px 6px 2px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.30);
-  --md-elev-3:0 4px 8px 3px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.30);
-
-  /* State layer opacity */
-  --md-state-hover:.08; --md-state-focus:.12; --md-state-press:.12;
-
-  /* Type scale (MD3) */
-  --md-fs-display-s:clamp(32px,4vw,36px);
-  --md-fs-headline-s:24px; --md-fs-title-l:22px; --md-fs-title-m:16px; --md-fs-title-s:14px;
-  --md-fs-body-m:14px; --md-fs-body-s:12px;
-  --md-fs-label-l:14px; --md-fs-label-m:12px; --md-fs-label-s:11px;
-
-  --md-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
-  --md-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-}
-
-/* ---- Skema warna DARK (default) ------------------------------- */
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --md-primary:#5BD0FA; --md-on-primary:#003546;
-  --md-primary-container:#004C63; --md-on-primary-container:#B7E9FF;
-  --md-secondary:#B3C5DF; --md-on-secondary:#1D2E43;
-  --md-secondary-container:#34445A; --md-on-secondary-container:#C9DBF8;
-  --md-tertiary:#E6BBDA; --md-on-tertiary:#46263F;
-  --md-tertiary-container:#5F3C56; --md-on-tertiary-container:#FFD7F1;
-  --md-error:#FFB4AB; --md-on-error:#690005;
-  --md-error-container:#93000A; --md-on-error-container:#FFDAD6;
-  --md-surface:#0A1219; --md-surface-dim:#060D13;
-  --md-surface-container-lowest:#080F16;
-  --md-surface-container-low:#101A21;
-  --md-surface-container:#141F26;
-  --md-surface-container-high:#19242C;
-  --md-surface-container-highest:#1E2931;
-  --md-on-surface:#DDE3EA; --md-on-surface-variant:#BFC9D2;
-  --md-outline:#8993A0; --md-outline-variant:#3F4954;
-  --md-inverse-surface:#DDE3EA; --md-inverse-on-surface:#141B21;
-  --md-inverse-primary:#00678A; --md-scrim:rgba(0,0,0,.55);
-  /* Extended color roles — per jenis file (pola tonal quadruplet) */
-  --t-doc-bg:#004C63;   --t-doc-fg:#B7E9FF;
-  --t-pdf-bg:#93000A;   --t-pdf-fg:#FFDAD6;
-  --t-img-bg:#5F3C56;   --t-img-fg:#FFD7F1;
-  --t-data-bg:#005230;  --t-data-fg:#9FF6BE;
-  --t-code-bg:#34445A;  --t-code-fg:#C9DBF8;
-  --t-pkg-bg:#45389B;   --t-pkg-fg:#E5DEFF;
-  --t-office-bg:#5B4300;--t-office-fg:#FFDF99;
-  --t-other-bg:#1E2931; --t-other-fg:#BFC9D2;
-}
-/* ---- Skema warna LIGHT ----------------------------------------- */
-:root[data-theme="light"]{
-  color-scheme:light;
-  --md-primary:#00678A; --md-on-primary:#FFFFFF;
-  --md-primary-container:#C1E8FF; --md-on-primary-container:#001E30;
-  --md-secondary:#4C617E; --md-on-secondary:#FFFFFF;
-  --md-secondary-container:#D4E3FF; --md-on-secondary-container:#0F1D36;
-  --md-tertiary:#8B4E7D; --md-on-tertiary:#FFFFFF;
-  --md-tertiary-container:#FFD7F2; --md-on-tertiary-container:#3A1130;
-  --md-error:#BA1A1A; --md-on-error:#FFFFFF;
-  --md-error-container:#FFDAD6; --md-on-error-container:#410002;
-  --md-surface:#F9FAFC; --md-surface-dim:#D9DADE;
-  --md-surface-container-lowest:#FFFFFF;
-  --md-surface-container-low:#F3F4F7;
-  --md-surface-container:#EDEFF2;
-  --md-surface-container-high:#E7E9ED;
-  --md-surface-container-highest:#E2E4E8;
-  --md-on-surface:#191C20; --md-on-surface-variant:#41484E;
-  --md-outline:#71787E; --md-outline-variant:#C1C7CE;
-  --md-inverse-surface:#2E3135; --md-inverse-on-surface:#EFF0F7;
-  --md-inverse-primary:#5BD0FA; --md-scrim:rgba(0,0,0,.32);
-  --t-doc-bg:#C1E8FF;   --t-doc-fg:#001E30;
-  --t-pdf-bg:#FFDAD6;   --t-pdf-fg:#410002;
-  --t-img-bg:#FFD7F2;   --t-img-fg:#3A1130;
-  --t-data-bg:#A5F2C1;  --t-data-fg:#00210F;
-  --t-code-bg:#D4E3FF;  --t-code-fg:#0F1D36;
-  --t-pkg-bg:#E5DEFF;   --t-pkg-fg:#1B124E;
-  --t-office-bg:#FFDF99;--t-office-fg:#261A00;
-  --t-other-bg:#E2E4E8; --t-other-fg:#41484E;
-}
-
-/* ---- Base ------------------------------------------------------ */
-*{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{font-family:var(--md-font);background:var(--md-surface);color:var(--md-on-surface);
-  font-size:var(--md-fs-body-m);line-height:1.5;min-height:100vh;min-height:100dvh;
-  transition:background var(--md-dur-med) var(--md-ease-standard)}
-svg.ic{width:24px;height:24px;fill:currentColor;flex:none;display:block}
-[hidden]{display:none!important}
-button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-::selection{background:var(--md-primary-container);color:var(--md-on-primary-container)}
-
-/* Fokus MD3: ring 3px + gap 2px */
-:focus-visible{outline:3px solid var(--md-primary);outline-offset:2px}
-
-/* State layer (hover 8% / focus 12% / press 12% dari currentColor) */
-.state{position:relative;overflow:hidden}
-.state::before{content:"";position:absolute;inset:0;border-radius:inherit;background:currentColor;
-  opacity:0;transition:opacity var(--md-dur-short) var(--md-ease-standard);pointer-events:none}
-.state:hover::before{opacity:var(--md-state-hover)}
-.state:focus-visible::before{opacity:var(--md-state-focus)}
-.state:active::before{opacity:var(--md-state-press)}
-
-/* Ripple */
-.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.14;
-  transform:scale(0);animation:ripple .55s var(--md-ease-emph-decel) forwards;pointer-events:none}
-@keyframes ripple{to{transform:scale(1);opacity:0}}
-
-/* ---- Wavy linear progress (signature Expressive) --------------- */
-.wavy{position:relative;height:4px;overflow:hidden}
-.wavy svg{position:absolute;left:0;top:50%;width:200%;height:12px;
-  transform:translate(0,-50%);animation:wavy-scroll 1.15s linear infinite}
-.wavy svg.w2{animation-duration:1.75s;animation-direction:reverse;opacity:.45}
-.wavy .p1{fill:var(--md-primary)} .wavy .p2{fill:var(--md-tertiary)}
-@keyframes wavy-scroll{to{transform:translate(-50%,-50%)}}
-.wavy{transition:transform var(--md-dur-long) var(--md-ease-emph-decel),
-  opacity var(--md-dur-long) var(--md-ease-standard)}
-.wavy.done{transform:scaleY(0);opacity:0}   /* amplitudo melemah lalu selesai */
-.wavy--pagebar{position:fixed;top:64px;left:0;right:0;z-index:70}
-.wavy--mini{height:3px;border-radius:2px}
-
-/* ---- Top app bar ----------------------------------------------- */
-.appbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;
-  min-height:64px;padding:10px 20px;background:var(--md-surface-container);
-  border-bottom:1px solid var(--md-outline-variant);
-  transition:box-shadow var(--md-dur-short) var(--md-ease-standard)}
-/* MD3: top app bar memperoleh elevasi saat konten di-scroll di bawahnya */
-.appbar.scrolled{box-shadow:var(--md-elev-2)}
-/* A11y: indikator fokus keyboard terlihat (state MD3 focus) */
-:where(button,a,input,select,[tabindex]):focus-visible{outline:3px solid var(--md-primary);
-  outline-offset:2px}
-.brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand .mark{width:40px;height:40px;border-radius:var(--md-shape-m);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center;transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.brand:hover .mark{border-radius:var(--md-shape-2xl)}
-.brand .bt{font-size:var(--md-fs-title-l);font-weight:400;letter-spacing:0;white-space:nowrap}
-.brand .bt b{font-weight:500;color:var(--md-primary)}
-.badge-live{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;
-  border-radius:var(--md-shape-full);background:var(--md-tertiary-container);
-  color:var(--md-on-tertiary-container);font-size:var(--md-fs-label-m);font-weight:500;
-  letter-spacing:1.2px}
-.badge-live .dot{width:8px;height:8px;border-radius:50%;background:currentColor;
-  animation:livepulse 1.8s var(--md-ease-standard) infinite}
-@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 var(--md-tertiary-container)}
-  50%{box-shadow:0 0 0 6px transparent}}
-.spacer{flex:1}
-.iconbtn{width:44px;height:44px;border-radius:var(--md-shape-full);
-  color:var(--md-on-surface-variant);display:grid;place-items:center;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring)}
-.iconbtn:active{border-radius:var(--md-shape-m)}
-.clockchip{font-family:var(--md-mono);font-size:var(--md-fs-label-l);
-  color:var(--md-on-surface-variant);padding:8px 14px;border-radius:var(--md-shape-full);
-  background:var(--md-surface-container-high)}
-
-/* ---- Layout ---------------------------------------------------- */
-main{max-width:1240px;margin:0 auto;padding:24px 20px 32px}
-.sechead{display:flex;align-items:center;gap:12px;margin:32px 0 14px;flex-wrap:wrap}
-.sechead h2{font-size:var(--md-fs-title-l);font-weight:400;letter-spacing:0}
-.sechead .sic{width:36px;height:36px;border-radius:var(--md-shape-m);
-  background:var(--md-tertiary-container);color:var(--md-on-tertiary-container);
+/* ================= header ================= */
+.top{max-width:1180px;margin:0 auto;padding:16px 16px 12px;display:flex;
+  align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+.bic{width:36px;height:36px;border-radius:10px;background:var(--acc);color:#fff;
   display:grid;place-items:center}
-.sechead .sic svg.ic{width:20px;height:20px}
-.sechead .tag{font-size:var(--md-fs-label-l);color:var(--md-on-surface-variant);font-weight:400}
+.bic .ic{width:19px;height:19px;stroke-width:2.6}
+html[data-theme=dark] .bic{color:#062730}
+.brand h1{font-size:16px;margin:0;letter-spacing:-.01em}
+.brand p{margin:0;font-size:12px;color:var(--tx2)}
+.search{display:flex;align-items:center;gap:8px;flex:1;min-width:230px;max-width:430px;
+  background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;
+  box-shadow:var(--shadow)}
+.search .ic{color:var(--tx3)}
+.search input{flex:1;border:0;background:none;color:var(--tx);font:inherit;min-width:0}
+.search input:focus{outline:none}
+.search input::placeholder{color:var(--tx3)}
 
-/* ---- Stat cards ------------------------------------------------ */
-.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:20px}
-.statcard{background:var(--md-surface-container-low);border-radius:var(--md-shape-l);
-  padding:16px 18px;min-width:0;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    box-shadow var(--md-dur-med) var(--md-ease-standard)}
-.statcard:hover{border-radius:var(--md-shape-2xl);box-shadow:var(--md-elev-1)}
-.statcard--hero{background:var(--md-primary-container)}
-.statcard .top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.statcard .k{font-size:var(--md-fs-label-m);font-weight:500;letter-spacing:.5px;
-  text-transform:uppercase;color:var(--md-on-surface-variant)}
-.statcard--hero .k{color:var(--md-on-primary-container)}
-.statcard .chip40{width:40px;height:40px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;flex:none;transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.statcard:hover .chip40{border-radius:var(--md-shape-full)}
-.chip40 svg.ic{width:22px;height:22px}
-.chip40--primary{background:var(--md-primary);color:var(--md-on-primary)}
-.statcard--hero .chip40--primary{background:var(--md-surface);color:var(--md-primary)}
-.chip40--secondary{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.chip40--tertiary{background:var(--md-tertiary-container);color:var(--md-on-tertiary-container)}
-.chip40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.statcard .v{font-size:var(--md-fs-display-s);font-weight:400;line-height:1.15;
-  color:var(--md-on-surface);overflow-wrap:anywhere}
-.statcard--hero .v{color:var(--md-on-primary-container)}
-.statcard .v--text{font-size:var(--md-fs-title-m);font-weight:500;padding:8px 0}
-.statcard .s{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);margin-top:4px}
+/* ================= tombol ================= */
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+  border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--tx2);
+  cursor:pointer;padding:0;flex:none}
+.ibtn:hover{color:var(--acctx);border-color:var(--acc);background:var(--accbg)}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:9px;
+  border:1px solid var(--line);background:var(--card);color:var(--tx);font:inherit;
+  font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--acc)}
+.btn.acc{background:var(--acc);border-color:var(--acc);color:#fff}
+html[data-theme=dark] .btn.acc{color:#062730}
+.btn.acc:hover{filter:brightness(1.08)}
 
-/* ---- Task rail -------------------------------------------------- */
-.taskrail{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:thin;
-  scroll-snap-type:x proximity;
-  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent);
-  mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent)}
-.tcard{min-width:225px;max-width:280px;flex:none;background:var(--md-surface-container);
-  color:var(--md-on-surface);border-radius:var(--md-shape-l);padding:14px 16px;text-align:left;
-  scroll-snap-align:start;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard)}
-.tcard:hover{border-radius:var(--md-shape-2xl)}
-.tcard .th{display:flex;align-items:center;gap:8px}
-.tcard .tid{font-family:var(--md-mono);font-size:var(--md-fs-label-s);font-weight:500;
-  letter-spacing:1px;color:var(--md-primary)}
-.tcard .tick{width:16px;height:16px;color:var(--md-on-secondary-container);opacity:0;
-  transform:scale(.5);transition:opacity var(--md-dur-med) var(--md-ease-standard),
-    transform var(--md-dur-med) var(--md-ease-spring)}
-.tcard.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);
-  border-radius:var(--md-shape-xl)}
-.tcard.active .tid{color:var(--md-on-secondary-container)}
-.tcard.active .tick{opacity:1;transform:scale(1)}
-.tcard .tt{font-size:var(--md-fs-title-s);font-weight:500;line-height:1.35;margin-top:6px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.tcard .tc{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);margin-top:6px}
-.tcard.active .tc{color:var(--md-on-secondary-container)}
-.rail-empty{font-size:var(--md-fs-body-s);color:var(--md-on-surface-variant);padding:8px 2px}
+/* ================= layout: sidebar + main ================= */
+.layout{max-width:1180px;margin:0 auto;padding:0 16px 24px;display:grid;
+  grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:start}
+.side{position:sticky;top:14px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:8px;box-shadow:var(--shadow);display:flex;
+  flex-direction:column;gap:2px}
+.side:empty{display:none}
+.stitle{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--tx3);padding:6px 10px 4px}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;
+  border:0;background:none;border-radius:8px;color:var(--tx2);font:inherit;font-size:13.5px;
+  cursor:pointer;text-align:left}
+.nav:hover{background:var(--card2);color:var(--tx)}
+.nav.on{background:var(--accbg);color:var(--acctx);font-weight:600}
+.nc{font-size:11px;font-variant-numeric:tabular-nums;line-height:18px;padding:0 7px;
+  border-radius:99px;background:var(--card2);border:1px solid var(--line);color:var(--tx2);flex:none}
+.nav.on .nc{background:transparent;border-color:transparent;color:var(--acctx)}
+@media(max-width:800px){   /* layar sempit: sidebar jadi chip horizontal scrollable */
+  .layout{grid-template-columns:1fr;gap:12px}
+  .side{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding:6px}
+  .stitle{display:none}
+  .nav{flex:none;justify-content:center;border:1px solid var(--line);padding:6px 12px}
+  .nc{border:0;background:none;padding:0}
+}
 
-/* ---- Toolbar ---------------------------------------------------- */
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:20px 0 6px}
-.toolrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:1;min-width:0}
-.search{flex:1;min-width:240px;display:flex;align-items:center;gap:10px;height:48px;
-  padding:0 6px 0 16px;background:var(--md-surface-container-high);
-  border-radius:var(--md-shape-full);color:var(--md-on-surface-variant);
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard)}
-.search:focus-within{border-radius:var(--md-shape-l);background:var(--md-surface-container-highest)}
-.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--md-on-surface);
-  font:inherit;font-size:var(--md-fs-body-m)}
-.search input::placeholder{color:var(--md-on-surface-variant)}
-.fchip-btn{width:44px;height:44px;border-radius:var(--md-shape-full);display:grid;
-  place-items:center;flex:none}
-.fchip-btn svg.ic{width:20px;height:20px}
+/* ================= kartu statistik ================= */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;
+  margin-bottom:16px}
+.stats:empty{display:none}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:13px 16px 12px;box-shadow:var(--shadow)}
+.stat .k{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--tx3)}
+.stat .v{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.25;
+  font-variant-numeric:tabular-nums;margin-top:3px}
+.stat .v.vt{font-size:19px;line-height:1.55}
+.stat .s{font-size:12px;color:var(--tx2);margin-top:3px;display:flex;align-items:center;
+  gap:6px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
+.dot.on{background:var(--ok)}
 
-/* Filter chips — anatomy MD3: leading check saat terpilih, shape 8dp */
-.fchip{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 16px;
-  border-radius:var(--md-shape-s);border:1px solid var(--md-outline);
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  overflow:hidden;position:relative;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard),
-    border-color var(--md-dur-short) var(--md-ease-standard)}
-.fchip svg.ic{width:18px;height:18px}
-.fchip .lead{display:none;color:var(--md-on-secondary-container)}
-.fchip:hover{border-radius:var(--md-shape-m)}
-.fchip.on{background:var(--md-secondary-container);border-color:transparent;
-  color:var(--md-on-secondary-container);border-radius:var(--md-shape-m)}
-.fchip.on .lead{display:block}
-.fchip:active{border-radius:var(--md-shape-xs)}
-.fchip .fnum{font-size:var(--md-fs-label-m);opacity:.75;font-variant-numeric:tabular-nums}
+/* ================= tabel file ================= */
+.tblcard{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);overflow:hidden}
+.tw{overflow-x:auto}
+table{width:100%;min-width:640px;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--card2);font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--tx2);text-align:left;padding:9px 14px;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+th.num,td.num{text-align:right}
+th.act,td.act{text-align:right}
+th[data-col]{cursor:pointer;user-select:none}
+th[data-col]:hover{color:var(--acctx)}
+th .arr{font-size:9px;color:var(--acctx);margin-left:3px}
+tbody td{padding:8px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.row{cursor:pointer}
+tbody tr.row:nth-child(even){background:var(--card2)}   /* zebra halus */
+tbody tr.row:hover{background:var(--accbg)}
+tbody tr.row:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.fn{display:block;font-weight:600;max-width:440px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.fd{display:block;font-size:11.5px;color:var(--tx3);max-width:440px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+td.num,td.tm{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--tx2)}
+td.act{white-space:nowrap}
+td.act .ibtn{width:28px;height:28px}
 
-/* Sort bar — header kolom nama/ukuran/waktu; klik = aktifkan, klik lagi = toggle arah */
-.sortbar{display:inline-flex;align-items:center;height:44px;border:1px solid var(--md-outline);
-  border-radius:var(--md-shape-full);overflow:hidden}
-.sortbtn{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:100%;
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  position:relative;transition:background var(--md-dur-short) var(--md-ease-standard)}
-.sortbtn+.sortbtn::before{content:"";position:absolute;left:0;top:8px;bottom:8px;
-  width:1px;background:var(--md-outline)}
-.sortbtn.on{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.sortbtn .sortarr{width:18px;height:18px;visibility:hidden;
-  transition:transform var(--md-dur-short) var(--md-ease-spring)}
-.sortbtn.on .sortarr{visibility:visible}
-.sortbtn.asc .sortarr{transform:rotate(180deg)}  /* panah naik = A→Z / terkecil / terlama */
+/* badge kategori */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+  padding:2.5px 9px;border-radius:99px;white-space:nowrap;color:var(--b);
+  background:var(--card2);background:color-mix(in srgb,var(--b) 12%,transparent)}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.t-doc{--b:#1d4ed8}.t-img{--b:#a21caf}.t-data{--b:#b45309}.t-pkg{--b:#c2410c}
+.t-code{--b:#047857}.t-office{--b:#6d28d9}.t-other{--b:#475569}
+html[data-theme=dark] .t-doc{--b:#8fb5ff}html[data-theme=dark] .t-img{--b:#df9bf2}
+html[data-theme=dark] .t-data{--b:#e3c56d}html[data-theme=dark] .t-pkg{--b:#f5a06d}
+html[data-theme=dark] .t-code{--b:#5bd6a4}html[data-theme=dark] .t-office{--b:#b8a4ff}
+html[data-theme=dark] .t-other{--b:#9aa9b5}
 
-/* Segmented button — view toggle */
-.seg{display:inline-flex;border:1px solid var(--md-outline);border-radius:var(--md-shape-full);
-  overflow:hidden;height:44px}
-.seg button{display:inline-flex;align-items:center;gap:8px;padding:0 16px;
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  position:relative;transition:background var(--md-dur-short) var(--md-ease-standard)}
-.seg button+button::before{content:"";position:absolute;left:0;top:8px;bottom:8px;
-  width:1px;background:var(--md-outline)}
-.seg button svg.ic{width:18px;height:18px}
-.seg button.on{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+/* state loading / kosong / error */
+.st{padding:42px 18px;display:flex;flex-direction:column;align-items:center;gap:11px;
+  text-align:center;color:var(--tx2);font-size:13.5px}
+.st .ic{width:26px;height:26px;color:var(--tx3)}
+.st.err{color:var(--bad)}
+.st.err .ic{color:var(--bad)}
+.spin{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--line);
+  border-top-color:var(--acc);animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.morewrap{display:flex;justify-content:center;padding:12px;border-top:1px solid var(--line2)}
+.morewrap[hidden]{display:none}
 
-/* Input chip — filter task aktif */
-.ichip{display:inline-flex;align-items:center;gap:4px;margin:10px 0 2px;height:36px;
-  padding:0 8px 0 14px;background:var(--md-tertiary-container);
-  color:var(--md-on-tertiary-container);border-radius:var(--md-shape-s);
-  font-size:var(--md-fs-label-l);font-weight:500;
-  animation:springin var(--md-dur-med) var(--md-ease-spring)}
-.ichip .x{width:32px;height:32px;border-radius:var(--md-shape-full);display:grid;
-  place-items:center}
-.ichip .x svg.ic{width:16px;height:16px}
-@keyframes springin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 28px;font-size:12px;color:var(--tx3)}
 
-/* ---- Root section + file cards ---------------------------------- */
-.roothead{display:flex;align-items:center;gap:12px;margin:28px 0 12px;flex-wrap:wrap}
-.roothead .rf{width:32px;height:32px;border-radius:var(--md-shape-s);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center}
-.roothead .rf svg.ic{width:18px;height:18px}
-.roothead .rt{font-size:var(--md-fs-title-m);font-weight:500}
-.roothead .path{font-family:var(--md-mono);font-size:var(--md-fs-label-m);
-  color:var(--md-on-surface-variant);background:var(--md-surface-container-high);
-  padding:4px 12px;border-radius:var(--md-shape-xs)}
-.roothead .cnt{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant)}
-
-.filegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
-.fcard{position:relative;background:var(--md-surface-container-low);border-radius:var(--md-shape-l);
-  padding:16px;cursor:pointer;overflow:hidden;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    box-shadow var(--md-dur-med) var(--md-ease-standard),
-    background var(--md-dur-short) var(--md-ease-standard);
-  animation:cardin var(--md-dur-long) var(--md-ease-spring) both}
-@keyframes cardin{from{opacity:0;transform:translateY(14px) scale(.96)}
-  to{opacity:1;transform:none}}
-.fcard:hover{border-radius:var(--md-shape-2xl);box-shadow:var(--md-elev-2)}
-.fcard:active{border-radius:var(--md-shape-m)}
-.fcard .fchip40{width:44px;height:44px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;margin-bottom:12px;position:relative;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.fcard:hover .fchip40{border-radius:var(--md-shape-full)}
-.fcard .ext{position:absolute;top:12px;right:12px;font-family:var(--md-mono);
-  font-size:var(--md-fs-label-s);font-weight:500;letter-spacing:.5px;padding:3px 8px;
-  border-radius:var(--md-shape-xs)}
-.fcard .nm{font-size:var(--md-fs-title-s);font-weight:500;line-height:1.35;
-  color:var(--md-on-surface);word-break:break-all;margin-bottom:10px;padding-right:4px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.fcard .meta{display:flex;justify-content:space-between;gap:8px;
-  font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);font-family:var(--md-mono)}
-.fcard .go{position:absolute;bottom:12px;right:12px;color:var(--md-primary);
-  opacity:0;transform:translateX(-6px);
-  transition:opacity var(--md-dur-short) var(--md-ease-standard),
-    transform var(--md-dur-short) var(--md-ease-spring)}
-.fcard:hover .go,.fcard:focus-visible .go{opacity:1;transform:none}
-.fcard .go svg.ic{width:20px;height:20px}
-
-/* Extended tonal per jenis file */
-.t-doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
-.t-pdf{background:var(--t-pdf-bg);color:var(--t-pdf-fg)}
-.t-img{background:var(--t-img-bg);color:var(--t-img-fg)}
-.t-data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.t-code{background:var(--t-code-bg);color:var(--t-code-fg)}
-.t-pkg{background:var(--t-pkg-bg);color:var(--t-pkg-fg)}
-.t-office{background:var(--t-office-bg);color:var(--t-office-fg)}
-.t-other{background:var(--t-other-bg);color:var(--t-other-fg)}
-
-/* List view — list item MD3 (flat + divider) */
-.filegrid--list{display:block}
-.filegrid--list .fcard{display:flex;align-items:center;gap:14px;padding:8px 16px;
-  border-radius:var(--md-shape-m);animation:none}
-.filegrid--list .fcard+.fcard{margin-top:2px}
-.filegrid--list .fcard .fchip40{width:40px;height:40px;margin:0;flex:none}
-.filegrid--list .fcard .ext{position:static;order:5;flex:none}
-.filegrid--list .fcard .nm{flex:1;margin:0;padding:0;-webkit-line-clamp:1}
-.filegrid--list .fcard .meta{flex:none}
-.filegrid--list .fcard .go{position:static;opacity:.55;transform:none}
-
-/* Empty state */
-.empty{grid-column:1/-1;text-align:center;padding:48px 16px}
-.empty .e{width:88px;height:88px;margin:0 auto 16px;border-radius:var(--md-shape-2xl);
-  background:var(--md-surface-container);color:var(--md-on-surface-variant);
-  display:grid;place-items:center;transition:border-radius var(--md-dur-long) var(--md-ease-spring)}
-.empty:hover .e{border-radius:var(--md-shape-full)}
-.empty .e svg.ic{width:40px;height:40px}
-.empty .t{font-size:var(--md-fs-title-m);font-weight:500;color:var(--md-on-surface)}
-.empty .h{font-size:var(--md-fs-body-s);color:var(--md-on-surface-variant);margin-top:4px}
-
-/* FAB — scroll to top */
-.fab{position:fixed;right:24px;bottom:24px;z-index:65;width:48px;height:48px;
-  border-radius:var(--md-shape-m);background:var(--md-primary-container);
-  color:var(--md-on-primary-container);display:grid;place-items:center;
-  box-shadow:var(--md-elev-2);opacity:0;transform:translateY(72px);pointer-events:none;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    transform var(--md-dur-med) var(--md-ease-spring),
-    opacity var(--md-dur-med) var(--md-ease-standard)}
-.fab.show{opacity:1;transform:none;pointer-events:auto}
-.fab:active{border-radius:var(--md-shape-s)}
-
-/* Footer */
-footer{border-top:1px solid var(--md-outline-variant);margin-top:44px;padding:24px 20px 28px;
-  text-align:center;font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);line-height:1.8}
-footer b{color:var(--md-on-surface);font-weight:500}
-
-/* ---- Dialog (preview modal) ------------------------------------- */
-.modal{position:fixed;inset:0;z-index:100;background:var(--md-scrim);
-  backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;
-  padding:20px;opacity:0;pointer-events:none;
-  transition:opacity var(--md-dur-med) var(--md-ease-standard)}
-.modal.open{opacity:1;pointer-events:auto}
-.mbox{background:var(--md-surface-container-high);border-radius:var(--md-shape-2xl);
-  max-width:960px;width:100%;max-height:88vh;max-height:88dvh;display:flex;flex-direction:column;
-  overflow:hidden;box-shadow:var(--md-elev-3);transform:scale(.92);
-  transition:transform var(--md-dur-med) var(--md-ease-emph-decel)}
-.modal.open .mbox{transform:scale(1)}
-.mhead{display:flex;align-items:center;gap:12px;padding:14px 18px;flex-wrap:wrap;
-  border-bottom:1px solid var(--md-outline-variant)}
-.mhead .micon{width:40px;height:40px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;flex:none}
-.mhead .micon svg.ic{width:22px;height:22px}
-.mhead .nm{font-size:var(--md-fs-title-m);font-weight:500;word-break:break-all;
-  flex:1;min-width:160px}
-.mhead .meta{color:var(--md-on-surface-variant);font-size:var(--md-fs-label-m);
-  font-family:var(--md-mono)}
-.btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 22px;
-  border-radius:var(--md-shape-full);font-size:var(--md-fs-label-l);font-weight:500;
-  text-decoration:none;position:relative;overflow:hidden;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    box-shadow var(--md-dur-short) var(--md-ease-standard)}
-.btn:active{border-radius:var(--md-shape-s)}
-.btn svg.ic{width:18px;height:18px}
-.btn--filled{background:var(--md-primary);color:var(--md-on-primary)}
-.btn--filled:hover{box-shadow:var(--md-elev-1)}
-.btn--tonal{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.btn--tonal:hover{box-shadow:var(--md-elev-1)}
-.btn--text{color:var(--md-primary);padding:0 14px}
+/* ================= dialog pratinjau ================= */
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  padding:18px;background:rgba(5,12,16,.58)}
+html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
+.modal.open{display:flex}
+.mbox{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  width:min(900px,100%);max-height:min(88vh,780px);display:flex;flex-direction:column;
+  box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
+.mhead{display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mtxt{margin-right:auto;min-width:180px}
+#mName{font-weight:700;font-size:13.5px;word-break:break-all;line-height:1.35}
+#mMeta{font-size:12px;color:var(--tx2)}
 .mbody{overflow:auto;padding:18px;flex:1}
-.mbody img{max-width:100%;border-radius:var(--md-shape-m);display:block;margin:0 auto;
-  box-shadow:var(--md-elev-2)}
-.mbody iframe{width:100%;height:74vh;height:74dvh;border:0;border-radius:var(--md-shape-m);background:#fff}
-.mbody pre{font-family:var(--md-mono);font-size:var(--md-fs-body-s);line-height:1.6;
-  white-space:pre-wrap;word-break:break-word;color:var(--md-on-surface)}
-.loadcard{text-align:center;padding:40px 16px}
-.loadcard p{color:var(--md-on-surface-variant);font-size:var(--md-fs-body-s);margin:14px 0 18px}
-.loadcard .lic{width:56px;height:56px;margin:0 auto;border-radius:var(--md-shape-l);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center;animation:breathe 1.2s var(--md-ease-standard) infinite}
-@keyframes breathe{50%{transform:scale(1.08)}}
+.mbody img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px}
+.mbody iframe{width:100%;height:72vh;border:0;border-radius:8px;background:#fff}
+.mbody pre{margin:0;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;word-break:break-word}
+.mdv{font-size:14px;line-height:1.65;max-width:780px}
+.mdv h1,.mdv h2,.mdv h3,.mdv h4{margin:1.1em 0 .4em;line-height:1.3}
+.mdv h1{font-size:1.5em}.mdv h2{font-size:1.28em}.mdv h3{font-size:1.12em}
+.mdv p,.mdv ul{margin:.5em 0}
+.mdv ul{padding-left:1.4em}
+.mdv code{background:var(--card2);border:1px solid var(--line2);border-radius:4px;padding:0 4px;
+  font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.mdv pre{background:var(--card2);border:1px solid var(--line2);border-radius:8px;
+  padding:12px 14px;overflow:auto}
+.mdv pre code{border:0;background:none;padding:0;font-size:12px}
+.mdv blockquote{margin:.6em 0;padding:.1em .95em;border-left:3px solid var(--acc);color:var(--tx2)}
 
-/* Markdown preview — roles MD3 */
-.md h1{font-size:var(--md-fs-title-l);font-weight:400;margin:16px 0 8px}
-.md h2{font-size:var(--md-fs-title-m);font-weight:500;margin:14px 0 7px}
-.md h3,.md h4{font-size:var(--md-fs-title-s);font-weight:500;margin:12px 0 6px}
-.md p{margin:8px 0;line-height:1.65;font-size:var(--md-fs-body-m)}
-.md code{font-family:var(--md-mono);background:var(--md-surface-container-highest);
-  padding:2px 6px;border-radius:var(--md-shape-xs);font-size:var(--md-fs-body-s)}
-.md pre{background:var(--md-surface-container-lowest);border:1px solid var(--md-outline-variant);
-  border-radius:var(--md-shape-m);padding:14px;overflow:auto;margin:10px 0}
-.md pre code{background:none;padding:0}
-.md ul,.md ol{margin:8px 0 8px 22px}
-.md li{margin:4px 0;font-size:var(--md-fs-body-m);line-height:1.55}
-.md a{color:var(--md-primary)}
-.md hr{border:0;border-top:1px solid var(--md-outline-variant);margin:14px 0}
-.md blockquote{border-left:3px solid var(--md-tertiary);padding:2px 14px;
-  color:var(--md-on-surface-variant);margin:10px 0}
-.k{color:var(--md-primary)} .s2{color:var(--t-data-fg)}
-.n{color:var(--t-office-fg)} .b2{color:var(--t-pkg-fg)}
-
-/* ---- Snackbar ---------------------------------------------------- */
-.snackbar{position:fixed;left:50%;bottom:24px;z-index:110;transform:translate(-50%,80px);
-  display:flex;align-items:center;gap:12px;min-height:48px;max-width:90vw;padding:8px 10px 8px 16px;
-  background:var(--md-inverse-surface);color:var(--md-inverse-on-surface);
-  border-radius:var(--md-shape-s);box-shadow:var(--md-elev-3);font-size:var(--md-fs-body-m);
-  opacity:0;pointer-events:none;
-  transition:transform var(--md-dur-med) var(--md-ease-spring),
-    opacity var(--md-dur-med) var(--md-ease-standard)}
-.snackbar.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
-.snackbar .act{color:var(--md-inverse-primary);font-weight:500;height:40px;
-  padding:0 12px;border-radius:var(--md-shape-s)}
-
-/* ---- Responsif — desktop ⇒ tablet ⇒ ponsel ---------------------- */
-/* Tablet */
-@media(max-width:900px){
-  .statgrid{grid-template-columns:1fr 1fr}
-  main{padding:20px 16px 28px}
-}
-/* Ponsel */
-@media(max-width:640px){
-  .appbar{padding:8px 12px;gap:10px}
-  .brand{gap:10px}
-  .brand .bt{font-size:var(--md-fs-title-m)}
-  .clockchip{display:none}               /* hemat ruang — info aktif tetap ada di footer */
-  main{padding:16px 12px 24px}
-  .statgrid{grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  .statcard{padding:12px 14px}
-  .statcard .v{font-size:clamp(26px,8vw,32px)}
-  .sechead{margin:24px 0 10px}
-  .sechead .tag{display:none}
-  .search{min-width:0}
-  .search input{font-size:16px}          /* cegah auto-zoom iOS Safari */
-  .toolbar{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
-  .toolrow{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none;
-    -webkit-overflow-scrolling:touch;padding-bottom:2px}
-  .toolrow::-webkit-scrollbar{display:none}
-  .toolrow>*{flex:none}
-  .taskrail{-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none}
-  .taskrail::-webkit-scrollbar{display:none}
-  .tcard{min-width:200px;scroll-snap-align:start}
-  .filegrid{gap:10px}
-  .empty{padding:32px 12px}
-  .fab{right:16px;bottom:calc(16px + env(safe-area-inset-bottom))}
-  .snackbar{bottom:calc(84px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
-  footer{padding:18px 14px 22px}
-  /* Dialog menjadi bottom-sheet */
-  .modal{padding:0;align-items:flex-end}
-  .modal .mbox{transform:translateY(64px)}
-  .modal.open .mbox{transform:none}
-  .mbox{max-width:100%;max-height:92vh;max-height:92dvh;
-    border-radius:var(--md-shape-2xl) var(--md-shape-2xl) 0 0;
-    padding-bottom:env(safe-area-inset-bottom)}
-  .mhead{padding:12px 14px}
-  .mhead .nm{font-size:var(--md-fs-title-s);min-width:120px}
-  .mbody{padding:14px}
-}
-/* Ponsel sempit */
-@media(max-width:380px){
-  .statgrid{grid-template-columns:1fr}
-  .badge-live{padding:0 8px;letter-spacing:.6px}
-  .brand .bt{font-size:var(--md-fs-title-s)}
-}
-/* Landscape compact — ponsel diputar: tinggi langka, lebar berlimpah.
-   Stat kembali 4 kolom, app bar ramping, modal nyaris layar penuh. */
-@media(orientation:landscape) and (max-height:520px){
-  .appbar{min-height:56px;padding:6px 16px}
-  main{padding:12px 16px 20px}
-  .statgrid{grid-template-columns:repeat(4,minmax(140px,1fr));margin-top:12px;gap:10px}
-  .statcard{padding:12px 14px}
-  .sechead{margin:16px 0 8px}
-  .roothead{margin:18px 0 10px}
-  .toolbar{margin:12px 0 4px}
-  .mbox{max-height:96vh;max-height:96dvh}
-  .mbody iframe{height:62vh;height:62dvh}
-  .fab{bottom:12px}
-  .snackbar{bottom:calc(12px + env(safe-area-inset-bottom))}
-}
-/* LARGE (≥1240px) — pola list-detail kanonis MD3:
-   task rail naik jadi navigation rail vertikal sticky di kiri;
-   statistik tetap membentang; konten filter+file di kanan. */
-@media(min-width:1240px){
-  main{display:grid;grid-template-columns:296px minmax(0,1fr);
-    grid-template-areas:"stats stats" "tasks tools" "tasks roots";
-    column-gap:32px;align-items:start}
-  #stats{grid-area:stats}
-  main>section[aria-labelledby="secTask"]{grid-area:tasks;position:sticky;top:84px}
-  main>section[aria-label="Filter dan pencarian"]{grid-area:tools}
-  #roots{grid-area:roots}
-  main>section[aria-labelledby="secTask"] .sechead{margin:24px 0 10px}
-  .taskrail{flex-direction:column;overflow-x:hidden;overflow-y:auto;
-    max-height:calc(100dvh - 150px);padding:2px 8px 10px 2px;
-    mask-image:none;-webkit-mask-image:none;scroll-snap-type:none;
-    scrollbar-width:thin;overscroll-behavior:contain}
-  .tcard{min-width:0;max-width:none;width:100%;scroll-snap-align:none}
-  .tcard .tt{-webkit-line-clamp:3}
-}
-/* EXTRA-LARGE (≥1600px) — ruang napas lebih lebar untuk desktop besar */
-@media(min-width:1600px){
-  main{max-width:1480px;padding:28px 28px 36px}
-  .filegrid{grid-template-columns:repeat(auto-fill,minmax(min(100%,264px),1fr))}
-  .statcard{padding:18px 20px}
-}
-/* Sentuh: affordance tanpa hover + target lebih besar */
-@media(hover:none){
-  .fcard .go{opacity:.55;transform:none}  /* indikasi tap selalu terlihat */
-  .fcard:hover{border-radius:var(--md-shape-l)}
-}
-@media(pointer:coarse){
-  .iconbtn,.fchip-btn{width:48px;height:48px}
-  .fchip{min-height:44px}
-  .ichip .x{width:40px;height:40px}
-}
-/* Reduced motion — hormati preferensi pengguna */
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
-    transition-duration:.01ms!important}
-  html{scroll-behavior:auto}
-  .wavy svg{animation:none;transform:translate(-25%,-50%)}
-}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:var(--md-shape-full)}
-::-webkit-scrollbar-track{background:transparent}
-/* ---- v2.2 additions: quick-download per kartu + kartu Guardian ------------ */
-.fdl{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:var(--md-shape-full);
-  display:flex;align-items:center;justify-content:center;text-decoration:none;
-  background:var(--md-surface-container-high,rgba(128,128,128,.22));color:var(--md-on-surface-variant,inherit);
-  opacity:0;transform:scale(.85);transition:opacity var(--md-dur-short) var(--md-ease-standard),transform var(--md-dur-short) var(--md-ease-spring)}
-.fcard:hover .fdl,.fdl:focus-visible{opacity:1;transform:scale(1)}
-.fdl:active{transform:scale(.92)}
-.gdot{display:inline-block;width:8px;height:8px;border-radius:var(--md-shape-full);margin-right:2px;vertical-align:middle}
-.gdot.on{background:#4caf50;box-shadow:0 0 6px #4caf5088}
-.gdot.off{background:#f44336}
-.statcard--guardian .v{font-variant-numeric:tabular-nums}
-@media (hover:none){.fdl{opacity:.9}}
-/* ---- v3.0 additions: breadcrumb, copy-path per kartu, lazy render, error ---- */
-.fcard .nm .cd{color:var(--md-on-surface-variant);font-weight:400;   /* segmen direktori */
-  font-size:var(--md-fs-label-m)}
-.fcpy{position:absolute;top:48px;right:8px;width:34px;height:34px;
-  border-radius:var(--md-shape-full);display:flex;align-items:center;justify-content:center;
-  background:var(--md-surface-container-high,rgba(128,128,128,.22));
-  color:var(--md-on-surface-variant,inherit);opacity:0;transform:scale(.85);
-  transition:opacity var(--md-dur-short) var(--md-ease-standard),
-    transform var(--md-dur-short) var(--md-ease-spring)}
-.fcpy svg.ic{width:18px;height:18px}
-.fcard:hover .fcpy,.fcpy:focus-visible{opacity:1;transform:scale(1)}
-.fcpy:active{transform:scale(.92)}
-.filegrid--list .fcard .fdl,.filegrid--list .fcard .fcpy{position:static;width:36px;height:36px;
-  opacity:.6;transform:none}
-.filegrid--list .fcard .fdl:focus-visible,.filegrid--list .fcard .fcpy:focus-visible{opacity:1}
-.morewrap{display:flex;justify-content:center;padding:14px 0 4px}
-.morewrap .btn{justify-content:center;min-width:230px}
-.errcard .btn{margin-top:16px}
-@media (hover:none){.fcpy{opacity:.9}}
+/* toast */
+#toast{position:fixed;left:50%;bottom:22px;z-index:60;transform:translate(-50%,14px);
+  background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:9px;font-size:13px;
+  font-weight:500;max-width:88vw;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;box-shadow:0 8px 28px rgba(0,0,0,.28);word-break:break-all}
+#toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
 </head>
 <body>
-<!-- Pustaka ikon SVG inline (pengganti emoji — Material style, tanpa CDN) -->
+
+<!-- Pustaka ikon SVG inline (zero-dependency, tanpa aset eksternal) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.5 13.5-7 3 3-7 7-3-3 7z"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
-  <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
-  <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></symbol>
-  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></symbol>
-  <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM1 11h3v2H1v-2zm19 0h3v2h-3v-2zM4.2 5.6 5.6 4.2l2.1 2.1-1.4 1.4-2.1-2.1zm12.1 12.1 1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1zm2.1-13.5 1.4 1.4-2.1 2.1-1.4-1.4 2.1-2.1zM6.3 16.3l1.4 1.4-2.1 2.1-1.4-1.4 2.1-2.1z"/></symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></symbol>
-  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></symbol>
-  <symbol id="i-chevr" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
-  <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7z"/></symbol>
-  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></symbol>
-  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
-  <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM7 12h10v2H7v-2zm0 4h7v2H7v-2z"/></symbol>
-  <symbol id="i-img" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></symbol>
-  <symbol id="i-data" viewBox="0 0 24 24"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zM16.2 13H19v6h-2.8v-6z"/></symbol>
-  <symbol id="i-code" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></symbol>
-  <symbol id="i-pkg" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 19c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-5 9H9v-2h6v2z"/></symbol>
-  <symbol id="i-office" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H6v-3h4v3zm0-5H6V9h4v3zm9 5h-4v-3h4v3zm0-5h-4V9h4v3z"/></symbol>
-  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l6 6v12c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2zm7 7h5l-5-5v5z"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm.5 5H11v6l5.2 3.1.8-1.3-4.5-2.7V7z"/></symbol>
-  <symbol id="i-task" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9.5 17 6 13.5l1.4-1.4 2.1 2.1 6.1-6.1L17 9.5 9.5 17z"/></symbol>
-  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
-  <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></symbol>
-  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l2.1 5.9L20 10l-5.9 2.1L12 18l-2.1-5.9L4 10l5.9-2.1L12 2zm7 12 .9 2.5L22.5 17l-2.6.9L19 20.5l-.9-2.6-2.6-.9 2.6-.9L19 14z"/></symbol>
-  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M4.5 20h15"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2m0 15v2M2.5 12h2m15 0h2M5.3 5.3l1.4 1.4m10.6 10.6 1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.6 14.4A8.7 8.7 0 1 1 9.6 3.4a7 7 0 0 0 11 11z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 22 20H2z"/><path d="M12 10v4.5M12 17.6v.01"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9L20 8.5"/><path d="M20 3.5v5h-5"/></symbol>
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
 </svg>
 
-<!-- Wavy progress indeterminate — signature Material 3 Expressive -->
-<div class="wavy wavy--pagebar" id="pageWave" aria-hidden="true">
-  <svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg>
-  <svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg>
-</div>
-
-<!-- Top app bar -->
-<header class="appbar">
+<header class="top">
   <div class="brand">
-    <div class="mark"><svg class="ic"><use href="#i-logo"/></svg></div>
-    <div class="bt">Task Files <b>Explorer</b></div>
+    <span class="bic"><svg class="ic"><use href="#i-logo"/></svg></span>
+    <div><h1>File Explorer</h1><p>dashboard file · download/ · archive/</p></div>
   </div>
-  <span class="badge-live"><span class="dot"></span>LIVE</span>
-  <div class="spacer"></div>
-  <button class="iconbtn state" id="themeBtn" title="Ganti tema terang/gelap" aria-label="Ganti tema terang atau gelap">
-    <svg class="ic" id="themeIcon"><use href="#i-moon"/></svg>
-  </button>
-  <span class="clockchip" id="clock">--:--:--</span>
+  <div class="search" role="search">
+    <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+    <input id="q" type="search" placeholder="Cari nama / ekstensi / ID task…" aria-label="Cari file">
+    <button class="ibtn" id="qClear" hidden title="Bersihkan pencarian" aria-label="Bersihkan pencarian"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+  <button class="ibtn" id="themeBtn" aria-label="Ganti tema"></button>
 </header>
 
-<main>
-  <!-- Statistik -->
-  <section class="statgrid" id="stats" aria-label="Statistik file"></section>
-
-  <!-- Riwayat task -->
-  <section aria-labelledby="secTask">
-    <div class="sechead">
-      <span class="sic"><svg class="ic"><use href="#i-task"/></svg></span>
-      <h2 id="secTask">Riwayat Task</h2>
-      <span class="tag">diparse otomatis dari worklog.md — klik kartu untuk memfilter file terkait</span>
-    </div>
-    <div class="taskrail" id="taskRail" role="list"></div>
-  </section>
-
-  <!-- Toolbar -->
-  <section aria-label="Filter dan pencarian">
-    <div class="toolbar">
-      <div class="search" role="search">
-        <svg class="ic" style="width:20px;height:20px"><use href="#i-search"/></svg>
-        <input id="q" type="search" placeholder="Cari file… (nama / ekstensi)" aria-label="Cari file">
-        <button class="fchip-btn state" id="qClear" hidden title="Bersihkan pencarian" aria-label="Bersihkan pencarian">
-          <svg class="ic"><use href="#i-close"/></svg>
-        </button>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Filter kategori"></nav>
+  <main>
+    <section class="stats" id="stats" aria-label="Ringkasan statistik"></section>
+    <section class="tblcard" aria-label="Daftar file">
+      <div class="tw">
+        <table>
+          <thead id="thd"><tr>
+            <th data-col="name" scope="col" aria-sort="none" title="Urutkan berdasar nama — klik lagi untuk balik arah">Nama <span class="arr" aria-hidden="true"></span></th>
+            <th scope="col">Kategori</th>
+            <th data-col="size" scope="col" class="num" aria-sort="none" title="Urutkan berdasar ukuran — klik lagi untuk balik arah">Ukuran <span class="arr" aria-hidden="true"></span></th>
+            <th data-col="mtime" scope="col" aria-sort="descending" title="Urutkan berdasar waktu — klik lagi untuk balik arah">Waktu <span class="arr" aria-hidden="true">▼</span></th>
+            <th scope="col" class="act">Aksi</th>
+          </tr></thead>
+          <tbody id="tbody">
+            <tr class="staterow"><td colspan="5"><div class="st"><div class="spin"></div>memuat inventaris file…</div></td></tr>
+          </tbody>
+        </table>
       </div>
-      <div class="toolrow">
-        <button class="fchip state on" data-type="all"><svg class="ic lead"><use href="#i-check"/></svg>Semua <span class="fnum"></span></button>
-        <button class="fchip state" data-type="doc"><svg class="ic lead"><use href="#i-check"/></svg>Dokumen <span class="fnum"></span></button>
-        <button class="fchip state" data-type="img"><svg class="ic lead"><use href="#i-check"/></svg>Gambar <span class="fnum"></span></button>
-        <button class="fchip state" data-type="data"><svg class="ic lead"><use href="#i-check"/></svg>Data <span class="fnum"></span></button>
-        <button class="fchip state" data-type="pkg"><svg class="ic lead"><use href="#i-check"/></svg>Arsip <span class="fnum"></span></button>
-        <button class="fchip state" data-type="code"><svg class="ic lead"><use href="#i-check"/></svg>Kode <span class="fnum"></span></button>
-        <button class="fchip state" data-type="office"><svg class="ic lead"><use href="#i-check"/></svg>Office <span class="fnum"></span></button>
-        <button class="fchip state" data-type="other"><svg class="ic lead"><use href="#i-check"/></svg>Lainnya <span class="fnum"></span></button>
-        <div class="sortbar" role="group" aria-label="Urutkan daftar file">
-          <button class="sortbtn state on" data-col="mtime" aria-pressed="true" title="Urutkan berdasar waktu">Waktu <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button class="sortbtn state" data-col="name" aria-pressed="false" title="Urutkan berdasar nama">Nama <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button class="sortbtn state" data-col="size" aria-pressed="false" title="Urutkan berdasar ukuran">Ukuran <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-        </div>
-        <div class="seg" role="group" aria-label="Mode tampilan">
-          <button id="vGrid" class="state on" title="Tampilan grid" aria-label="Tampilan grid" aria-pressed="true">
-            <svg class="ic"><use href="#i-grid"/></svg>Grid
-          </button>
-          <button id="vList" class="state" title="Tampilan daftar" aria-label="Tampilan daftar" aria-pressed="false">
-            <svg class="ic"><use href="#i-list"/></svg>Daftar
-          </button>
-        </div>
-      </div>
-    </div>
-    <div id="activeFilter"></div>
-  </section>
+      <div class="morewrap" id="moreWrap" hidden><button class="btn" id="moreBtn">Muat lagi</button></div>
+    </section>
+  </main>
+</div>
 
-  <!-- Daftar file per root (state loading awal — diganti renderFiles saat data tiba) -->
-  <section id="roots" aria-label="File per lokasi">
-    <div class="loadcard"><div class="lic"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg></div>
-      <p>memuat inventaris file…</p>
-      <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>
-  </section>
-</main>
+<footer>Dilayani oleh <b>explorer.py</b> · UI Dashboard v4.0 · zero-dependency · tema adaptif · <span id="ft">menghubungi server…</span></footer>
 
-<footer>
-  Dilayani oleh <b>dev.sh</b> boot hook → <b>explorer.py</b> di 127.0.0.1:3000 — upstream ingress preview platform.<br>
-  Antarmuka <b>Material Design 3 Expressive</b> · adaptif desktop &amp; mobile (window size classes MD3) · tema adaptif sistem · pencarian live · render bertahap · zero-dependency · <span id="ftInfo">memuat…</span>
-</footer>
-
-<!-- FAB scroll-to-top -->
-<button class="fab state" id="fabTop" title="Kembali ke atas" aria-label="Kembali ke atas">
-  <svg class="ic"><use href="#i-up"/></svg>
-</button>
-
-<!-- Dialog preview -->
-<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mName">
+<!-- Dialog pratinjau file -->
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mName">
   <div class="mbox">
     <div class="mhead">
-      <span class="micon t-doc" id="mIconWrap"><svg class="ic" id="mIcon"><use href="#i-file"/></svg></span>
-      <div class="nm" id="mName"></div>
-      <span class="meta" id="mMeta"></span>
-      <button class="iconbtn state" id="mCopy" title="Salin path file di server" aria-label="Salin path file di server">
-        <svg class="ic"><use href="#i-copy"/></svg>
-      </button>
-      <a class="btn btn--tonal state" id="mDl" download>
-        <svg class="ic"><use href="#i-down"/></svg>Unduh
-      </a>
-      <button class="iconbtn state" id="mClose" aria-label="Tutup pratinjau">
-        <svg class="ic"><use href="#i-close"/></svg>
-      </button>
+      <div class="mtxt"><div id="mName"></div><span id="mMeta"></span></div>
+      <button class="ibtn" id="mCopy" title="Salin path file di server" aria-label="Salin path file di server"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg></button>
+      <a class="btn acc" id="mDl" download><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Unduh</a>
+      <button class="ibtn" id="mClose" title="Tutup pratinjau" aria-label="Tutup pratinjau"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="mbody" id="mBody"></div>
   </div>
 </div>
 
-<!-- Snackbar -->
-<div class="snackbar" id="snack" role="status" aria-live="polite">
-  <span id="snackMsg"></span>
-  <button class="act state" id="snackAct" hidden></button>
-</div>
-<script>
-/* ================= util ================= */
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const I=(n,cls="ic")=>`<svg class="${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
-const fmtSize=n=>{if(n<1024)return n+" B";const u=["KB","MB","GB"];let i=-1;do{n/=1024;i++}while(n>=1024&&i<2);return n.toFixed(n>=100?0:1)+" "+u[i]};
-const fmtDate=t=>new Date(t*1000).toLocaleString("id-ID",{dateStyle:"medium",timeStyle:"short"});
-const fmtRel=t=>{const d=Date.now()/1000-t;if(d<60)return"baru saja";if(d<3600)return Math.floor(d/60)+" mnt lalu";if(d<86400)return Math.floor(d/3600)+" jam lalu";if(d<604800)return Math.floor(d/86400)+" hr lalu";return fmtDate(t)};
-const fmtDur=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+"j ":"")+(m?m+"m ":"")+x+"dtk"};
-const TYPESET={doc:["doc","pdf"],img:["img"],data:["data"],pkg:["pkg"],code:["code"],office:["office"],other:["other"]};
-
-/* ================= state ================= */
-const S={q:"",type:"all",sort:{col:"mtime",dir:"desc"},task:null,view:"grid"};
-let DATA=null,lastHash="",firstLoadDone=false,lastFocus=null;
-const CHUNK=100;                        /* render bertahap: jumlah item per chunk */
-let shown={};                           /* label root -> jumlah kartu yang tampil */
-function resetChunks(){shown={}}        /* dipanggil saat hasil filter berubah total */
-
-/* ================= pemetaan ikon & warna tonal ================= */
-const EXTICON={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
-  tsv:"data",xlsx:"data",xls:"data",png:"img",jpg:"img",jpeg:"img",gif:"img",svg:"img",webp:"img",
-  bmp:"img",ico:"img",skill:"pkg",zip:"pkg",tar:"pkg",gz:"pkg",whl:"pkg",py:"code",sh:"code",
-  js:"code",ts:"code",css:"code",docx:"office",doc:"office",pptx:"office",ppt:"office"};
-const EXTCLASS={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
-  tsv:"data",xlsx:"data",xls:"data",png:"img",jpg:"img",jpeg:"img",gif:"img",svg:"img",webp:"img",
-  bmp:"img",ico:"img",skill:"pkg",zip:"pkg",tar:"pkg",gz:"pkg",whl:"pkg",py:"code",sh:"code",
-  js:"code",ts:"code",css:"code",docx:"office",doc:"office",pptx:"office",ppt:"office"};
-const TYPEICON={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",office:"office",other:"file"};
-const TYPECLS={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",office:"office",other:"other"};
-const iconFor=f=>EXTICON[f.ext?.toLowerCase()]||TYPEICON[f.type]||"file";
-const classFor=f=>EXTCLASS[f.ext?.toLowerCase()]||TYPECLS[f.type]||"other";
-
-/* ================= render ================= */
-function renderStats(){const st=DATA.stats;const sk=DATA.skill;
-  let html=
-  `<div class="statcard statcard--hero"><div class="top"><span class="chip40 chip40--primary">${I("folder")}</span><span class="k">Total File</span></div><div class="v">${st.total_files}</div><div class="s">lintas ${st.roots} lokasi terpantau</div></div>`+
-  `<div class="statcard"><div class="top"><span class="chip40 chip40--secondary">${I("pkg")}</span><span class="k">Total Ukuran</span></div><div class="v">${fmtSize(st.total_size)}</div><div class="s">download/ + archive/</div></div>`+
-  `<div class="statcard"><div class="top"><span class="chip40 chip40--tertiary">${I("task")}</span><span class="k">Task Tercatat</span></div><div class="v">${DATA.tasks.length}</div><div class="s">riwayat dari worklog.md</div></div>`+
-  `<div class="statcard"><div class="top"><span class="chip40 chip40--data">${I("clock")}</span><span class="k">Perubahan Terakhir</span></div><div class="v v--text">${st.last_modified?fmtDate(st.last_modified):"—"}</div><div class="s">file termutakhir diubah</div></div>`;
-  if(sk&&sk.installed){const healTxt=sk.heal_last?fmtRel(sk.heal_last):"belum pernah";
-    html+=`<div class="statcard statcard--guardian"><div class="top"><span class="chip40 chip40--primary">${I("logo")}</span><span class="k">Guardian</span></div><div class="v">v${esc(sk.version||"?")}</div><div class="s"><span class="gdot${sk.watcher_alive?" on":" off"}"></span>watcher ${sk.watcher_alive?"hidup":"mati"} · heal ${healTxt}</div></div>`}
-  $("#stats").innerHTML=html}
-
-function renderTasks(){const rail=$("#taskRail");
-  const ts=[...DATA.tasks].slice(-14).reverse();
-  if(!ts.length){rail.innerHTML=`<div class="rail-empty">worklog.md belum berisi section Task — rail ini terisi otomatis saat ada.</div>`}
-  else{rail.innerHTML=ts.map(t=>
-    `<div class="tcard state${S.task===t.id?" active":""}" data-id="${esc(t.id)}" role="listitem" tabindex="0">
-      <div class="th">${I("check","ic tick")}<span class="tid">TASK ${esc(t.id)}</span></div>
-      <div class="tt">${esc(t.title)}</div>
-      <div class="tc">${t.count} file terkait</div></div>`).join("");
-    $$(".tcard").forEach(c=>{
-      const go=()=>{const id=c.dataset.id;S.task=S.task===id?null:id;renderTasks();resetChunks();renderFiles()};
-      c.onclick=go;
-      c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};
-    })}}
-
-function filtered(files){let out=files.filter(f=>{
-    if(S.type!=="all"&&!TYPESET[S.type].includes(f.type))return false;
-    if(S.task&&f.task!==S.task)return false;
-    if(S.q&&!(f.rel+" "+f.name+(f.task?" task "+f.task:"")).toLowerCase().includes(S.q.toLowerCase()))return false;
-    return true});
-  const c=S.sort.col,m=S.sort.dir==="asc"?1:-1;
-  out.sort((a,b)=>c==="size"?(a.size-b.size)*m:c==="name"?a.name.localeCompare(b.name)*m:(a.mtime-b.mtime)*m);
-  return out}
-
-function crumbHTML(f){const i=f.rel.lastIndexOf("/");   /* breadcrumb: direktori redup + nama */
-  return i<0?`<span>${esc(f.rel)}</span>`
-    :`<span class="cd">${esc(f.rel.slice(0,i+1))}</span><span>${esc(f.name)}</span>`}
-function cardHTML(f,i){const cls=classFor(f);return`<div class="fcard state" data-key="${esc(f.key)}"
-  tabindex="0" role="button" aria-label="Pratinjau ${esc(f.name)}" style="animation-delay:${Math.min(i*22,380)}ms">
-  <span class="ext t-${cls}">${esc(f.ext||f.type)}</span>
-  <span class="fchip40 t-${cls}">${I(iconFor(f))}</span>
-  <div class="nm">${crumbHTML(f)}</div>
-  <div class="meta"><span>${fmtSize(f.size)}</span><span title="${fmtDate(f.mtime)}">${fmtRel(f.mtime)}</span></div>
-  <button class="fcpy state" data-copy="${esc(f.key)}" title="Salin path di server" aria-label="Salin path ${esc(f.name)}">${I("copy")}</button>
-  <a class="fdl state" href="${f.href}?dl=1" download="${esc(f.name)}" title="Unduh ${esc(f.name)}" aria-label="Unduh ${esc(f.name)}">${I("down")}</a>
-  <span class="go">${I("eye")}</span></div>`}
-
-function renderPill(){const el=$("#activeFilter");
-  if(!S.task){el.innerHTML="";return}
-  const t=DATA.tasks.find(x=>x.id===S.task);
-  el.innerHTML=`<span class="ichip">Filter aktif — TASK ${esc(t?t.id:S.task)}: ${esc(t?t.title:"")}
-    <button class="x state" id="clearTask" title="hapus filter" aria-label="Hapus filter task">${I("close")}</button></span>`;
-  $("#clearTask").onclick=()=>{S.task=null;renderTasks();resetChunks();renderFiles()}}
-
-const cssId=l=>String(l).replace(/[^a-zA-Z0-9_-]/g,"");
-function loadingHTML(){return `<div class="loadcard"><div class="lic">${I("folder")}</div><p>memuat inventaris file…</p>
-  <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>`}
-function renderError(){const wrap=$("#roots");
-  wrap.innerHTML=`<div class="empty errcard"><div class="e" style="background:var(--md-error-container);color:var(--md-on-error-container)">${I("warn")}</div>
-  <div class="t">Gagal memuat data dari explorer.py</div>
-  <div class="h">server tidak merespons — koneksi mungkin terputus sementara</div>
-  <button class="btn btn--filled state" id="retryBtn">${I("down")}Coba lagi</button></div>`;
-  pageWaveDone();
-  $("#retryBtn").onclick=()=>{wrap.innerHTML=loadingHTML();setWave(wrap);load()}}
-
-function renderFiles(){renderPill();
-  const wrap=$("#roots");
-  if(!DATA){wrap.innerHTML=loadingHTML();setWave(wrap);return}
-  let html="",total=0;
-  for(const r of DATA.roots){const fs=filtered(r.files);total+=fs.length;
-    const id=cssId(r.label);
-    html+=`<div class="roothead"><span class="rf">${I("folder")}</span><span class="rt">${esc(r.label==="download"?"Unduhan":"Arsip")}</span><span class="path">${esc(r.path)}</span><span class="cnt">${fs.length} dari ${r.files.length} file</span></div>`;
-    if(!fs.length){html+=`<div class="empty"><div class="e">${I("pkg")}</div><div class="t">Tidak ada file yang cocok di lokasi ini</div></div>`;continue}
-    if(!(r.label in shown))shown[r.label]=CHUNK;      /* render bertahap: chunk pertama */
-    const n=Math.min(shown[r.label],fs.length);
-    html+=`<div class="filegrid${S.view==="list"?" filegrid--list":""}" id="grid-${id}">`+
-      fs.slice(0,n).map((f,i)=>cardHTML(f,i)).join("")+`</div>`;
-    if(n<fs.length)html+=`<div class="morewrap" id="more-${id}"><button class="loadmore btn btn--tonal state" data-root="${esc(r.label)}">${I("chev")}Muat ${Math.min(CHUNK,fs.length-n)} lagi · sisa ${fs.length-n} file</button></div>`}
-  if(!total)html=`<div class="empty"><div class="e">${I("search")}</div><div class="t">Tidak ada file yang cocok dengan filter aktif</div><div class="h">coba ubah kata kunci, filter tipe, atau task</div></div>`;
-  wrap.innerHTML=html;
-  observeMores()}
-
-function loadMore(label){                    /* tambah chunk berikut tanpa render ulang penuh */
-  const r=DATA&&DATA.roots.find(x=>x.label===label);if(!r)return;
-  const list=filtered(r.files);
-  const prev=shown[label]||CHUNK,next=Math.min(prev+CHUNK,list.length);
-  if(next<=prev)return;
-  const grid=$("#grid-"+cssId(label));
-  if(grid)grid.insertAdjacentHTML("beforeend",list.slice(prev,next).map((f,i)=>cardHTML(f,i)).join(""));
-  shown[label]=next;
-  const row=$("#more-"+cssId(label));if(!row)return;
-  const sisa=list.length-next;
-  if(sisa<=0){row.hidden=true;return}
-  row.hidden=false;
-  row.querySelector(".loadmore").innerHTML=`${I("chev")}Muat ${Math.min(CHUNK,sisa)} lagi · sisa ${sisa} file`}
-
-let io=null;
-function observeMores(){                    /* auto-muat saat tombol mendekati viewport */
-  if(!("IntersectionObserver" in window))return;  /* fallback: tombol tetap diklik manual */
-  if(!io)io=new IntersectionObserver(es=>{for(const en of es){
-    if(!en.isIntersecting||en.target.hidden)continue;
-    const b=en.target.querySelector(".loadmore");
-    if(b)loadMore(b.dataset.root)}},{rootMargin:"480px"});
-  io.disconnect();
-  $$(".morewrap").forEach(w=>{if(!w.hidden)io.observe(w)})}
-
-function renderChips(){                     /* chip tipe dinamis: hitungan + sembunyi nol */
-  const counts={all:0};
-  for(const r of DATA.roots)for(const f of r.files){counts.all++;counts[f.type]=(counts[f.type]||0)+1}
-  if(S.type!=="all"&&!counts[S.type])S.type="all";   /* degradasi anggun saat tipe lenyap */
-  $$(".fchip[data-type]").forEach(c=>{const t=c.dataset.type,n=t==="all"?counts.all:(counts[t]||0);
-    c.classList.toggle("on",t===S.type);
-    c.hidden=t!=="all"&&n===0;
-    c.querySelector(".fnum").textContent=n})}
-
-async function copyPath(f){if(!f)return;    /* navigator.clipboard + fallback execCommand */
-  const r=DATA.roots.find(x=>x.files.includes(f));
-  const p=(r?r.path+"/":"")+f.rel;let ok=true;
-  try{await navigator.clipboard.writeText(p)}catch(e){ok=false;
-    try{const ta=document.createElement("textarea");ta.value=p;ta.style.position="fixed";ta.style.opacity="0";
-      document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok=true}catch(e2){}}
-  snack(ok?"Path disalin: "+p:"Gagal menyalin path")}
-
-function findFile(key){for(const r of DATA.roots){const f=r.files.find(x=>x.key===key);if(f)return f}return null}
-
-/* ================= markdown mini-renderer ================= */
-function md(src){const lines=src.split("\n");const out=[];let inCode=false,cb=[],inList=false;
-  const inline=t=>esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\*(.+?)\*/g,"<i>$1</i>")
-    .replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-  for(const l of lines){
-    if(l.trim().startsWith("```")){if(inCode){out.push("<pre>"+esc(cb.join("\n"))+"</pre>");cb=[];inCode=false}else{if(inList){out.push("</ul>");inList=false}inCode=true}continue}
-    if(inCode){cb.push(l);continue}
-    const h=l.match(/^(#{1,4})\s+(.*)/);
-    if(h){if(inList){out.push("</ul>");inList=false}const n=h[1].length;out.push(`<h${n}>`+inline(h[2])+`</h${n}>`);continue}
-    const li=l.match(/^\s*[-*]\s+(.*)/);
-    if(li){if(!inList){out.push("<ul>");inList=true}out.push("<li>"+inline(li[1])+"</li>");continue}
-    if(inList){out.push("</ul>");inList=false}
-    if(l.trim()==="")continue;
-    if(l.trim().startsWith(">")){out.push("<blockquote>"+inline(l.replace(/^\s*>\s?/,""))+"</blockquote>");continue}
-    out.push("<p>"+inline(l)+"</p>")}
-  if(inList)out.push("</ul>");if(inCode)out.push("<pre>"+esc(cb.join("\n"))+"</pre>");
-  return out.join("\n")}
-
-function hlJSON(src){try{src=JSON.stringify(JSON.parse(src),null,2)}catch(e){}
-  return esc(src)
-    .replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g,(m,s,c)=>c?`<span class="k">${s}</span>${c}`:`<span class="s2">${s}</span>`)
-    .replace(/\b(-?\d+\.?\d*)\b/g,'<span class="n">$1</span>')
-    .replace(/\b(true|false|null)\b/g,'<span class="b2">$1</span>')}
-
-/* ================= dialog preview ================= */
-function openModal(){lastFocus=document.activeElement;
-  $("#modal").classList.add("open");$("#mClose").focus()}
-function closeModal(){$("#modal").classList.remove("open");
-  if(lastFocus&&lastFocus.focus)lastFocus.focus()}
-
-async function openPreview(f){
-  const cls=classFor(f);
-  $("#mIconWrap").className="micon t-"+cls;
-  $("#mIcon").innerHTML=`<use href="#i-${iconFor(f)}"/>`;
-  $("#mName").textContent=f.rel;
-  $("#mMeta").textContent=fmtSize(f.size)+" · "+fmtDate(f.mtime);
-  $("#mDl").href=f.href+"?dl=1";$("#mDl").setAttribute("download",f.name);
-  $("#mCopy").onclick=()=>copyPath(f);
-  const b=$("#mBody");
-  b.innerHTML=`<div class="loadcard"><div class="lic">${I("down")}</div><p>memuat pratinjau…</p>
-    <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>`;
-  setWave(b);
-  openModal();
-  const e=f.ext?.toLowerCase()||"";
-  try{
-    if(f.type==="img"){b.innerHTML=`<img src="${f.href}" alt="${esc(f.name)}">`;return}
-    if(e==="pdf"){b.innerHTML=`<iframe src="${f.href}" title="pdf"></iframe>`;return}
-    if(["docx","pptx","xlsx","xls","doc","ppt","skill","zip","tar","gz"].includes(e)||f.type==="office"||f.type==="pkg"){
-      b.innerHTML=`<div class="loadcard"><div class="lic t-${cls}">${I(iconFor(f))}</div>
-      <p>Format <b>${esc((e||f.type).toUpperCase())}</b> tidak dipratinjau langsung di browser.<br>
-      .skill = paket skill (zip) · office = dibuka aplikasi masing-masing.</p>
-      <a class="btn btn--filled state" href="${f.href}" download="${esc(f.name)}">${I("down")}Unduh ${esc(f.name)}</a></div>`;return}
-    const t=await(await fetch(f.href,{cache:"no-store"})).text();
-    if(e==="md"){b.innerHTML=`<div class="md">${md(t)}</div>`;return}
-    if(e==="json"){b.innerHTML=`<pre>${hlJSON(t)}</pre>`;return}
-    b.innerHTML=`<pre>${esc(t.slice(0,200000))}</pre>`;
-  }catch(err){b.innerHTML=`<div class="loadcard"><div class="lic" style="background:var(--md-error-container);color:var(--md-on-error-container)">${I("warn")}</div><p>Gagal memuat pratinjau: ${esc(err.message)}</p></div>`}}
-
-/* ================= snackbar ================= */
-let snackTimer=null;
-function snack(msg,actLabel,actFn){const el=$("#snack");
-  $("#snackMsg").textContent=msg;
-  const a=$("#snackAct");
-  if(actLabel){a.hidden=false;a.textContent=actLabel;a.onclick=()=>{el.classList.remove("show");actFn&&actFn()}}
-  else{a.hidden=true}
-  el.classList.add("show");
-  clearTimeout(snackTimer);snackTimer=setTimeout(()=>el.classList.remove("show"),5000)}
-
-/* ================= ripple engine ================= */
-document.addEventListener("pointerdown",e=>{
-  const host=e.target.closest(".state");
-  if(!host||!host.style)return;
-  const r=host.getBoundingClientRect(),d=Math.max(r.width,r.height)*2;
-  const s=document.createElement("span");s.className="ripple";
-  s.style.cssText=`width:${d}px;height:${d}px;left:${e.clientX-r.left-d/2}px;top:${e.clientY-r.top-d/2}px`;
-  host.appendChild(s);setTimeout(()=>s.remove(),600)},{passive:true});
-
-/* ================= wavy progress ================= */
-function makeWave(amp){return "M0 6 "+Array.from({length:4},(_,i)=>
-  `q30 ${(i%2?-amp:amp)} 60 0`).join(" ")}
-function setWave(root){root.querySelectorAll(".wavy svg path").forEach(p=>p.setAttribute("d",makeWave(9)))}
-setWave(document);
-function pageWaveDone(){const w=$("#pageWave");if(!w)return;
-  w.classList.add("done");setTimeout(()=>w.remove(),600)}
-
-/* ================= kontrol ================= */
-let qTimer=null;                    /* debounce pencarian ~200 ms */
-$("#q").oninput=e=>{const v=e.target.value;
-  $("#qClear").hidden=!v;
-  clearTimeout(qTimer);qTimer=setTimeout(()=>{S.q=v;resetChunks();renderFiles()},200)};
-$("#qClear").onclick=()=>{clearTimeout(qTimer);S.q="";$("#q").value="";
-  $("#qClear").hidden=true;resetChunks();renderFiles();$("#q").focus()};
-$$(".fchip[data-type]").forEach(c=>c.onclick=()=>{S.type=c.dataset.type;
-  $$(".fchip[data-type]").forEach(x=>x.classList.toggle("on",x.dataset.type===S.type));
-  resetChunks();renderFiles()});
-function updateSortUI(){$$(".sortbtn").forEach(b=>{const on=b.dataset.col===S.sort.col;
-  b.classList.toggle("on",on);b.classList.toggle("asc",on&&S.sort.dir==="asc");
-  b.setAttribute("aria-pressed",on?"true":"false");
-  b.title="Urutkan berdasar "+({name:"nama",size:"ukuran",mtime:"waktu"})[b.dataset.col]+
-    " — "+(on?(S.sort.dir==="asc"?"naik":"turun"):"klik untuk mengaktifkan")})}
-$$(".sortbtn").forEach(b=>b.onclick=()=>{
-  const col=b.dataset.col;
-  if(S.sort.col===col)S.sort.dir=S.sort.dir==="asc"?"desc":"asc";
-  else S.sort={col:col,dir:col==="mtime"?"desc":"asc"};
-  updateSortUI();renderFiles()});
-updateSortUI();
-$("#vGrid").onclick=()=>{S.view="grid";$("#vGrid").classList.add("on");$("#vGrid").setAttribute("aria-pressed","true");
-  $("#vList").classList.remove("on");$("#vList").setAttribute("aria-pressed","false");renderFiles()};
-$("#vList").onclick=()=>{S.view="list";$("#vList").classList.add("on");$("#vList").setAttribute("aria-pressed","true");
-  $("#vGrid").classList.remove("on");$("#vGrid").setAttribute("aria-pressed","false");renderFiles()};
-/* Delegasi event #roots — satu handler utk ratusan kartu (hemat memori/listener) */
-$("#roots").addEventListener("click",e=>{
-  const cp=e.target.closest(".fcpy");
-  if(cp){copyPath(findFile(cp.dataset.copy));return}
-  if(e.target.closest(".fdl"))return;                 /* biarkan tautan unduhan bekerja */
-  const lm=e.target.closest(".loadmore");
-  if(lm){loadMore(lm.dataset.root);return}
-  const c=e.target.closest(".fcard");
-  if(c){const f=findFile(c.dataset.key);if(f)openPreview(f)}});
-$("#roots").addEventListener("keydown",e=>{
-  if(e.key!=="Enter"&&e.key!==" ")return;
-  if(e.target.closest("button,a,input,select"))return; /* kontrol anak punya perilaku sendiri */
-  const c=e.target.closest(".fcard");
-  if(c){e.preventDefault();const f=findFile(c.dataset.key);if(f)openPreview(f)}});
-$("#mClose").onclick=closeModal;
-$("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};
-document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"&&$("#modal").classList.contains("open"))closeModal()});
-
-/* tema — adaptif: ikuti sistem selama user belum memilih manual (persist) */
-function applyTheme(t,persist){document.documentElement.dataset.theme=t;
-  $("#themeIcon").innerHTML=`<use href="#i-${t==="dark"?"moon":"sun"}"/>`;
-  if(persist!==false){try{localStorage.setItem("md3-theme",t)}catch(e){}}}
-$("#themeBtn").onclick=()=>{
-  applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true)};
-applyTheme(document.documentElement.dataset.theme,false);
-try{const mq=window.matchMedia("(prefers-color-scheme: light)");
-  const onSys=e=>{let saved=null;try{saved=localStorage.getItem("md3-theme")}catch(_){}
-    if(saved!=="dark"&&saved!=="light")applyTheme(e.matches?"light":"dark",false)};
-  if(mq.addEventListener)mq.addEventListener("change",onSys);
-  else if(mq.addListener)mq.addListener(onSys)}catch(_){}
-
-/* FAB + elevasi app bar saat scroll (MD3 top app bar behavior) */
-const APPBAR=document.querySelector(".appbar");
-window.addEventListener("scroll",()=>{
-  $("#fabTop").classList.toggle("show",window.scrollY>600);
-  APPBAR.classList.toggle("scrolled",window.scrollY>8)},{passive:true});
-$("#fabTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
-
-/* ================= data loop ================= */
-async function load(){try{
-    const d=await(await fetch("/api/files",{cache:"no-store"})).json();
-    const h=JSON.stringify(d);
-    if(h!==lastHash){lastHash=h;DATA=d;renderStats();renderTasks();renderChips();renderFiles()}
-    if(!firstLoadDone){firstLoadDone=true;pageWaveDone()}
-    const sv=d.server,up=Date.now()/1000-sv.started_epoch;
-    $("#ftInfo").textContent=`PID ${sv.pid} · aktif ${fmtDur(up)} · segar otomatis tiap 10 dtk · dibangun ${d.generated}`;
-  }catch(e){$("#ftInfo").textContent="koneksi ke explorer.py terputus";
-    if(!firstLoadDone)renderError();   /* belum pernah sukses -> error state yang jelas */
-    snack("Koneksi ke explorer.py terputus — mencoba lagi…","Coba lagi",load)}}
-setInterval(load,10000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
-setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("id-ID")},1000);
-load();
-</script>
+<div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

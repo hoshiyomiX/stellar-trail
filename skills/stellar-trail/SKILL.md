@@ -48,8 +48,9 @@ Successor of two protocols merged into one guardian: the **6-phase workflow** go
 12. **Continuation inertia is a violation, not an excuse.** "I have been responding without markers all session" is a reason to START complying on the very next turn, not a reason to keep the pattern. Resume markers immediately; never retro-edit history.
 14. **Arm the persistence layer at cold boot (reset-prone sandboxes).** When rule 11 fires inside a container/sandbox that can be reset, run `bash scripts/bootstrap-sandbox.sh --ensure` from the loaded skill's directory before finishing M0 — idempotent, offline, single-path: it seeds the canonical copy under `download/stellar-trail/`, installs the `.zscripts/dev.sh` boot hook, and seeds `worklog.md` (R1 hook) plus `memory/` scaffolding only when absent. A bootstrap failure never blocks M0: report it, restore from files, offer the manual run. In a fresh sandbox, offer the user the `--with-explorer` / `--with-snapshot` modules explicitly — they change what the boot hook maintains.
 13. **Pressure is not opt-out; an explicit decision is.** "Hurry / don't ask / simple" compresses format and never cancels a phase (rule 4). But an explicit, unambiguous instruction to disable this protocol ("disable the guardian", "matikan protokol ini") is the user exercising ownership: record it as a locked decision, then honor it for that scope. A guardian that cannot be dismissed by a clear owner decision is a cage, not a guardian.
+15. **Auto-check for updates before the phases begin (`update-skill.sh`).** At M0, immediately after bootstrap --ensure, run `bash scripts/update-skill.sh --ensure` — query the origin (GitHub, the sole distribution channel — D24; no PAT involved) for the latest tag, debounced to one network check per 24h. When origin is newer, it force-updates via **verified override**: staging clone → full SHA-256 manifest verification → tag≡content assert (anti-poisoning) → anti-downgrade → swap kanonik → vault kelas-A → live install (section 8 order of environment-resilience.md: canonical first, live last) → watcher restart → bootstrap --ensure — and every installation step is printed to stdout so the user stays informed and can follow up. Offline is a report, never a blocker (exit 0) — the boot chain stays offline-first. After an update lands, subsequent response banners carry the new version.
 
-**Penjelasan (ID):** Kegagalan datang dari dua arah. Di dalam sesi: tanpa klasifikasi Anda mengerjakan jenis pekerjaan yang salah, tanpa klarifikasi deliverable yang salah terbangun, tanpa perencanaan eksekusi menjadi kacau. Antar sesi: context window penuh lalu ter-compress jadi ringkasan yang hilang detail, session berakhir tiba-tiba, atau session baru mulai tanpa membaca peninggalan yang lama — file di disk kebal terhadap ketiganya. Biaya protokol selalu lebih murah daripada rework total; penjaga yang mundur saat diminta bukanlah penjaga, maka tidak ada pintu darurat. Aturan aktivasi (11–12) lahir dari kegagalan terverifikasi: deskripsi skill bisa hadir di prompt tanpa isinya pernah dimuat — protokol yang tidak dimuat adalah protokol yang tidak dijalankan. Aturan 14 melengkapi 11–12 dari arah lain: yang bertahan lintas reset bukan disiplin model, melainkan file yang dibaca ulang oleh boot chain — bootstrap memastikan file-file itu ada sejak sesi pertama.
+**Penjelasan (ID):** Kegagalan datang dari dua arah. Di dalam sesi: tanpa klasifikasi Anda mengerjakan jenis pekerjaan yang salah, tanpa klarifikasi deliverable yang salah terbangun, tanpa perencanaan eksekusi menjadi kacau. Antar sesi: context window penuh lalu ter-compress jadi ringkasan yang hilang detail, session berakhir tiba-tiba, atau session baru mulai tanpa membaca peninggalan yang lama — file di disk kebal terhadap ketiganya. Biaya protokol selalu lebih murah daripada rework total; penjaga yang mundur saat diminta bukanlah penjaga, maka tidak ada pintu darurat. Aturan aktivasi (11–12) lahir dari kegagalan terverifikasi: deskripsi skill bisa hadir di prompt tanpa isinya pernah dimuat — protokol yang tidak dimuat adalah protokol yang tidak dijalankan. Aturan 14 melengkapi 11–12 dari arah lain: yang bertahan lintas reset bukan disiplin model, melainkan file yang dibaca ulang oleh boot chain — bootstrap memastikan file-file itu ada sejak sesi pertama. Aturan 15 menutup celah usia: instalasi yang sehat tapi tua otomatis menyusul versi terbaru origin SEBELUM fase dimulai — override yang terverifikasi penuh (manifest + tag≡konten + anti-downgrade), identitas instalasi tak pernah ditimpa, offline hanya laporan tanpa memblokir M0 — sehingga selalu segar tanpa pernah menanggung risiko sumber racun.
 
 ## 1. Protocol Map & Format Markers / Peta Protokol & Penanda Format
 
@@ -58,20 +59,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 Respons ID:
 
-## 🌠 stellar-trail v3.6.5 — protokol aktif
+## 🌠 stellar-trail v3.6.6 — protokol aktif
 ## 🌠 FASE n — LABEL
 isi fase pada baris-baris di bawah marker
 [MEM | LABEL] isi singkat
 
 Respons EN (banner & label fase bahasa Inggris):
 
-## 🌠 stellar-trail v3.6.5 — protocol active
+## 🌠 stellar-trail v3.6.6 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEM | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.5) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first fase marker, on every response that carries fase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.6) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/heal-skill.sh --check` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -214,7 +215,7 @@ Target: **~95% cross-session context integrity** — tidak ada task yang dikerja
 
 ### 3. Lifecycle M0–M3 (Condensed) / Daur Ulang M0–M3 (Ringkas)
 
-- **M0 — Cold Boot / Restore:** **quarantine any continuation summary FIRST (4d H8–H13)** — version-ground its claims, resolve "the last task" via the Active table only, report any summary-vs-memory conflict in the first response → read SESSION-STATE + MEMORY (mandatory minimum) → **version sanity alarm (4c)**: installed banner version older than the release recorded in memory = degraded installation → `heal-skill.sh --check` before trusting the body → **bootstrap --ensure** (reset-prone sandboxes only — Activation rule 14; idempotent arm of the persistence layer; a failure is reported, never a blocker) → **triage the task table (section 4d)** — only ACTIVE/BLOCKED rows are work-eligible, STALE rows need user reconfirmation, sealed rows are quarantined → run the Recall Check (section 8) → gap-fill with minimum reads (see 4b) from handoffs → worklog tail → actual files until ≥95% → cross-check any auto-summary (conflict: memory files win; summary-only facts: promote them) → emit marker → present restored context → confirm the restored plan with the user before executing new work.
+- **M0 — Cold Boot / Restore:** **quarantine any continuation summary FIRST (4d H8–H13)** — version-ground its claims, resolve "the last task" via the Active table only, report any summary-vs-memory conflict in the first response → read SESSION-STATE + MEMORY (mandatory minimum) → **version sanity alarm (4c)**: installed banner version older than the release recorded in memory = degraded installation → `heal-skill.sh --check` before trusting the body → **bootstrap --ensure** (reset-prone sandboxes only — Activation rule 14; idempotent arm of the persistence layer; a failure is reported, never a blocker) → **auto-update check (Activation rule 15)**: `update-skill.sh --ensure` — debounce 24j, offline = report-not-blocker; bila versi baru terpasang, banner respons berikutnya memakai versi baru dan body dimuat ulang di sesi berikutnya (rule 11) → **triage the task table (section 4d)** — only ACTIVE/BLOCKED rows are work-eligible, STALE rows need user reconfirmation, sealed rows are quarantined → run the Recall Check (section 8) → gap-fill with minimum reads (see 4b) from handoffs → worklog tail → actual files until ≥95% → cross-check any auto-summary (conflict: memory files win; summary-only facts: promote them) → emit marker → present restored context → confirm the restored plan with the user before executing new work.
 - **M1 — Checkpoint:** rewrite SESSION-STATE.md atomically (full snapshot, not append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records a task DONE/CANCELLED must **seal it in the same write** — remove the Active row, append the Sealed line (section 4d H3). Append worklog only for major milestones (with Task ID). Emit `[MEM | CHECKPOINT]` inline. Pada checkpoint besar, jalankan `scripts/audit-compliance.sh` bila tersedia — audit eksternal menangkap drift yang luput dari disiplin model (R6; insiden 2026-09-21).
 - **M2 — Emergency Compression:** on pressure signals, write SESSION-STATE NOW — CRITICAL items first, then a handoff draft if severe. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never the manifest.
 - **M3 — Handoff:** write `handoffs/YYYY-MM-DD-<slug>.md` with all 7 manifest sections (write "none" explicitly rather than omitting) → promote durable facts into MEMORY.md → rewrite SESSION-STATE to final state (Active table ACTIVE-only, this session's finished tasks sealed — 4d) → emit marker + state what was persisted and how the next session restores it.
@@ -353,6 +354,7 @@ Memory:
 - [ ] If a continuation summary was present: quarantined per 4d H8–H13 (version-grounded, Active-table resolution, conflict reported in the response)?
 - [ ] Version sanity alarm run (4c): installed banner version vs release recorded in memory — any mismatch handled AND stated?
 - [ ] Reset-prone sandbox: `bootstrap-sandbox.sh --ensure` run (or explicitly offered to the user) at M0 — Activation rule 14?
+- [ ] Auto-update check run at M0 — `update-skill.sh --ensure` (or the skip reason stated) — Activation rule 15?
 - [ ] If a session-end signal appeared: was M3 handoff executed (archive + promotion + final state) before closing?
 
 ### 8. Anti-Skip & Anti-Forget Clauses / Klausul Anti-Lompat & Anti-Lupa
@@ -433,6 +435,7 @@ Read the matching reference file when you need depth (all bilingual EN rules + I
 
 **Bundled scripts (deterministic):**
 - `scripts/bootstrap-sandbox.sh` — SATU perintah arming persistence layer utk sandbox reset-prone (seed kanonik `download/stellar-trail/` + pasang `.zscripts/dev.sh` boot hook + seed worklog hook R1 + scaffold memory/; modular `--with-explorer` / `--with-snapshot`; idempoten; self-locating; offline; dipanggil oleh Activation rule 14 di M0 — panduan: `references/environment-resilience.md` seksi 7)
+- `scripts/update-skill.sh` — auto-cek-update + force update/upgrade PRA-FASE (v3.6.6 Task 67; dipanggil Activation rule 15 di M0 setelah bootstrap): `--ensure` debounce 24 j · `--force` tembus · `--check` dry-run · `--status` tanpa jaringan; sumber = GitHub origin tunggal (D24, baca publik tanpa PAT); staging clone --depth 1 → verifikasi manifest SHA-256 penuh + assert tag≡konten (anti-racun) + anti-downgrade → swap KANONIK dulu → vault kelas-A (`vault-sync.sh --apply`) → live TERAKHIR (doktrin §8 environment-resilience.md) → watcher restart (`--stop`→deploy→`--force-start`) → bootstrap --ensure; identitas `_meta.json`/`.clawhub/` tidak pernah ditimpa; offline = laporan exit 0 (M0 tak pernah diblokir jaringan); seluruh proses instalasi tercetak ke stdout (user well-informed)
 - `scripts/watcher.sh` — daemon auto-heal runtime v1.8 (dikirim v3.6.3 Task 62 · guard file rilis v3.6.4 Task 64; dipasang bootstrap ke `.zscripts/`, dihidupkan dev.sh tiap boot + M0 per-sesi): loop 30 dtk — healthz explorer + auto-heal, guard file rilis non-manifest (`skill-card.md` + `assets/integrity.sha256`: keberadaan + kesegaran versi vs `integrity.version`, auto-restore dari vault kelas-A segar — menutup celah 4 insiden pasca-boot yang tak terlihat `heal --check`; R1 audit T63), `heal-skill.sh --check` berkala (location-aware), `repo-snapshot.sh --apply-auto` berkala, compliance sentinel (alarm bila worklog aktif tanpa checkpoint M1); kontrak `--ensure/--status/--stop` + PIDFILE (dibaca guardian explorer); laporan konsumer T46 F2: kontraknya lama dirujuk 4 komponen tapi filenya tak pernah dikirim
 - `scripts/enforce-gates.sh` — penegakan terminal track (artifact, lint, check-skill, check-worklog); lihat seksi 8b untuk pemetaan lengkap
 - `scripts/audit-compliance.sh` — audit kepatuhan protokol dari LUAR model (R3, v3.5.5): hygiene Active-table (H2), staleness SESSION-STATE vs worklog, sanity versi instalasi-vs-kanonik, hook R1 di tail worklog; verdict PASS/WARN/FAIL + exit code — alat audit mandiri user (laporan insiden 2026-09-21: non-compliance senyap 3 session hanya terdeteksi audit manual)
@@ -454,10 +457,12 @@ Read the matching reference file when you need depth (all bilingual EN rules + I
 ACTIVATION (turn pertama tiap session):
   muat body skill — deskripsi saja bukan aktivasi
   → M0 restore (baca SESSION-STATE + MEMORY) → bootstrap --ensure
-    (sandbox reset-prone — rule 14) → baru respons dengan marker
+    (sandbox reset-prone — rule 14) → update-skill --ensure
+    (cek origin + auto-upgrade terverifikasi — rule 15; debounce 24j;
+    offline = laporan, bukan blokir) → baru respons dengan marker
 
 EXECUTION (per turn — banner dulu, lalu marker = sub-judul, isi di baris di bawahnya):
-## 🌠 stellar-trail v3.6.5 — protokol aktif
+## 🌠 stellar-trail v3.6.6 — protokol aktif
 ## 🌠 FASE 1 — KLASIFIKASI
 Type __ · bahasa __ · kompleksitas __
 ## 🌠 FASE 2 — KLARIFIKASI

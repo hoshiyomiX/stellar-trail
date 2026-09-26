@@ -19,6 +19,7 @@ yang tertinggal: §8 ditambahkan v3.6.3 tapi tak pernah masuk daftar lama.)
 6. Bukti Lapangan / Receipts (forensik Task 36–38, 2026-09-19/20)
 7. Consumer Sandbox Deployment — bootstrap-sandbox.sh (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; guard rilis watcher v1.8 v3.6.4 Task 64)
 8. Migrasi Versi Crash-Safe + Forensik M0 (v3.6.3, Task 62)
+9. Auto-Update Pra-Fase — update-skill.sh (v3.6.6, Task 67)
 Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
 Appendix B: Doktrin Standalone-Helper — duplikasi kecil lintas skrip = by-design (R6 audit T63)
 
@@ -331,6 +332,51 @@ hidup) — jangan mengandalkan boot.log saja.
 hook secara mekanis (insiden 3-session 2026-09-21 hanya terdeteksi audit
 manual; lihat juga SKILL.md seksi 3 M1).
 
+## 9. Auto-Update Pra-Fase — `update-skill.sh` (v3.6.6, Task 67)
+
+Seksi 7 memasang lapisan pertahanan; seksi 8 memperbaiki kerusakan migrasi; seksi
+ini menutup celah yang tersisa: **instalasi yang sehat tapi TUA** — bukan rusak
+(heal menolaknya: D22, heal ≠ upgrade), bukan pula migrasi manual (§8) — hanya
+tertinggal rilis. Sebelum v3.6.6, menyusul versi baru menunggu inisiatif manual;
+sejak Task 67 (Activation rule 15), protokol memanggil `scripts/update-skill.sh
+--ensure` di M0, setelah `bootstrap --ensure`, SEBELUM fase dimulai.
+
+**Pemicu & debounce.** Dipanggil tiap M0, tapi cek jaringan penuh maksimal 1x per
+24 jam (state `.zscripts/.update-check.last`; `--force` menembus, `--check`
+dry-run, `--status` tanpa jaringan). Debounce menjaga M0 tetap murah: kebanyakan
+sesi hanya laporan satu baris tanpa menyentuh jaringan.
+
+**Semantik: oto-override TERVERIFIKASI, bukan blind-pull.** Origin = GitHub
+hoshiyomiX/stellar-trail (D24 — kanal tunggal, baca publik tanpa PAT; clawhub
+tidak pernah disentuh). Urutan apply: `git ls-remote` tag terbaru → clone staging
+`--depth 1 --branch` → verifikasi manifest SHA-256 PENUH → assert tag≡konten
+(anti-racun: tag berisi konten versi lain = abort keras exit 1) → assert
+anti-downgrade (origin lebih tua dari lokal = DITOLAK wajar) → swap. Menyalin
+kerusakan bukanlah penyembuhan — dan menyalin sumber tak terverifikasi bukanlah
+upgrade.
+
+**Urutan swap = doktrin §8 persis:** kanonik DULU → vault kelas-A
+(`vault-sync.sh --apply`) → instalasi live TERAKHIR → deploy + restart watcher
+dari kanonik baru (`--stop` → cp → `--force-start`) → `bootstrap-sandbox.sh
+--ensure`. Crash di titik mana pun mengkonvergikan boot berikutnya ke versi BARU
+(semua sumber repair sudah segar; live adalah swap termurah untuk diulang
+boot-heal). Swap per-target ber-rollback `.update-bak` — kegagalan tengah jalan
+mengembalikan target, tidak menyisakan setengah-pohon.
+
+**Perlindungan identitas & diri.** `_meta.json` + `.clawhub/` dikecualikan dari
+`rsync --delete` (identitas instalasi tidak pernah ditimpa — doktrin heal-skill).
+Skrip menyalin dirinya ke temp file dan re-exec dari sana sebelum swap —
+menimpa direktori tempat file yang sedang dieksekusi hidup adalah kondisi
+undefined. Mode file dinormalkan 0644 (doktrin exec-bit seluruh paket).
+
+**Offline = laporan, bukan blokir.** Kegagalan jaringan/git → satu baris laporan,
+exit 0 — M0 tidak pernah tergantung jaringan (boot chain tetap offline-first;
+heal dan bootstrap tetap berjalan sebagai jaring pengaman offline). Seluruh
+proses instalasi dicetak ke stdout langkah-demi-langkah (`[1/7]`…`[7/7]`) —
+user well-informed dan bisa menindak lanjuti (mandat eksplisit Task 67).
+Pasca-update, banner respons memakai versi baru; body skill dimuat ulang di
+sesi berikutnya (Activation rule 11).
+
 ## Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
 
 > Riwayat lengkap dipertahankan di sini agar body tetap operasional (lensa audit Task 56: fokus,
@@ -372,15 +418,17 @@ berubah jadi risiko.
 > Direkam eksplisit agar audit masa depan tidak menandai ulang sebagai temuan redundansi
 > (F5 laporan audit T63; laporan forensik konsumer T46 menyinggung kelas yang sama).
 
-Setiap skrip dalam paket ini (`heal-skill.sh`, `vault-sync.sh`, `snapshot-repo.sh`,
-`bootstrap-sandbox.sh`, `watcher.sh`, `explorer.sh`, `dev.sh.template`) membawa helper
-kecilnya sendiri — varian `log`/`say`/`ts`/`die`/`version_lt`. Refactor DRY klasik akan
-menyatukan ini ke satu pustaka bersama; doktrin resilience paket ini justru MELARANGNYA:
+Setiap skrip dalam paket ini (`heal-skill.sh`, `vault-sync.sh`, `update-skill.sh`,
+`snapshot-repo.sh`, `bootstrap-sandbox.sh`, `watcher.sh`, `explorer.sh`,
+`dev.sh.template`) membawa helper kecilnya sendiri — varian `log`/`say`/`ts`/`die`/
+`version_lt`. Refactor DRY klasik akan menyatukan ini ke satu pustaka bersama;
+doktrin resilience paket ini justru MELARANGNYA:
 **setiap skrip harus tetap berdiri sendiri ketika saudaranya rusak atau terhapus**.
 `heal-skill.sh` harus bisa memperbaiki `vault-sync.sh` justru ketika `vault-sync.sh` — dan
 pustaka bersama apa pun — ikut rusak; pelajaran empiris insiden 2026-09-22, saat seluruh
 rantai fallback mati bersamaan karena berbagi titik-kegagalan yang sama. Duplikasi 3–8
 baris per helper adalah harga yang dibayar sadar untuk **isolasi domain-kegagalan**;
 konsolidasi lintas file TIDAK direkomendasikan. Satu-satunya duplikat eksak di paket ini
-adalah `version_lt()` (8 baris, `heal-skill.sh` ↔ `vault-sync.sh`) — dibiarkan dengan
-komentar salinan-terkendali di kedua lokasi (R5): ubah keduanya bersamaan, jangan satukan.
+adalah `version_lt()` (8 baris; sejak v3.6.6 tiga lokasi — TRIO: `heal-skill.sh` +
+`vault-sync.sh` + `update-skill.sh`, Task 67) — dibiarkan dengan komentar
+salinan-terkendali di ketiga lokasi (R5): ubah ketiganya bersamaan, jangan satukan.
