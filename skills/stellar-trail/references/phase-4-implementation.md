@@ -43,13 +43,13 @@ Status updates are not bureaucracy — they are how the user watches work happen
 ## Marker Templates / Template Penanda
 
 ```
-## 🌠 FASE 4 — IMPLEMENTASI
-5/5 langkah selesai — semua output terverifikasi
+## 🌠 PHASE 4 — IMPLEMENTATION
+5/5 steps complete — all outputs verified
 
-## 🌠 FASE 4 — IMPLEMENTASI
-4/5 selesai; langkah 5 ditunda: file sumber belum diunggah pengguna
+## 🌠 PHASE 4 — IMPLEMENTATION
+4/5 complete; step 5 deferred: source file not yet uploaded by the user
 
-## 🌠 FASE 4 — N/A (Type 0 conversational)
+## 🌠 PHASE 4 — N/A (Type 0 conversational)
 ```
 
-**Penjelasan (ID):** Fase 4 adalah satu-satunya fase yang menghasilkan nilai nyata — semua fase lain ada untuk melindungi fase ini dari kesalahan. Karena itu aturannya paling operasional: kerja sesuai urutan rencana, muat skill domain lebih dulu (aturan formatting yang diketahui terlambat = rework), simpan script sebelum dijalankan (script yang hilang = pekerjaan yang hilang), dan jujur soal status — menandai `completed` sebelum output terverifikasi adalah bentuk kebohongan kecil yang merusak seluruh akuntabilitas protokol.
+**Rationale:** Phase 4 is the only phase that produces real value — every other phase exists to protect it from mistakes. That is why its rules are the most operational: work in plan order, load the domain skill first (a formatting rule learned too late = rework), save the script before running it (a lost script = lost work), and be honest about status — marking `completed` before the output is verified is a small lie that corrodes the protocol's entire accountability.

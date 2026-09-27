@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer v1.1 (server final, pengganti popup preview)
+explorer.py — Task Files Explorer v1.2 (final server, preview-popup replacement)
 =========================================================================
-Rantai yang dilayani:  preview-<bot-id>.space-z.ai  ->  ingress platform :81
-                        ->  127.0.0.1:3000  ->  SERVER INI
+Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
+                ->  127.0.0.1:3000  ->  THIS SERVER
 
-Endpoint:
-  GET /                      halaman UI (explorer-ui/index.html, dibaca per
-                             request agar edit UI langsung terlihat tanpa restart)
-  GET /api/files             JSON: inventaris download/ + archive/, statistik,
-                             daftar task yang diparse dari worklog.md, dan blok
-                             skill (versi stellar-trail, heal terakhir, watcher)
-  GET /file/<label>/<rel>    file mentah (guard path: hanya di dalam ROOTS);
-                             tambah ?dl=1 untuk kirim sebagai ATTACHMENT
-                             (unduhan paksa via Content-Disposition: attachment)
-  GET /healthz               health-check untuk explorer.sh / watcher.sh
+v1.2 (stellar-trail v3.6.7): English strings + the guardian block now
+    reflects the single-flow architecture (the retired heal marker is gone;
+    integrity monitoring is verify-only in the watcher).
 
-Dijalankan sebagai double-fork orphan oleh explorer.sh (PPID=1, setsid) agar
-selamat dari pembersihan proses antar tool call. Bind 127.0.0.1 saja.
+Endpoints:
+  GET /                      UI page (explorer-ui/index.html, read per
+                             request so UI edits show up without a restart)
+  GET /api/files             JSON: download/ + archive/ inventory, stats,
+                             the task list parsed from worklog.md, and the
+                             skill block (stellar-trail version, watcher)
+  GET /file/<label>/<rel>    raw file (path guard: only inside ROOTS);
+                             add ?dl=1 to send it as an ATTACHMENT
+                             (forced download via Content-Disposition: attachment)
+  GET /healthz               health check for explorer.sh / watcher.sh
+
+Run as a double-fork orphan by explorer.sh (PPID=1, setsid) so it survives
+the per-tool-call process cleanup. Binds 127.0.0.1 only.
 """
 import json
 import os
@@ -33,21 +37,20 @@ UI = os.path.join(ZDIR, "explorer-ui", "index.html")
 PIDFILE = os.path.join(ZDIR, "explorer.pid")
 WORKLOG = os.path.join(PROJECT, "worklog.md")
 
-# label -> path absolut (label dipakai di URL /file/<label>/... )
+# label -> absolute path (the label is used in /file/<label>/... URLs)
 ROOTS = [
     ("download", os.path.join(PROJECT, "download")),
     ("archive", os.path.join(PROJECT, "archive")),
 ]
 ROOTMAP = dict(ROOTS)
 SKILL_DIR = os.path.join(PROJECT, "skills", "stellar-trail")
-HEAL_MARKER = os.path.join(ZDIR, ".skill-heal.last")
 WATCHER_PID = os.path.join(ZDIR, "watcher.pid")
 
 BIND = "127.0.0.1"
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
 STARTED = time.time()
 
-MAX_DEPTH = 4  # batas kedalaman walk per root
+MAX_DEPTH = 4  # walk depth limit per root
 
 
 def ftype(ext: str) -> str:
@@ -118,8 +121,8 @@ def walk_root(label: str, root: str):
 
 
 def parse_tasks(roots):
-    """Parse section 'Task ID: n / Task: ...' dari worklog.md, lalu petakan
-    tiap file ke task TERAKHIR yang menyebut nama filenya."""
+    """Parse 'Task ID: n / Task: ...' sections from worklog.md, then map each
+    file to the LAST task that mentions its file name."""
     try:
         with open(WORKLOG, encoding="utf-8", errors="replace") as f:
             text = f.read()
@@ -135,7 +138,7 @@ def parse_tasks(roots):
             tasks.append({"id": m_id.group(1), "title": title, "sec": sec})
     all_files = [f for r in roots for f in r["files"]]
     mapping = {}
-    for t in tasks:  # urut kronologis; task belakangan menimpa -> menang
+    for t in tasks:  # chronological order; the later task overwrites -> wins
         hits = [f["key"] for f in all_files
                 if os.path.basename(f["key"]) in t["sec"]
                 or f["key"] in t["sec"]]
@@ -146,15 +149,15 @@ def parse_tasks(roots):
         for f in r["files"]:
             f["task"] = mapping.get(f["key"])
     dedup = {}
-    for t in tasks:  # section ganda dgn Task ID sama -> ambil yang terakhir
+    for t in tasks:  # duplicate sections with the same Task ID -> keep the last
         dedup[t["id"]] = {"id": t["id"], "title": t["title"], "count": t["count"]}
     out = list(dedup.values())
     return out
 
 
 def skill_info():
-    """Blok guardian: versi stellar-trail terinstal, heal terakhir, watcher.
-    Semua pembacaan best-effort — absennya skill bukan error explorer."""
+    """Guardian block: installed stellar-trail version + watcher status.
+    All reads are best-effort — a missing skill is not an explorer error."""
     info = {"installed": os.path.isdir(SKILL_DIR)}
     if not info["installed"]:
         return info
@@ -164,18 +167,15 @@ def skill_info():
     except (OSError, ValueError):
         info["version"] = None
     if info.get("version") is None:
-        # v1.2 (v3.6.3, Task 62): instalasi non-registry (npx/git) tidak
-        # membawa _meta.json — guardian dulu melaporkan version:null padahal
-        # assets/integrity.version ada di tree (laporan konsumer T46 F6).
+        # v1.2 (v3.6.3, Task 62): non-registry installs (npx/git) do not
+        # carry _meta.json — the guardian used to report version:null even
+        # though assets/integrity.version exists in the tree (consumer
+        # report T46 F6).
         try:
             with open(os.path.join(SKILL_DIR, "assets", "integrity.version"), encoding="utf-8") as f:
                 info["version"] = f.read().strip() or None
         except OSError:
             pass
-    try:
-        info["heal_last"] = int(os.stat(HEAL_MARKER).st_mtime)
-    except OSError:
-        info["heal_last"] = None
     alive = False
     try:
         with open(WATCHER_PID, encoding="utf-8") as f:
@@ -219,7 +219,7 @@ def build_api():
 
 
 def safe_path(label: str, rel: str):
-    """Kembalikan path absolut hanya bila rel berada di dalam root label."""
+    """Return the absolute path only when rel stays inside the label's root."""
     root = ROOTMAP.get(label)
     if not root or not rel or rel.startswith("/"):
         return None
@@ -265,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
                 with open(UI, "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
             except OSError:
-                self._send(500, "UI index.html tidak ditemukan")
+                self._send(500, "UI index.html not found")
             return
         if path == "/api/files":
             self._send(200, json.dumps(build_api(), ensure_ascii=False),
@@ -276,11 +276,11 @@ class Handler(BaseHTTPRequestHandler):
             label, _, rel = rest.partition("/")
             fp = safe_path(label, rel)
             if not fp:
-                self._send(403, "Akses file ditolak (di luar root yang diizinkan)")
+                self._send(403, "File access denied (outside the allowed root)")
                 return
             size = os.path.getsize(fp)
             name = os.path.basename(fp)
-            # ?dl=1 -> attachment (unduhan paksa); default inline (pratinjau)
+            # ?dl=1 -> attachment (forced download); default inline (preview)
             dl = parse_qs(query).get("dl", ["0"])[0] in ("1", "true", "yes")
             disp = "attachment" if dl else "inline"
             self.send_response(200)

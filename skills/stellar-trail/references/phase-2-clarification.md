@@ -20,44 +20,44 @@ Each question offers 3–4 concrete options plus an implicit free-text escape. M
 
 When the user pinned audience + style + length already:
 
-- Do NOT ask what is already pinned as an open question — **convert pinned specs into confirmation questions** ("Audiens saya asumsikan investor retail — sudah tepat?").
+- Do NOT ask what is already pinned as an open question — **convert pinned specs into confirmation questions** ("I'm assuming retail investors as the audience — is that right?").
 - Do ask about everything NOT pinned: format constraints, depth, must-include facts, structural preferences.
-- Rationale to keep asking: "lengkap" menurut pengguna sering tidak lengkap menurut standar eksekusi. Konfirmasi murah (satu baris), asumsi salah mahal (rework total).
+- Rationale to keep asking: "complete" by the user's standard is often incomplete by the execution standard. Confirmation is cheap (one line); a wrong assumption is expensive (total rework).
 
-## Handling Pressure / Menangani Tekanan Pengguna
+## Handling Pressure
 
 | User says | Correct behavior |
 |-----------|------------------|
-| "langsung kerjakan" / "just do it" | Phase still runs: 1 confirmation block ("asumsi saya: A, B, C — koreksi jika salah") + 2–3 gap questions on never-specified dimensions |
+| "langsung kerjakan" / "just do it" | Phase still runs: 1 confirmation block ("my assumptions: A, B, C — correct me if wrong") + 2–3 gap questions on never-specified dimensions |
 | "jangan banyak tanya" | Compress to exactly 4 rapid-fire confirmation/gap questions, single batch |
 | "quick question" about the task | The question itself is input for Phase 2 — answer it AND complete the batch |
 | User answers partially | Document what arrived, ask ONLY about the remaining gaps |
 
-**Pressure compresses the FORMAT of the phase. It never cancels the PHASE.** Ini inti dari mandat mutlak: penjaga protokol yang mundur karena diminta untuk mundur bukanlah penjaga.
+**Pressure compresses the FORMAT of the phase. It never cancels the PHASE.** This is the core of the absolute mandate: a protocol guardian that retreats because it was asked to retreat is not a guardian.
 
-## Continuation Turns / Giliran Lanjutan
+## Continuation Turns
 
 When the user is answering your questions:
 
 1. Document every answer received (one line each) — this is the phase's evidence.
 2. Check for NEW gaps the answers opened (answers often reveal missing assets or conflicting constraints).
-3. New gaps → ask only those (1–3 questions). No gaps → emit `## 🌠 FASE 2 — KLARIFIKASI` with content `semua jawaban terdokumentasi — tidak ada gap` and proceed to Phase 3.
+3. New gaps → ask only those (1–3 questions). No gaps → emit `## 🌠 PHASE 2 — CLARIFICATION` with content `all answers documented — no gaps` and proceed to Phase 3.
 4. NEVER re-ask an answered question — that is the one true annoyance this protocol must avoid.
 
-## Marker Templates / Template Penanda
+## Marker Templates
 
 ```
-## 🌠 FASE 2 — KLARIFIKASI
-5 pertanyaan diajukan — menunggu jawaban
+## 🌠 PHASE 2 — CLARIFICATION
+5 questions asked — awaiting answers
 
-## 🌠 FASE 2 — KLARIFIKASI
-5/5 jawaban terdokumentasi; 1 gap baru (aset logo) — 1 pertanyaan lanjutan
+## 🌠 PHASE 2 — CLARIFICATION
+5/5 answers documented; 1 new gap (logo assets) — 1 follow-up question
 
-## 🌠 FASE 2 — N/A (Type 0 conversational)
+## 🌠 PHASE 2 — N/A (Type 0 conversational)
 ```
 
 ## Tool Usage / Penggunaan Tool
 
 Use the platform's structured question tool (e.g. AskUserQuestion) when available: it enforces batching, concrete options, and single-round behavior. Fall back to inline numbered questions otherwise. Either way: ONE round, 4–6 questions, concrete options.
 
-**Penjelasan (ID):** Satu ronde batch murah; deliverable yang salah arah mahal. Angka 4–6 dipilih karena di bawah 4 hampir selalu ada dimensi penting yang terlewat, dan di atas 6 pengguna mulai lelah menjawab. Kewajiban melekat pada TASK: begitu ronde pertanyaan sebuah task sudah dijawab, fase ini dianggap terpenuhi — jangan pernah bertanya ulang, hanya isi celah baru.
+**Rationale:** One batched round is cheap; a wrongly-aimed deliverable is expensive. The 4–6 range was chosen because below 4 an important dimension is almost always missed, and above 6 users start tiring of answering. The mandate attaches to the TASK: once a task's question round is answered, this phase counts as satisfied — never re-ask, only fill new gaps.

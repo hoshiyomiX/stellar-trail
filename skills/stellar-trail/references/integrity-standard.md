@@ -81,4 +81,4 @@ Session ends after building a skill. Handoff written with: task ID + status (✓
 
 Contrast: same session ends with NO handoff, and the platform's auto-summary keeps only a vague task description. Next session M0: Q1 partially answerable, Q2–Q3 unanswerable → ≤ 3/7 → integrity breached → gap-fill loop must reconstruct from worklog and filesystem before ANY work resumes.
 
-**Penjelasan (ID):** Perhatikan contoh kedua — itu bukan skenario hipotetis. Itu persis yang terjadi pada session ini sendiri sebelum protokol dibuat: ringkasan otomatis kehilangan fakta bahwa optimizer sudah selesai dieksekusi, dan fakta itu hanya selamat karena worklog ditulis dengan disiplin. Standar 95% ada untuk memastikan pemulihan tidak lagi bergantung pada keberuntungan.
+**Rationale:** Note the second example — it is not a hypothetical scenario. It is exactly what happened to this very session before the protocol existed: an automatic summary lost the fact that the optimizer had already finished executing, and that fact only survived because the worklog was written with discipline. The 95% standard exists so recovery no longer depends on luck.

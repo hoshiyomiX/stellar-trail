@@ -2,7 +2,7 @@
 
 **Rule: NO deliverable is reported (Phase 6) before it is validated (Phase 5). "I tested it while implementing" does not replace the review pass — implementation-time testing is drafting; validation is the audit.**
 
-**Penjelasan (ID):** Fase ini lahir dari pola kegagalan yang berulang: implementasi selesai, terasa "kayaknya udah benar", laporan dikirim — dan cacatnya baru ketahuan oleh user. Validasi memisahkan dua peran yang sama pentingnya: saat mengimplementasi Anda adalah pembuat; saat memvalidasi Anda adalah auditor yang curiga terhadap pembuat itu. Review lengkap berarti: bukti nyata, bukan perasaan.
+**Rationale:** This phase was born from a repeating failure pattern: implementation finishes, it feels "probably correct", the report ships — and the user discovers the defect. Validation separates two equally vital roles: while implementing you are the maker; while validating you are an auditor suspicious of that maker. A complete review means: real evidence, not feelings.
 
 ## The Five Review Layers / Lima Lapis Review
 
@@ -20,7 +20,7 @@ Run layers in order; each layer has a track — **terminal** (verifiable by comm
 
 | Type | Minimum validation |
 |------|--------------------|
-| 0 conversational | N/A — no deliverable to validate; mark `## 🌠 FASE 5 — N/A (Type 0)` |
+| 0 conversational | N/A — no deliverable to validate; mark `## 🌠 PHASE 5 — N/A (Type 0)` |
 | 1 document | L1 exists+size · L2 opens/parses programmatically (e.g. python-docx/openpyxl/pypdf read-back; page count sane) · L3 structural rules (fonts embedded, no forbidden escapes, page-break placement) · L4 diff vs request (sections, depth, language, audience) |
 | 2 chart | L1 file exists / mermaid code block complete · L2 renders (PNG opens; Mermaid parse if code) · L3 label language consistency + contrast · L4 chart answers the actual question asked |
 | 3 web | L1 dev server/artifact present · L2 loads + zero console errors + 2–3 key interactions exercised (headless browser when available) · L3 lint (js/ts compile) + responsive smoke at 2 viewports · L4 features match request |
@@ -34,12 +34,12 @@ Run layers in order; each layer has a track — **terminal** (verifiable by comm
 3. A fix that touches another layer's surface re-runs that layer too (a rendering fix re-triggers L3+L2).
 4. Loop until PASS, or until the defect is explicitly downgraded to an accepted deviation (below).
 
-**No silent fixes without re-validation — "sudah saya betulkan" is a claim, not evidence.**
+**No silent fixes without re-validation — "I already fixed it" is a claim, not evidence.**
 
-## Accepted Deviations / Deviasi yang Diterima
+## Accepted Deviations
 
 Some defects are consciously accepted (time, scope, platform limits). An accepted deviation MUST be:
-- explicit in the validation marker (`1 deviasi diterima: …`),
+- explicit in the validation marker (`1 accepted deviation: …`),
 - justified (why accepting is cheaper/correct vs fixing),
 - listed again in the Phase 6 report under next steps.
 
@@ -55,21 +55,21 @@ Anything else fails the gate. An undocumented defect discovered later was never 
 ## Marker Templates / Template Penanda
 
 ```
-## 🌠 FASE 5 — VALIDASI
-L1 PASS · L2 smoke 3/3 · L3 lint 2/2 · L4 diff PASS — 1 defect diperbaiki (font fallback)
+## 🌠 PHASE 5 — VALIDATION
+L1 PASS · L2 smoke 3/3 · L3 lint 2/2 · L4 diff PASS — 1 defect fixed (font fallback)
 
-## 🌠 FASE 5 — VALIDASI
-enforce-gates.sh 7/7 PASS (exit 0) · L4 diff: 1 deviasi diterima (data sumber tidak lengkap — dicatat di laporan)
+## 🌠 PHASE 5 — VALIDATION
+enforce-gates.sh 7/7 PASS (exit 0) · L4 diff: 1 accepted deviation (source data incomplete — noted in the report)
 
-## 🌠 FASE 5 — N/A (Type 0)
-tanpa deliverable
+## 🌠 PHASE 5 — N/A (Type 0)
+no deliverable
 
-## 🌠 FASE 5 — VALIDASI
-regresi: 12/12 audit responsif terdahulu tetap PASS pasca-edit
+## 🌠 PHASE 5 — VALIDATION
+regression: 12/12 previously-passing responsive audits still PASS post-edit
 ```
 
 ## Memory Hook / Kait Memory
 
 Checkpoint (M1) the validation OUTCOME, not just "done": defects found and fixed, accepted deviations, re-checks pending. The next session inherits open validation debt through SESSION-STATE — that is exactly the kind of context that must never be lost.
 
-**Penjelasan (ID):** Lima lapis ini sengaja berurutan dari murah-objektif ke mahal-subjektif: kalau file saja tidak ada (L1), tidak ada gunanya mendebat apakah isinya memenuhi permintaan (L4). Pemisahan track terminal/non-terminal jujur tentang batas mesin: perintah bisa memutuskan apakah skrip lolos lint, tapi hanya pembaca yang bisa memutuskan apakah laporan menjawab pertanyaan. Mesin menegakkan yang bisa ditegakkan mesin; sisanya tetap tanggung jawab — dan itu justru membuat bagian manusia dari review ini tidak bisa diserahkan begitu saja ke "kayaknya udah oke".
+**Rationale:** The five layers are deliberately ordered from cheap-objective to expensive-subjective: if the file does not even exist (L1), there is no point debating whether its content satisfies the request (L4). The terminal/non-terminal track split is honest about the machine's limits: a command can decide whether a script passes lint, but only a reader can decide whether a report answers the question. The machine enforces what machines can enforce; the rest stays human responsibility — which is exactly what keeps the human part of this review from being handed over to "looks fine to me".

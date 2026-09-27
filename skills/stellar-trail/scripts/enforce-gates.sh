@@ -41,18 +41,18 @@ esac; }
 # ================= L1: artifact verification =================
 if [ -n "$ARTIFACT" ]; then
   echo "== L1 artifact: $ARTIFACT (task=$TASK) =="
-  if [ ! -e "$ARTIFACT" ]; then bad "artifact tidak ditemukan: $ARTIFACT"
+  if [ ! -e "$ARTIFACT" ]; then bad "artifact not found: $ARTIFACT"
   elif [ -d "$ARTIFACT" ]; then
     n=$(find "$ARTIFACT" -type f | wc -l)
-    [ "$n" -gt 0 ] && ok "direktori artefak berisi $n file" || bad "direktori artefak kosong"
-  elif [ ! -r "$ARTIFACT" ]; then bad "artifact tidak terbaca (permission): $ARTIFACT"
-  elif [ ! -s "$ARTIFACT" ]; then bad "artifact kosong (0 byte): $ARTIFACT"
+    [ "$n" -gt 0 ] && ok "artifact directory contains $n files" || bad "artifact directory empty"
+  elif [ ! -r "$ARTIFACT" ]; then bad "artifact unreadable (permission): $ARTIFACT"
+  elif [ ! -s "$ARTIFACT" ]; then bad "artifact empty (0 bytes): $ARTIFACT"
   else
     sz=$(stat -c%s "$ARTIFACT" 2>/dev/null || stat -f%z "$ARTIFACT" 2>/dev/null)
     floor=$(min_size "$TASK"); human=$(awk -v s="$sz" 'BEGIN{printf "%.1f KB", s/1024}')
-    ok "artifact ada & terbaca ($human)"
+    ok "artifact exists & readable ($human)"
     if [ "$floor" -gt 0 ] && [ "$sz" -lt "$floor" ]; then
-      warn "ukuran di bawah heuristik $TASK (${floor} B) — verifikasi isi memang sesuai?"
+      warn "size below $TASK heuristic (${floor} B) — verify the content really matches the request"
     fi
   fi
 fi
@@ -61,7 +61,7 @@ fi
 if [ -n "${LINT_FILES// /}" ]; then
   echo "== L3 lint =="
   for f in $LINT_FILES; do
-    [ -e "$f" ] || { bad "lint: file tidak ada: $f"; continue; }
+    [ -e "$f" ] || { bad "lint: file missing: $f"; continue; }
     ext="${f##*.}"; case "$ext" in
       sh|bash)
         if bash -n "$f" 2>/tmp/eg_err; then ok "bash -n: $f"; else bad "bash -n: $f — $(head -1 /tmp/eg_err)"; fi;;
@@ -70,7 +70,7 @@ if [ -n "${LINT_FILES// /}" ]; then
       js|mjs|cjs)
         if command -v node >/dev/null 2>&1; then
           if node --check "$f" 2>/tmp/eg_err; then ok "node --check: $f"; else bad "node --check: $f — $(head -1 /tmp/eg_err)"; fi
-        else note "node tidak tersedia — SKIP: $f (nyatakan fallback di marker)"; fi;;
+        else note "node unavailable — SKIP: $f (state the fallback in the marker)"; fi;;
       json)
         if python3 -m json.tool "$f" >/dev/null 2>/tmp/eg_err; then ok "json parse: $f"; else bad "json parse: $f — $(tail -1 /tmp/eg_err)"; fi;;
       html|htm)
@@ -84,8 +84,8 @@ PYEOF
         then ok "html parse: $f"; else bad "html parse: $f — $(tail -1 /tmp/eg_err)"; fi;;
       md)
         fences=$(grep -c '^```' "$f" 2>/dev/null); fences=${fences:-0}
-        if [ $((fences % 2)) -eq 0 ]; then ok "md code-fence seimbang ($fences): $f"; else bad "md code-fence GANJIL ($fences): $f"; fi;;
-      *) note "tanpa linter untuk .$ext — periksa manual: $f";;
+        if [ $((fences % 2)) -eq 0 ]; then ok "md code-fences balanced ($fences): $f"; else bad "md code-fence count ODD ($fences): $f"; fi;;
+      *) note "no linter for .$ext — check manually: $f";;
     esac
   done
 fi
@@ -94,13 +94,13 @@ fi
 if [ -n "$SKILL_DIR" ]; then
   echo "== check-skill: $SKILL_DIR =="
   S="$SKILL_DIR/SKILL.md"
-  [ -f "$S" ] || { bad "SKILL.md tidak ada di $SKILL_DIR"; S=""; }
+  [ -f "$S" ] || { bad "SKILL.md missing in $SKILL_DIR"; S=""; }
   if [ -n "$S" ]; then
-    head -1 "$S" | grep -q '^---' && ok "frontmatter pembuka ---" || bad "frontmatter pembuka --- hilang"
-    grep -q '^name:' "$S" && ok "field name: ada" || bad "field name: hilang"
+    head -1 "$S" | grep -q '^---' && ok "opening frontmatter ---" || bad "opening frontmatter --- missing"
+    grep -q '^name:' "$S" && ok "name field: present" || bad "name field: missing"
     if grep -q '^description:' "$S"; then
-      ok "field description: ada"
-      # ekstrak blok deskripsi (yaml folded > dibuka ke satu baris)
+      ok "description field: present"
+      # extract the description block (yaml folded > unwrapped to one line)
       desc=$(python3 - "$S" <<'PYEOF'
 import sys,re
 t=open(sys.argv[1],encoding="utf-8").read()
@@ -115,46 +115,47 @@ print(re.sub(r"\s+"," ",d).strip() if d else "")
 PYEOF
 )
       dlen=${#desc}
-      if [ "$dlen" -gt 0 ] && [ "$dlen" -le 1024 ]; then ok "panjang description $dlen/1024"; else bad "panjang description $dlen — di luar 1..1024"; fi
-      case "$desc" in *"<"*|*">"*) bad "description mengandung angle bracket < >";; *) ok "description tanpa angle bracket";; esac
-    else bad "field description: hilang"; fi
-    # referensi & skrip yang disebut harus ada
+      if [ "$dlen" -gt 0 ] && [ "$dlen" -le 1024 ]; then ok "description length $dlen/1024"; else bad "description length $dlen — outside 1..1024"; fi
+      case "$desc" in *"<"*|*">"*) bad "description contains angle brackets < >";; *) ok "description without angle brackets";; esac
+    else bad "description field: missing"; fi
+    # referenced files & scripts must exist
     miss=0
     for ref in $(grep -o 'references/[A-Za-z0-9_-]*\.md' "$S" | sort -u); do
-      [ -f "$SKILL_DIR/$ref" ] || { bad "referensi hilang: $ref"; miss=1; }; done
-    [ "$miss" -eq 0 ] && ok "semua references/*.md yang dirujuk ada"
+      [ -f "$SKILL_DIR/$ref" ] || { bad "missing reference: $ref"; miss=1; }; done
+    [ "$miss" -eq 0 ] && ok "all referenced references/*.md exist"
     miss=0
-    # v3.6.1 (Task 56 / F11): pola lama 'scripts/[…].sh' tanpa anchor cocok substring
-    # di '.zscripts/dev.sh' → false "script hilang". Anchor: karakter sebelum 'scripts/'
-    # tidak boleh angka/huruf/'.'/'-'/'_' (mengecualikan .zscripts/, npx-scripts/ dll);
-    # karakter boundary (spasi/backtick) dibuang oleh sed sebelum cek keberadaan file.
+    # v3.6.1 (Task 56 / F11): the old 'scripts/[…].sh' pattern without an anchor
+    # also matches the substring in '.zscripts/dev.sh' → false "missing script".
+    # Anchor: the character before 'scripts/' must not be alnum/'.'/'-/'_'
+    # (excludes .zscripts/, npx-scripts/ etc); boundary characters (space/backtick)
+    # are stripped by sed before the file-existence check.
     for scr in $(grep -oE '(^|[^.A-Za-z0-9_-])scripts/[A-Za-z0-9_-]+\.sh' "$S" | sed -E 's/^[^s]scripts\//scripts\//' | sort -u); do
-      [ -f "$SKILL_DIR/$scr" ] || { bad "script hilang: $scr"; miss=1; }; done
-    [ "$miss" -eq 0 ] && ok "semua scripts/*.sh yang dirujuk ada"
+      [ -f "$SKILL_DIR/$scr" ] || { bad "missing script: $scr"; miss=1; }; done
+    [ "$miss" -eq 0 ] && ok "all referenced scripts/*.sh exist"
   fi
 fi
 
 # ================= worklog section =================
 if [ -n "$WORKLOG" ]; then
   echo "== check-worklog: $WORKLOG (Task ID: ${TASKID:-?}) =="
-  if [ -z "$TASKID" ]; then bad "--task-id wajib bersama --check-worklog";
-  elif [ ! -f "$WORKLOG" ]; then bad "worklog tidak ada: $WORKLOG";
-  elif grep -q "Task ID: $TASKID" "$WORKLOG"; then ok "section 'Task ID: $TASKID' ditemukan";
-  else bad "worklog belum punya section Task ID: $TASKID"; fi
+  if [ -z "$TASKID" ]; then bad "--task-id required together with --check-worklog";
+  elif [ ! -f "$WORKLOG" ]; then bad "worklog missing: $WORKLOG";
+  elif grep -q "Task ID: $TASKID" "$WORKLOG"; then ok "section 'Task ID: $TASKID' found";
+  else bad "worklog has no section for Task ID: $TASKID"; fi
 fi
 
 # ================= selftest: prove the gate CAN fail =================
 if [ "$SELFTEST" -eq 1 ]; then
-  echo "== selftest (gate harus bisa GAGAL) =="
+  echo "== selftest (the gate must be able to FAIL) =="
   T=$(mktemp -d)
   echo "ok" > "$T/good.sh"; printf 'if [ broken\n' > "$T/bad.sh"
   echo '{"a":1}' > "$T/good.json"; echo '{a:1}' > "$T/bad.json"
   printf '```fence\n' > "$T/bad.md"; printf '```\n```\n' > "$T/good.md"
-  bash -n "$T/good.sh" 2>/dev/null && ok "selftest: skrip valid diterima" || bad "selftest: skrip valid DITOLAK (gate terlalu ketat)"
-  bash -n "$T/bad.sh" 2>/dev/null && bad "selftest: skrip rusak LOLOS (gate bocor)" || ok "selftest: skrip rusak ditolak benar"
-  python3 -m json.tool "$T/bad.json" >/dev/null 2>&1 && bad "selftest: json rusak LOLOS" || ok "selftest: json rusak ditolak benar"
-  [ $(( $(grep -c '^```' "$T/bad.md") % 2 )) -eq 0 ] && bad "selftest: fence ganjil LOLOS" || ok "selftest: fence ganjil ditolak benar"
-  [ -f "$T/tidak-ada.png" ] && bad "selftest: file hilang LOLOS" || ok "selftest: file hilang ditolak benar"
+  bash -n "$T/good.sh" 2>/dev/null && ok "selftest: valid script accepted" || bad "selftest: valid script REJECTED (gate too strict)"
+  bash -n "$T/bad.sh" 2>/dev/null && bad "selftest: broken script PASSES (gate leaky)" || ok "selftest: broken script correctly rejected"
+  python3 -m json.tool "$T/bad.json" >/dev/null 2>&1 && bad "selftest: broken json PASSES" || ok "selftest: broken json correctly rejected"
+  [ $(( $(grep -c '^```' "$T/bad.md") % 2 )) -eq 0 ] && bad "selftest: odd fence count PASSES" || ok "selftest: odd fence count correctly rejected"
+  [ -f "$T/missing.png" ] && bad "selftest: missing file PASSES" || ok "selftest: missing file correctly rejected"
   rm -rf "$T"
 fi
 
@@ -162,7 +163,7 @@ fi
 TOTAL=$((PASS+FAIL))
 echo "----------------------------------------"
 if [ "$TOTAL" -eq 0 ] && [ "$WARN" -eq 0 ]; then
-  echo "ENFORCE-GATES: tidak ada check diminta — lihat --help"; exit 2
+  echo "ENFORCE-GATES: no checks requested — see --help"; exit 2
 fi
 printf "ENFORCE-GATES: ${G}%d PASS${N} · ${R}%d FAIL${N} · ${Y}%d WARN${N}\n" "$PASS" "$FAIL" "$WARN"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1

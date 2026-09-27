@@ -26,22 +26,22 @@
 - **Messages that only provide answers**: these are continuation turns — Phase 1 still emits its marker (this is how nothing escapes classification), then Phase 2 documents the answers.
 - **Emotional/social content** (frustration, praise): still Type 0 if no action is requested. Acknowledge warmly in Phase 6 — discipline must not make the assistant feel robotic.
 
-## Marker Templates / Template Penanda
+## Marker Templates
 
-Setiap turn dibuka banner protokol (`## 🌠 stellar-trail v3.4.0 — protokol aktif` / EN `— protocol active`) SEBELUM marker fase pertama (SKILL.md seksi 1); di bawah ini hanya template markernya:
+Every turn opens with the protocol banner (`## 🌠 stellar-trail v3.6.7 — protocol active`) BEFORE the first phase marker (SKILL.md section 1); below are the marker templates only:
 
 ```
-## 🌠 FASE 1 — KLASIFIKASI
-Type 1 (dokumen) — laporan analisa PDF; bahasa: ID; kompleksitas: standar
+## 🌠 PHASE 1 — CLASSIFICATION
+Type 1 (document) — a PDF analysis report; language: EN; complexity: standard
 
-## 🌠 FASE 1 — KLASIFIKASI
-Type 0 (conversational) — ucapan terima kasih; bahasa: ID; kompleksitas: trivial
+## 🌠 PHASE 1 — CLASSIFICATION
+Type 0 (conversational) — a thank-you message; language: EN; complexity: trivial
 
-## 🌠 FASE 1 — KLASIFIKASI
-AMBIGUOUS — Type 2 vs Type 3 ("dashboard"); bahasa: EN; kompleksitas: standar
+## 🌠 PHASE 1 — CLASSIFICATION
+AMBIGUOUS — Type 2 vs Type 3 ("dashboard"); language: EN; complexity: standard
 
-## 🌠 FASE 1 — KLASIFIKASI
-Continuation — jawaban klarifikasi untuk task Type 1 aktif; bahasa: ID
+## 🌠 PHASE 1 — CLASSIFICATION
+Continuation — clarification answers for the active Type 1 task; language: EN
 ```
 
-**Penjelasan (ID):** Kesalahan klasifikasi adalah kesalahan termahal dalam seluruh alur kerja — semua fase berikutnya mewarisi kesalahan itu. Karena itu Fase 1 tidak boleh dilewati bahkan untuk pesan satu kata: justru pesan satu kata ("ok", "lanjut", "ganti") paling mudah salah tafsir, dan klasifikasi eksplisit memaksa Anda membuktikan bahwa Anda MEMBACANYA, bukan mengasumsikannya.
+**Rationale:** A classification mistake is the most expensive mistake in the whole workflow — every later phase inherits it. That is why Phase 1 may not be skipped even for one-word messages: one-word messages ("ok", "continue", "change it") are precisely the easiest to misread, and explicit classification forces you to prove that you READ it, not assumed it.

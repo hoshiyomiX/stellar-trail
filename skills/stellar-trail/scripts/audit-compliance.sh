@@ -1,38 +1,44 @@
 #!/usr/bin/env bash
 # ============================================================================
-# audit-compliance.sh — AUDIT KEPATUHAN PROTOCOL stellar-trail DARI LUAR MODEL
-# (R3, v3.5.5 — lahir dari laporan insiden 2026-09-21: 3 session non-compliance
-#  senyap, hanya terdeteksi audit manual user)
-# v3.6.2 (Task 60, 2026-09-25 — laporan konsumer fresh-install): C1/C5 kini
-#  membawa HINT BOOTSTRAP satu baris — di instalasi CLI-only tanpa persistence
-#  layer, C1 FAIL (memory/ absen) + C5 WARN (hook R1 belum di-append) adalah
-#  state EXPECTED pasca-install, bukan pelanggaran; hint mengarahkan ke
-#  scripts/bootstrap-sandbox.sh (memory consent-gated — SKILL.md §4b) agar
-#  konsumer fresh-install tidak mengira auditnya rusak.
+# audit-compliance.sh — external protocol compliance audit for stellar-trail
+# stellar-trail v3.6.7 · 2026-09-27
 #
-# FILOSOFI: pelanggaran senyap karena TIDAK ADA sinyal alarm — respons tanpa
-#   marker tidak menimbulkan error apa pun. Skrip ini memberi user satu
-#   perintah murah untuk memeriksa signature kepatuhan dari artefak di disk,
-#   TANPA bergantung pada disiplin model. Read-only; tidak pernah memperbaiki
-#   (perbaikan = heal-skill.sh / M1 checkpoint oleh agent).
+# WHY THIS EXISTS: protocol violations stay silent because a response without
+#   phase markers raises no error anywhere. This script gives the user one
+#   cheap command to check the compliance signature of the on-disk artifacts,
+#   WITHOUT relying on the model's discipline. Read-only: it never repairs
+#   anything (repair = the agent's checkpoint discipline, or re-running the
+#   install command for installation issues).
 #
-# CHECKS:
-#   C1 memory/SESSION-STATE.md ada (fondasi protokol memory)
-#   C2 Active-table hygiene (SKILL.md §4d H2): baris DONE/CANCELLED/TERTUTUP
-#      di bawah "## Active Tasks" = FAIL (task selesai tampil sbg pending)
-#   C3 staleness: worklog aktif bertumbuh TAPI SESSION-STATE tidak di-rewrite
-#      >30 mnt = WARN (signature tidak ada checkpoint M1 — pola insiden)
-#   C4 version sanity (§4c): assets/integrity.version tiap instalasi vs
-#      .clawhub/lock.json vs kanonik download/stellar-trail — drift = WARN
-#   C5 worklog activation hook (R1): baris ACTIVATE di tail worklog = ada?
+# CHECKS (each prints PASS / WARN / FAIL with a one-line explanation):
+#   memory-foundation        memory/SESSION-STATE.md exists (the memory
+#                            protocol's foundation)
+#   active-table-hygiene     the Active Tasks table contains only
+#                            ACTIVE/BLOCKED/STALE rows — a DONE or CANCELLED
+#                            row there makes finished work look pending
+#   checkpoint-staleness     the worklog is actively growing while
+#                            SESSION-STATE.md has not been rewritten for over
+#                            30 minutes — the signature of a missing checkpoint
+#   version-sanity           every installed copy reports the same version as
+#                            the canonical snapshot and the skills lock file —
+#                            drift means a stale or damaged installation
+#   worklog-activation-hook  the activation hook line is present at the tail
+#                            of the worklog (keeps the activation chain alive
+#                            across resets)
 #
-# VERDICT: FAIL > 0 → exit 1 · hanya PASS/WARN → exit 0
-#   (WARN = temuan yang BISA absah sekejap — tetap dilaporkan, tidak menggagalkan)
+# FRESH-INSTALL NOTE: on a CLI-only installation without the persistence
+#   layer, memory-foundation FAIL and worklog-activation-hook WARN are the
+#   EXPECTED post-install state, not violations — run
+#   scripts/bootstrap-sandbox.sh to arm the persistence layer (memory is
+#   consent-gated by the first session).
 #
-# USAGE:
+# VERDICT: any FAIL → exit 1 · only PASS/WARN → exit 0
+#   (WARN = a finding that can be legitimately momentary — reported, not fatal)
+#
+# Usage:
 #   bash scripts/audit-compliance.sh [--root <project-root>] [--quiet]
-#   --root  default: 3 level di atas lokasi skrip ini (layout instalasi skill)
-#           → sesuaikan bila project root berbeda
+#   --root  default: three levels above this script (standard skill layout);
+#           adjust when the project root differs
 # ============================================================================
 set -u
 
@@ -42,15 +48,15 @@ QUIET=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --root)  ROOT="$(cd "$2" 2>/dev/null && pwd)" || { echo "ERROR: --root $2 tidak valid"; exit 2; }; shift 2 ;;
+        --root)  ROOT="$(cd "$2" 2>/dev/null && pwd)" || { echo "ERROR: invalid --root $2"; exit 2; }; shift 2 ;;
         --quiet) QUIET=1; shift ;;
-        *) echo "pakai: bash scripts/audit-compliance.sh [--root <dir>] [--quiet]"; exit 2 ;;
+        *) echo "usage: bash scripts/audit-compliance.sh [--root <dir>] [--quiet]"; exit 2 ;;
     esac
 done
 
 PASS=0; WARN=0; FAIL=0
 say() { [ "$QUIET" -eq 0 ] && echo "$*"; return 0; }
-res() { # res <PASS|WARN|FAIL> <kode-check> <detail>
+res() { # res <PASS|WARN|FAIL> <check-name> <detail>
     case "$1" in
         PASS) PASS=$((PASS+1)); say "  [PASS] $2 — $3" ;;
         WARN) WARN=$((WARN+1)); say "  [WARN] $2 — $3" ;;
@@ -60,41 +66,41 @@ res() { # res <PASS|WARN|FAIL> <kode-check> <detail>
 
 say "[audit-compliance] root: $ROOT"
 
-# --- C1: memory/SESSION-STATE.md ------------------------------------------------
+# --- memory-foundation -------------------------------------------------------
 SS="$ROOT/memory/SESSION-STATE.md"
 WL="$ROOT/worklog.md"
-if [ -f "$SS" ]; then res PASS "C1 memory" "SESSION-STATE.md ada ($(wc -l < "$SS") baris)"
-else res FAIL "C1 memory" "memory/SESSION-STATE.md TIDAK ADA — protokol memory tanpa fondasi — fresh install? bash scripts/bootstrap-sandbox.sh (memory consent-gated — SKILL.md §4b)"; fi
+if [ -f "$SS" ]; then res PASS "memory-foundation" "SESSION-STATE.md present ($(wc -l < "$SS") lines)"
+else res FAIL "memory-foundation" "memory/SESSION-STATE.md MISSING — the memory protocol has no foundation — fresh install? run: bash scripts/bootstrap-sandbox.sh (memory is consent-gated by the first session)"; fi
 
-# --- C2: Active-table hygiene (H2) ----------------------------------------------
+# --- active-table-hygiene ----------------------------------------------------
 if [ -f "$SS" ]; then
-    # ekstrak seksi Active Tasks lalu cari status terminal di kolom status
+    # extract the Active Tasks section, then look for terminal statuses in the status column
     ACTIVE_ROWS="$(awk '/^## Active Tasks/{f=1;next} /^## /{f=0} f && /^\|/' "$SS" | grep -vE '^\|[[:space:]]*-|^\|[[:space:]]*Task ID' || true)"
     if [ -z "$ACTIVE_ROWS" ]; then
-        res PASS "C2 hygiene" "tabel aktif kosong (tidak ada task aktif) — bersih"
+        res PASS "active-table-hygiene" "active table empty (no active tasks) — clean"
     elif echo "$ACTIVE_ROWS" | grep -qiE '\| *(DONE|CANCELLED|TERTUTUP|SEALED) *\|'; then
-        res FAIL "C2 hygiene" "baris terminal (DONE/CANCELLED/...) di Active table — pelanggaran H2, risiko stale-pickup"
+        res FAIL "active-table-hygiene" "terminal row (DONE/CANCELLED/...) inside the Active table — finished work displayed as pending, stale-pickup risk"
     else
-        res PASS "C2 hygiene" "Active table hanya berisi baris ACTIVE/BLOCKED/STALE ($(echo "$ACTIVE_ROWS" | wc -l) baris)"
+        res PASS "active-table-hygiene" "active table holds only ACTIVE/BLOCKED/STALE rows ($(echo "$ACTIVE_ROWS" | wc -l) rows)"
     fi
 fi
 
-# --- C3: staleness SESSION-STATE vs worklog --------------------------------------
+# --- checkpoint-staleness ----------------------------------------------------
 if [ -f "$SS" ] && [ -f "$WL" ]; then
     SS_M=$(stat -c%Y "$SS" 2>/dev/null || echo 0)
     WL_M=$(stat -c%Y "$WL" 2>/dev/null || echo 0)
     NOW=$(date +%s)
     if [ "$WL_M" -gt "$SS_M" ] && [ $((NOW - WL_M)) -lt 900 ] && [ $((WL_M - SS_M)) -gt 1800 ]; then
-        res WARN "C3 staleness" "worklog aktif ($(date -d "@$WL_M" '+%H:%M' 2>/dev/null)) tapi SESSION-STATE terakhir $(date -d "@$SS_M" '+%H:%M' 2>/dev/null) — gap $(( (WL_M - SS_M) / 60 )) mnt: signature TIDAK ada checkpoint M1"
+        res WARN "checkpoint-staleness" "worklog active ($(date -d "@$WL_M" '+%H:%M' 2>/dev/null)) but SESSION-STATE last written $(date -d "@$SS_M" '+%H:%M' 2>/dev/null) — gap $(( (WL_M - SS_M) / 60 )) min: the signature of a missing checkpoint"
     else
-        res PASS "C3 staleness" "checkpoint segar (gap aman / tidak ada kerja aktif yang yatim checkpoint)"
+        res PASS "checkpoint-staleness" "checkpoint fresh (safe gap / no active work orphaned from its checkpoint)"
     fi
 fi
 
-# --- C4: version sanity (4c) ------------------------------------------------------
+# --- version-sanity ----------------------------------------------------------
 LOCK="$ROOT/.clawhub/lock.json"
 CANON_VER="$(cat "$ROOT/download/stellar-trail/assets/integrity.version" 2>/dev/null || echo '')"
-[ -n "$CANON_VER" ] || CANON_VER="(kanonik tak ada)"
+[ -n "$CANON_VER" ] || CANON_VER="(no canonical snapshot)"
 for CAND in "$ROOT/skills/stellar-trail" "$ROOT"/skills/@*/stellar-trail; do
     [ -d "$CAND" ] || continue
     IV="$(cat "$CAND/assets/integrity.version" 2>/dev/null || echo '?')"
@@ -108,26 +114,26 @@ try:
         v=d.get('skills',{}).get(k[0],{}).get('version','?') if k else '?'
     print(v)
 except Exception: print('?')" 2>/dev/null || echo '?')"
-    if [ "$IV" = "?" ]; then res WARN "C4 versi $KEY" "integrity.version tak terbaca di $CAND"
-    elif [ "$IV" != "$LV" ]; then res WARN "C4 versi $KEY" "instal $IV ≠ lock $LV — jalankan heal-skill.sh --check"
-    else res PASS "C4 versi $KEY" "instal $IV = lock $LV"
+    if [ "$IV" = "?" ]; then res WARN "version-sanity ($KEY)" "integrity.version unreadable in $CAND"
+    elif [ "$IV" != "$LV" ]; then res WARN "version-sanity ($KEY)" "installed $IV != lock $LV — re-run the install command: npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y"
+    else res PASS "version-sanity ($KEY)" "installed $IV = lock $LV"
     fi
 done
 
-# --- C5: worklog activation hook (R1) ---------------------------------------------
+# --- worklog-activation-hook -------------------------------------------------
 if [ -f "$WL" ]; then
     if tail -50 "$WL" | grep -q '⚡ACTIVATE'; then
-        res PASS "C5 hook-R1" "pemicu aktivasi ada di tail worklog"
+        res PASS "worklog-activation-hook" "activation trigger present at the worklog tail"
     else
-        res WARN "C5 hook-R1" "baris ⚡ACTIVATE tidak di 50 baris terakhir worklog — hook R1 belum di-append (v3.5.5+) — fresh install? bash scripts/bootstrap-sandbox.sh"
+        res WARN "worklog-activation-hook" "no ⚡ACTIVATE line within the last 50 worklog lines — the activation hook has not been appended yet — fresh install? run: bash scripts/bootstrap-sandbox.sh"
     fi
 fi
 
-# --- verdict ------------------------------------------------------------------------
+# --- verdict -------------------------------------------------------------------
 say "[audit-compliance] VERDICT: PASS=$PASS WARN=$WARN FAIL=$FAIL"
 if [ "$FAIL" -gt 0 ]; then
-    say "[audit-compliance] GAGAL — temuan FAIL di atas wajib ditindak (seal task via M1 / heal / re-audit)"
+    say "[audit-compliance] FAILED — the FAIL findings above must be handled (seal the task with a checkpoint / re-run the install command / re-audit)"
     exit 1
 fi
-say "[audit-compliance] LOLOS — ${WARN:+$WARN temuan WARN dilaporkan di atas}"
+say "[audit-compliance] PASSED — ${WARN:+$WARN WARN finding(s) reported above}"
 exit 0

@@ -8,18 +8,7 @@ stellar-trail governs **how a task executes** inside a turn — a mandatory 6-ph
 
 ## Install
 
-### Option 1 — git clone + verify (recommended)
-
-Zero remote code execution: this downloads static files only and runs nothing from the repo. The SHA-256 manifest turns "trust the publisher" into a deterministic check you can audit yourself.
-
-```bash
-git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/stellar-trail-src
-# copy into your agent's skills directory, e.g. skills/ (OpenClaw) or .claude/skills/ (Claude Code)
-cp -r /tmp/stellar-trail-src/skills/stellar-trail <skills-dir>/stellar-trail
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 26/26 OK
-```
-
-### Option 2 — skills.sh installer (one command)
+One command — the single install flow (verified end-to-end on a live consumer sandbox, v3.6.6, 2026-09-27: exit 0 in 3.93 s, the skill listed by `npx skills list`, `computedHash` in `skills-lock.json` matching the stdout hash):
 
 ```bash
 # OpenClaw — the -y --json flags make it fully non-interactive (see Troubleshooting)
@@ -31,14 +20,14 @@ npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a claude -y --jso
 
 The installer is the open-source [vercel-labs/skills](https://github.com/vercel-labs/skills) CLI. Keep the `-y --json` flags: they skip the interactive confirmation prompts and are **required in any environment without a TTY** (agent sandboxes, CI) — without them the CLI can hang after the download (see [Troubleshooting](#troubleshooting)).
 
-Both routes are verified end-to-end on live consumer sandboxes — Option 1 by manifest re-verification (25/25 OK), Option 2 by a fresh v3.6.2 install (2026-09-25): exit 0, the skill listed by `npx skills list`, and the `computedHash` written to `skills-lock.json` matching the hash reported on stdout. If your environment's policy restricts `npx`, use Option 1. Whichever option you choose, verify the tree after installing:
+Since v3.6.7 this is deliberately the ONLY install flow — installing, re-installing, and repairing all run the same command; the package itself has no parallel installer and no fallback route, and every alarm it can raise prints this command as the remediation. After installing, verify the tree (the SHA-256 manifest turns "trust the publisher" into a deterministic check you can audit yourself):
 
 ```bash
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 26/26 OK
-npx skills list   # Option 2: expect stellar-trail, source hoshiyomiX/stellar-trail
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
+npx skills list   # expect stellar-trail, source hoshiyomiX/stellar-trail
 ```
 
-To update later: `npx skills update stellar-trail` (Option 2), or re-run the Option 1 copy.
+To update later: `bash skills/stellar-trail/scripts/update-skill.sh --force` (the bundled single-flow updater — debounced origin check, then a four-step verified override that runs the same install command and re-arms the persistence layer), or simply re-run the install command.
 
 > **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 
@@ -69,13 +58,13 @@ What it installs — one proven path per module, no redundant fallbacks:
 
 | Module | Installs | Closes |
 |---|---|---|
-| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook + `.zscripts/watcher.sh` auto-heal daemon (v3.6.3; release-file guard since v3.6.4) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
+| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook (skill restore with the no-downgrade version gate, v3.6.7) + `.zscripts/watcher.sh` runtime watchdog v2.0 (explorer health + auto-restart, verify-only integrity checks, release-file guard, archive refresh, compliance sentinel) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
 | `--with-explorer` | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
 | `--with-snapshot` | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
 
 The directories it writes (`download/`, `.zscripts/`, `memory/`, `worklog.md`) are exactly the ones the platform packer preserves; on every boot the `dev.sh` hook verifies the live skill installation against the release SHA-256 manifest and restores it from the canonical copy. Verified by a full fresh-sandbox reset simulation (38/38 checks, 3/3 field bugs closed, negative control reproduces the bugs without bootstrap). See `skills/stellar-trail/references/environment-resilience.md` section 7 for the complete guide.
 
-The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sandbox.sh --ensure` during M0), so arming no longer depends on remembering this page.
+The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sandbox.sh --ensure` during M0), so arming no longer depends on remembering this page. Since v3.6.7 the update path finishes the job on its own: after every verified upgrade, `update-skill.sh` step [4/4] runs `bootstrap-sandbox.sh --ensure --with-explorer --with-snapshot`, so a post-update environment carries the FULL persistence layer (explorer + snapshot modules) instead of core alone — override with `STELLAR_UPDATE_BOOTSTRAP_ARGS` if your environment must stay core-only.
 
 **Expected audit output before the first bootstrap:** on a fresh install `bash skills/stellar-trail/scripts/audit-compliance.sh` reports `C1 memory FAIL` (no `memory/` scaffold yet) and `C5 hook-R1 WARN` (worklog activation hook not appended yet) — by design. Both messages are installation-stage hints pointing at the fix; run `bootstrap-sandbox.sh` once and both checks flip to PASS.
 
@@ -91,7 +80,7 @@ The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-execu
 
 ## What it does
 
-- **6-phase execution discipline** — every user message, every session: classification grounded in a canonical rule book (Ground Base Knowledge), batched clarification, visible planning, tracked implementation, 5-layer validation, and concise reporting — all auditable via `## 🌠 FASE n` phase markers and the protocol banner.
+- **6-phase execution discipline** — every user message, every session: classification grounded in a canonical rule book (Ground Base Knowledge), batched clarification, visible planning, tracked implementation, 5-layer validation, and concise reporting — all auditable via `## 🌠 PHASE n` phase markers and the protocol banner.
 - **Persistent cross-session memory** — `SESSION-STATE` / `MEMORY` / handoff archives with a 95% integrity standard, ACTIVE-only task tables, sealed-task anti-resurrection, stale-task flags, continuation-summary quarantine, and a version-sanity alarm for degraded installations.
 - **User-controlled by design** — plain markdown files you can open at any time, a cold-start consent gate, a strict no-secrets minimization rule, and same-turn inspect / correct / redact / delete / purge commands (SKILL.md section 4b).
 
@@ -99,18 +88,18 @@ The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-execu
 
 ```
 skills/stellar-trail/     the skill (installable) — ~470 KB installed
-  SKILL.md                protocol body (bilingual: EN rules + ID explanations)
+  SKILL.md                protocol body (English, v3.6.7)
   skill-card.md           canonical version + manifest card
   references/             13 deep references: one per phase & per memory mechanism
-  scripts/                7 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
-                          enforce-gates.sh, audit-compliance.sh, heal-skill.sh,
-                          snapshot-repo.sh, vault-sync.sh
+  scripts/                6 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
+                          enforce-gates.sh, audit-compliance.sh, snapshot-repo.sh,
+                          update-skill.sh
   assets/                 SHA-256 integrity manifest + Task Files Explorer (opt-in)
 ```
 
 ## Version
 
-Current release: **v3.6.6** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.7** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 
@@ -120,4 +109,4 @@ sha256sum -c assets/integrity.sha256
 
 ## Background
 
-Previously distributed via ClawHub (publisher [hoshiyomix](https://clawhub.ai/user/hoshiyomix)); this repository is now the canonical public distribution channel. Registry distribution is currently suspended by an automated security review that is under appeal — the package passes the registry's own static analyzer; the heuristic flag targets the skill's disclosed reset-survival features (boot hook, self-heal, activation seed) that exist to keep agent work alive across container resets, fully documented in `skills/stellar-trail/references/environment-resilience.md`. License: MIT-0 — see [LICENSE](LICENSE).
+Previously distributed via ClawHub (publisher [hoshiyomix](https://clawhub.ai/user/hoshiyomix)); this repository is now the canonical public distribution channel. Registry distribution is currently suspended by an automated security review that is under appeal — the package passes the registry's own static analyzer; the heuristic flag targets the skill's disclosed reset-survival features (boot hook, cache-replay installation restore, activation seed) that exist to keep agent work alive across container resets, fully documented in `skills/stellar-trail/references/environment-resilience.md`. License: MIT-0 — see [LICENSE](LICENSE).

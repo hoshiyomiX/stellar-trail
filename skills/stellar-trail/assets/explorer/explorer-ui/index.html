@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>Task Files Explorer — Dashboard</title>
 <script>
-/* Tema pra-paint (anti-FOUC): ikuti prefers-color-scheme selama user belum
-   memilih manual — pilihan manual dipersist di localStorage kunci "exp-theme". */
+/* Pre-paint theme (anti-FOUC): follow prefers-color-scheme until the user
+   picks manually — the manual choice persists in localStorage key "exp-theme". */
 (function(){try{var t=localStorage.getItem("exp-theme");
 if(t!=="dark"&&t!=="light"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}
 document.documentElement.dataset.theme=t}catch(e){}})();
@@ -19,28 +19,28 @@ const svg=n=>'<svg class="ic" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
 const strow=(h,cls)=>'<tr class="staterow"><td colspan="5"><div class="st '+(cls||"")+'">'+h+"</div></td></tr>";
 const fmtSize=n=>{if(n<1024)return n+" B";const u=["KB","MB","GB","TB"];let i=-1;
   do{n/=1024;i++}while(n>=1024&&i<3);return(n>=100?n.toFixed(0):n.toFixed(1))+" "+u[i]};
-const fmtDate=t=>new Date(t*1000).toLocaleString("id-ID",{dateStyle:"medium",timeStyle:"short"});
-const fmtRel=t=>{const d=Date.now()/1000-t;   /* waktu relatif bahasa Indonesia */
-  if(d<60)return"baru saja";
-  if(d<3600)return Math.floor(d/60)+" mnt lalu";
-  if(d<86400)return Math.floor(d/3600)+" jam lalu";
-  if(d<604800)return Math.floor(d/86400)+" hr lalu";
+const fmtDate=t=>new Date(t*1000).toLocaleString("en-US",{dateStyle:"medium",timeStyle:"short"});
+const fmtRel=t=>{const d=Date.now()/1000-t;   /* relative time */
+  if(d<60)return"just now";
+  if(d<3600)return Math.floor(d/60)+" min ago";
+  if(d<86400)return Math.floor(d/3600)+" h ago";
+  if(d<604800)return Math.floor(d/86400)+" d ago";
   return fmtDate(t)};
 
-/* ================= kategori & state ================= */
-/* pdf digabung ke Dokumen; sisanya mengikuti field "type" explorer.py */
-const CATS=[["all","Semua"],["doc","Dokumen"],["img","Gambar"],["data","Data"],
-  ["pkg","Arsip/zip"],["code","Kode"],["office","Office"],["other","Lainnya"]];
+/* ================= categories & state ================= */
+/* pdf is merged into Documents; the rest follow explorer.py's "type" field */
+const CATS=[["all","All"],["doc","Documents"],["img","Images"],["data","Data"],
+  ["pkg","Archive/zip"],["code","Code"],["office","Office"],["other","Other"]];
 const CATNAME={};for(const c of CATS)CATNAME[c[0]]=c[1];
 const S={q:"",cat:"all",sort:{col:"mtime",dir:"desc"}};
-const CHUNK=200;              /* render bertahap: 200 baris awal + "Muat lagi" */
+const CHUNK=200;              /* progressive render: first 200 rows + "Load more" */
 let DATA=null,FLAT=[],shown=0,lastHash="",qT=null,toastT=null,lastFocus=null;
 
-/* ================= olah data ================= */
+/* ================= data processing ================= */
 function prepare(){FLAT=[];
   for(const r of DATA.roots)for(const f of r.files){
     f.root=r.label;f._p=r.path+"/"+f.rel;f._cat=f.type==="pdf"?"doc":f.type;FLAT.push(f)}
-  if(S.cat!=="all"&&!FLAT.some(f=>f._cat===S.cat))S.cat="all"} /* degradasi anggun */
+  if(S.cat!=="all"&&!FLAT.some(f=>f._cat===S.cat))S.cat="all"} /* graceful degradation */
 
 function filtered(){const q=S.q.toLowerCase();
   const out=FLAT.filter(f=>{
@@ -49,55 +49,55 @@ function filtered(){const q=S.q.toLowerCase();
     return true});
   const c=S.sort.col,m=S.sort.dir==="asc"?1:-1;
   out.sort((a,b)=>c==="size"?(a.size-b.size)*m:
-    c==="name"?a.name.localeCompare(b.name,"id")*m:(a.mtime-b.mtime)*m);
+    c==="name"?a.name.localeCompare(b.name,"en")*m:(a.mtime-b.mtime)*m);
   return out}
 const findFile=k=>FLAT.find(f=>f.key===k)||null;
 
 /* ================= render ================= */
 function renderSide(){const n={all:FLAT.length};
   for(const f of FLAT)n[f._cat]=(n[f._cat]||0)+1;
-  $("#side").innerHTML=CATS.filter(c=>c[0]==="all"||n[c[0]]>0) /* sembunyikan kategori kosong */
+  $("#side").innerHTML=CATS.filter(c=>c[0]==="all"||n[c[0]]>0) /* hide empty categories */
     .map(c=>'<button class="nav'+(S.cat===c[0]?" on":"")+'" data-cat="'+c[0]+
     '" aria-pressed="'+(S.cat===c[0])+'"><span>'+c[1]+'</span><span class="nc">'+(n[c[0]]||0)+
     "</span></button>").join("")}
 
 function renderStats(){if(!DATA)return;const st=DATA.stats,sk=DATA.skill;
   const n=S.cat==="all"?FLAT.length:FLAT.filter(f=>f._cat===S.cat).length;
-  let h='<div class="stat"><div class="k">Total file</div><div class="v">'+st.total_files+
-    '</div><div class="s">lintas '+st.roots+' lokasi terpantau</div></div>'+
-  '<div class="stat"><div class="k">Ukuran agregat</div><div class="v">'+fmtSize(st.total_size)+
+  let h='<div class="stat"><div class="k">Total files</div><div class="v">'+st.total_files+
+    '</div><div class="s">across '+st.roots+' watched locations</div></div>'+
+  '<div class="stat"><div class="k">Aggregate size</div><div class="v">'+fmtSize(st.total_size)+
     '</div><div class="s">download/ + archive/</div></div>'+
-  '<div class="stat"><div class="k">Kategori aktif</div><div class="v vt">'+esc(CATNAME[S.cat]||"Semua")+
-    '</div><div class="s">'+n+' file</div></div>';
-  if(sk&&sk.installed){const heal=sk.heal_last?fmtRel(sk.heal_last):"belum pernah";
+  '<div class="stat"><div class="k">Active category</div><div class="v vt">'+esc(CATNAME[S.cat]||"All")+
+    '</div><div class="s">'+n+' files</div></div>';
+  if(sk&&sk.installed){
     h+='<div class="stat"><div class="k">Guardian</div><div class="v vt">v'+esc(sk.version||"?")+
       '</div><div class="s"><span class="dot'+(sk.watcher_alive?" on":"")+'"></span>watcher '+
-      (sk.watcher_alive?"hidup":"mati")+" · heal "+heal+"</div></div>"}
+      (sk.watcher_alive?"alive":"down")+" · integrity verify-only</div></div>"}
   $("#stats").innerHTML=h}
 
 function rowHTML(f){
   const i=f.rel.lastIndexOf("/"),dir=i<0?"":f.rel.slice(0,i);
-  let bc=f.root+(dir?"/"+dir:"");                /* breadcrumb: label root + folder */
-  const seg=bc.split("/");                        /* ringkas segmen tengah bila panjang */
+  let bc=f.root+(dir?"/"+dir:"");                /* breadcrumb: root label + folder */
+  const seg=bc.split("/");                        /* collapse middle segments when long */
   if(seg.length>4)bc=seg[0]+"/…/"+seg[seg.length-1];
-  return '<tr class="row" data-key="'+esc(f.key)+'" tabindex="0" title="Pratinjau '+esc(f.name)+'">'+
+  return '<tr class="row" data-key="'+esc(f.key)+'" tabindex="0" title="Preview '+esc(f.name)+'">'+
 '<td><span class="fn">'+esc(f.name)+'</span><span class="fd" title="'+esc(f.root+"/"+f.rel)+'">'+
   esc(bc)+'/</span></td>'+
 '<td><span class="badge t-'+f._cat+'">'+esc(CATNAME[f._cat])+"</span></td>"+
 '<td class="num">'+fmtSize(f.size)+"</td>"+
 '<td class="tm" title="'+fmtDate(f.mtime)+'">'+fmtRel(f.mtime)+"</td>"+
-'<td class="act"><button class="ibtn" data-copy="'+esc(f.key)+'" title="Salin path di server" aria-label="Salin path '+
+'<td class="act"><button class="ibtn" data-copy="'+esc(f.key)+'" title="Copy server path" aria-label="Copy path '+
   esc(f.name)+'">'+svg("copy")+'</button><button class="ibtn" data-prev="'+esc(f.key)+
-  '" title="Pratinjau" aria-label="Pratinjau '+esc(f.name)+'">'+svg("eye")+"</button></td></tr>"}
+  '" title="Preview" aria-label="Preview '+esc(f.name)+'">'+svg("eye")+"</button></td></tr>"}
 
 function renderTable(){const tb=$("#tbody");
-  if(!DATA){tb.innerHTML=strow('<div class="spin"></div>memuat inventaris file…');
+  if(!DATA){tb.innerHTML=strow('<div class="spin"></div>loading file inventory…');
     $("#moreWrap").hidden=true;return}
   const list=filtered();
   if(!list.length){const f=S.q||S.cat!=="all";
     tb.innerHTML=strow(svg(f?"search":"folder")+(f
-      ?"Tidak ada file yang cocok — ubah kata kunci atau pilih kategori lain"
-      :"Belum ada file di download/ dan archive/"));
+      ?"No matching files — change the keyword or pick another category"
+      :"No files in download/ and archive/ yet"));
     $("#moreWrap").hidden=true;return}
   if(!shown)shown=CHUNK;
   if(shown>list.length)shown=list.length;
@@ -107,12 +107,12 @@ function renderTable(){const tb=$("#tbody");
 function updateMore(){const w=$("#moreWrap");if(!DATA){w.hidden=true;return}
   const left=filtered().length-shown;
   w.hidden=left<=0;
-  if(left>0)$("#moreBtn").textContent="Muat lagi · sisa "+left+" file"}
+  if(left>0)$("#moreBtn").textContent="Load more · "+left+" files left"}
 
 function renderError(){
   $("#tbody").innerHTML=strow(svg("warn")+
-    'Gagal memuat data dari explorer.py — server tidak merespons.<br>'+
-    '<button class="btn acc" id="retry">'+svg("refresh")+"Coba lagi</button>","err");
+    'Failed to load data from explorer.py — server not responding.<br>'+
+    '<button class="btn acc" id="retry">'+svg("refresh")+"Retry</button>","err");
   $("#moreWrap").hidden=true;
   $("#retry").addEventListener("click",load)}
 
@@ -120,15 +120,15 @@ function updateSortUI(){$$("th[data-col]").forEach(th=>{const on=th.dataset.col=
   th.setAttribute("aria-sort",on?(S.sort.dir==="asc"?"ascending":"descending"):"none");
   th.querySelector(".arr").textContent=on?(S.sort.dir==="asc"?"▲":"▼"):""})}
 
-/* ================= aksi ================= */
+/* ================= actions ================= */
 async function copyPath(f){if(!f)return;
-  const p=f._p;let ok=true;                      /* clipboard API + fallback execCommand */
+  const p=f._p;let ok=true;                      /* clipboard API + execCommand fallback */
   try{await navigator.clipboard.writeText(p)}
   catch(e1){try{const ta=document.createElement("textarea");ta.value=p;
       ta.style.cssText="position:fixed;top:0;opacity:0";
       document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove()}
     catch(e2){ok=false}}
-  toast(ok?"Path disalin — "+p:"Gagal menyalin path")}
+  toast(ok?"Path copied — "+p:"Failed to copy path")}
 
 function toast(m){const el=$("#toast");el.textContent=m;el.classList.add("show");
   clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),2600)}
@@ -161,28 +161,28 @@ async function openPreview(f){if(!f)return;
   $("#mMeta").textContent=fmtSize(f.size)+" · "+fmtDate(f.mtime);
   const dl=$("#mDl");dl.href=f.href+"?dl=1";dl.setAttribute("download",f.name);
   $("#mCopy").onclick=()=>copyPath(f);
-  const b=$("#mBody");b.innerHTML='<div class="st"><div class="spin"></div>memuat pratinjau…</div>';
+  const b=$("#mBody");b.innerHTML='<div class="st"><div class="spin"></div>loading preview…</div>';
   $("#modal").classList.add("open");$("#mClose").focus();
   const e=(f.ext||"").toLowerCase();
   try{
     if(f.type==="img"){b.innerHTML='<img src="'+esc(f.href)+'" alt="'+esc(f.name)+'">';return}
-    if(e==="pdf"){b.innerHTML='<iframe src="'+esc(f.href)+'" title="Pratinjau PDF"></iframe>';return}
-    if(f.type==="pkg"||f.type==="office"){   /* arsip & office: unduh, bukan pratinjau */
+    if(e==="pdf"){b.innerHTML='<iframe src="'+esc(f.href)+'" title="PDF preview"></iframe>';return}
+    if(f.type==="pkg"||f.type==="office"){   /* archives & office: download, not preview */
       b.innerHTML='<div class="st">'+svg("down")+"Format <b>"+esc((e||f.type).toUpperCase())+
-        "</b> tidak dipratinjau langsung di browser.<br>Unduh lalu buka dengan aplikasi terkait.<br>"+
+        "</b> cannot be previewed directly in the browser.<br>Download and open it with the related application.<br>"+
         '<a class="btn acc" href="'+esc(f.href)+'?dl=1" download="'+esc(f.name)+'">'+svg("down")+
-        "Unduh "+esc(f.name)+"</a></div>";return}
+        "Download "+esc(f.name)+"</a></div>";return}
     const t=await(await fetch(f.href,{cache:"no-store"})).text();
     if(e==="md"){b.innerHTML='<div class="mdv">'+md(t)+"</div>";return}
     if(e==="json"){let s=t;try{s=JSON.stringify(JSON.parse(t),null,2)}catch(_){}
       b.innerHTML="<pre>"+esc(s)+"</pre>";return}
     b.innerHTML="<pre>"+esc(t.slice(0,200000))+"</pre>";
-  }catch(err){b.innerHTML=stInner(svg("warn")+"Gagal memuat pratinjau: "+esc(err.message),"err")}}
+  }catch(err){b.innerHTML=stInner(svg("warn")+"Failed to load preview: "+esc(err.message),"err")}}
 function stInner(h,cls){return '<div class="st '+(cls||"")+'">'+h+"</div>"}
 function closeModal(){$("#modal").classList.remove("open");
   if(lastFocus&&lastFocus.focus)lastFocus.focus()}
 
-/* ================= loop data ================= */
+/* ================= data loop ================= */
 async function load(){try{
     const r=await fetch("/api/files",{cache:"no-store"});
     if(!r.ok)throw new Error("HTTP "+r.status);
@@ -190,15 +190,15 @@ async function load(){try{
     if(h!==lastHash){lastHash=h;DATA=d;prepare();
       renderSide();renderStats();renderTable()}
     $("#ft").textContent="PID "+d.server.pid+" · port "+d.server.port+
-      " · polling 10 dtk · diperbarui "+d.generated;
+      " · 10s polling · updated "+d.generated;
   }catch(e){
-    $("#ft").textContent="koneksi ke explorer.py terputus — mencoba lagi otomatis tiap 10 dtk";
-    if(!DATA)renderError();else toast("Koneksi ke explorer.py terputus")}}
+    $("#ft").textContent="connection to explorer.py lost — auto-retrying every 10s";
+    if(!DATA)renderError();else toast("Connection to explorer.py lost")}}
 
-/* ================= tema ================= */
+/* ================= theme ================= */
 function applyTheme(t,persist){document.documentElement.dataset.theme=t;
   const b=$("#themeBtn");b.innerHTML=svg(t==="dark"?"sun":"moon");
-  b.title=t==="dark"?"Ganti ke tema terang":"Ganti ke tema gelap";
+  b.title=t==="dark"?"Switch to light theme":"Switch to dark theme";
   b.setAttribute("aria-label",b.title);
   if(persist){try{localStorage.setItem("exp-theme",t)}catch(e){}}}
 
@@ -207,30 +207,30 @@ function init(){
   applyTheme(document.documentElement.dataset.theme,false);
   $("#themeBtn").addEventListener("click",()=>
     applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true));
-  try{const mq=window.matchMedia("(prefers-color-scheme: light)"); /* adaptif */
+  try{const mq=window.matchMedia("(prefers-color-scheme: light)"); /* adaptive */
     mq.addEventListener("change",ev=>{let s=null;try{s=localStorage.getItem("exp-theme")}catch(_){}
       if(s!=="dark"&&s!=="light")applyTheme(ev.matches?"light":"dark",false)})}catch(_){}
   updateSortUI();
 
-  /* pencarian live — debounce 200 ms (nama / ekstensi / ID task) */
+  /* live search — 200 ms debounce (name / extension / task ID) */
   const q=$("#q");
   q.addEventListener("input",()=>{const v=q.value;$("#qClear").hidden=!v;
     clearTimeout(qT);qT=setTimeout(()=>{S.q=v.trim();shown=CHUNK;renderTable()},200)});
   $("#qClear").addEventListener("click",()=>{clearTimeout(qT);q.value="";
     $("#qClear").hidden=true;S.q="";shown=CHUNK;renderTable();q.focus()});
 
-  /* sort: klik header kolom, klik lagi = balik arah */
+  /* sort: click a column header, click again = reverse direction */
   $("#thd").addEventListener("click",e=>{const th=e.target.closest("th[data-col]");if(!th)return;
     const c=th.dataset.col;
     if(S.sort.col===c)S.sort.dir=S.sort.dir==="asc"?"desc":"asc";
     else S.sort={col:c,dir:c==="mtime"?"desc":"asc"};
     shown=CHUNK;updateSortUI();renderTable()});
 
-  /* filter kategori via sidebar/chip */
+  /* category filter via sidebar/chip */
   $("#side").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;
     S.cat=b.dataset.cat;shown=CHUNK;renderSide();renderStats();renderTable()});
 
-  /* delegasi event tabel: copy-path / pratinjau / klik baris */
+  /* table event delegation: copy-path / preview / row click */
   const tb=$("#tbody");
   tb.addEventListener("click",e=>{
     const cp=e.target.closest("[data-copy]");
@@ -245,27 +245,27 @@ function init(){
     const r=e.target.closest("tr.row");
     if(r){e.preventDefault();openPreview(findFile(r.dataset.key))}});
 
-  /* render bertahap: chunk berikutnya */
+  /* progressive render: next chunk */
   $("#moreBtn").addEventListener("click",()=>{
     const list=filtered(),next=Math.min(shown+CHUNK,list.length);
     if(next>shown){tb.insertAdjacentHTML("beforeend",list.slice(shown,next).map(rowHTML).join(""));
       shown=next}
     updateMore()});
 
-  /* dialog pratinjau */
+  /* preview dialog */
   $("#mClose").addEventListener("click",closeModal);
   $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
   document.addEventListener("keydown",e=>{
     if(e.key==="Escape"&&$("#modal").classList.contains("open"))closeModal()});
 
-  /* polling 10 dtk + refresh saat fokus */
+  /* 10s polling + refresh on focus */
   setInterval(load,10000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
   load()}
 document.addEventListener("DOMContentLoaded",init);
 </script>
 <style>
-/* ================= token & tema ================= */
+/* ================= tokens & theme ================= */
 :root{color-scheme:light;
   --bg:#f2f5f6;--card:#fff;--card2:#f6f8f9;--line:#dbe2e5;--line2:#e9eef0;
   --tx:#1c2830;--tx2:#5c6d76;--tx3:#64757f;
@@ -279,7 +279,7 @@ html[data-theme=dark]{color-scheme:dark;
   --ok:#4fd487;--bad:#f0857c;
   --shadow:0 1px 3px rgba(0,0,0,.4)}
 
-/* ================= dasar ================= */
+/* ================= base ================= */
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);
   font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -307,7 +307,7 @@ html[data-theme=dark] .bic{color:#062730}
 .search input:focus{outline:none}
 .search input::placeholder{color:var(--tx3)}
 
-/* ================= tombol ================= */
+/* ================= buttons ================= */
 .ibtn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
   border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--tx2);
   cursor:pointer;padding:0;flex:none}
@@ -337,7 +337,7 @@ html[data-theme=dark] .btn.acc{color:#062730}
 .nc{font-size:11px;font-variant-numeric:tabular-nums;line-height:18px;padding:0 7px;
   border-radius:99px;background:var(--card2);border:1px solid var(--line);color:var(--tx2);flex:none}
 .nav.on .nc{background:transparent;border-color:transparent;color:var(--acctx)}
-@media(max-width:800px){   /* layar sempit: sidebar jadi chip horizontal scrollable */
+@media(max-width:800px){   /* narrow screens: sidebar becomes a horizontally scrollable chip row */
   .layout{grid-template-columns:1fr;gap:12px}
   .side{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding:6px}
   .stitle{display:none}
@@ -345,7 +345,7 @@ html[data-theme=dark] .btn.acc{color:#062730}
   .nc{border:0;background:none;padding:0}
 }
 
-/* ================= kartu statistik ================= */
+/* ================= stat cards ================= */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;
   margin-bottom:16px}
 .stats:empty{display:none}
@@ -361,7 +361,7 @@ html[data-theme=dark] .btn.acc{color:#062730}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
 .dot.on{background:var(--ok)}
 
-/* ================= tabel file ================= */
+/* ================= file table ================= */
 .tblcard{background:var(--card);border:1px solid var(--line);border-radius:12px;
   box-shadow:var(--shadow);overflow:hidden}
 .tw{overflow-x:auto}
@@ -377,7 +377,7 @@ th .arr{font-size:9px;color:var(--acctx);margin-left:3px}
 tbody td{padding:8px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
 tbody tr:last-child td{border-bottom:0}
 tbody tr.row{cursor:pointer}
-tbody tr.row:nth-child(even){background:var(--card2)}   /* zebra halus */
+tbody tr.row:nth-child(even){background:var(--card2)}   /* subtle zebra */
 tbody tr.row:hover{background:var(--accbg)}
 tbody tr.row:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 .fn{display:block;font-weight:600;max-width:440px;overflow:hidden;text-overflow:ellipsis;
@@ -388,7 +388,7 @@ td.num,td.tm{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--tx
 td.act{white-space:nowrap}
 td.act .ibtn{width:28px;height:28px}
 
-/* badge kategori */
+/* category badge */
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
   padding:2.5px 9px;border-radius:99px;white-space:nowrap;color:var(--b);
   background:var(--card2);background:color-mix(in srgb,var(--b) 12%,transparent)}
@@ -400,7 +400,7 @@ html[data-theme=dark] .t-data{--b:#e3c56d}html[data-theme=dark] .t-pkg{--b:#f5a0
 html[data-theme=dark] .t-code{--b:#5bd6a4}html[data-theme=dark] .t-office{--b:#b8a4ff}
 html[data-theme=dark] .t-other{--b:#9aa9b5}
 
-/* state loading / kosong / error */
+/* loading / empty / error states */
 .st{padding:42px 18px;display:flex;flex-direction:column;align-items:center;gap:11px;
   text-align:center;color:var(--tx2);font-size:13.5px}
 .st .ic{width:26px;height:26px;color:var(--tx3)}
@@ -414,7 +414,7 @@ html[data-theme=dark] .t-other{--b:#9aa9b5}
 
 footer{max-width:1180px;margin:0 auto;padding:0 16px 28px;font-size:12px;color:var(--tx3)}
 
-/* ================= dialog pratinjau ================= */
+/* ================= preview dialog ================= */
 .modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
   padding:18px;background:rgba(5,12,16,.58)}
 html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
@@ -454,7 +454,7 @@ html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
 </head>
 <body>
 
-<!-- Pustaka ikon SVG inline (zero-dependency, tanpa aset eksternal) -->
+<!-- Inline SVG icon library (zero-dependency, no external assets) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
@@ -472,50 +472,50 @@ html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
 <header class="top">
   <div class="brand">
     <span class="bic"><svg class="ic"><use href="#i-logo"/></svg></span>
-    <div><h1>File Explorer</h1><p>dashboard file · download/ · archive/</p></div>
+    <div><h1>File Explorer</h1><p>file dashboard · download/ · archive/</p></div>
   </div>
   <div class="search" role="search">
     <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
-    <input id="q" type="search" placeholder="Cari nama / ekstensi / ID task…" aria-label="Cari file">
-    <button class="ibtn" id="qClear" hidden title="Bersihkan pencarian" aria-label="Bersihkan pencarian"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    <input id="q" type="search" placeholder="Search name / extension / task ID…" aria-label="Search files">
+    <button class="ibtn" id="qClear" hidden title="Clear search" aria-label="Clear search"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
   </div>
-  <button class="ibtn" id="themeBtn" aria-label="Ganti tema"></button>
+  <button class="ibtn" id="themeBtn" aria-label="Toggle theme"></button>
 </header>
 
 <div class="layout">
-  <nav class="side" id="side" aria-label="Filter kategori"></nav>
+  <nav class="side" id="side" aria-label="Category filter"></nav>
   <main>
-    <section class="stats" id="stats" aria-label="Ringkasan statistik"></section>
-    <section class="tblcard" aria-label="Daftar file">
+    <section class="stats" id="stats" aria-label="Statistics summary"></section>
+    <section class="tblcard" aria-label="File list">
       <div class="tw">
         <table>
           <thead id="thd"><tr>
-            <th data-col="name" scope="col" aria-sort="none" title="Urutkan berdasar nama — klik lagi untuk balik arah">Nama <span class="arr" aria-hidden="true"></span></th>
-            <th scope="col">Kategori</th>
-            <th data-col="size" scope="col" class="num" aria-sort="none" title="Urutkan berdasar ukuran — klik lagi untuk balik arah">Ukuran <span class="arr" aria-hidden="true"></span></th>
-            <th data-col="mtime" scope="col" aria-sort="descending" title="Urutkan berdasar waktu — klik lagi untuk balik arah">Waktu <span class="arr" aria-hidden="true">▼</span></th>
-            <th scope="col" class="act">Aksi</th>
+            <th data-col="name" scope="col" aria-sort="none" title="Sort by name — click again to reverse">Name <span class="arr" aria-hidden="true"></span></th>
+            <th scope="col">Category</th>
+            <th data-col="size" scope="col" class="num" aria-sort="none" title="Sort by size — click again to reverse">Size <span class="arr" aria-hidden="true"></span></th>
+            <th data-col="mtime" scope="col" aria-sort="descending" title="Sort by time — click again to reverse">Time <span class="arr" aria-hidden="true">▼</span></th>
+            <th scope="col" class="act">Actions</th>
           </tr></thead>
           <tbody id="tbody">
-            <tr class="staterow"><td colspan="5"><div class="st"><div class="spin"></div>memuat inventaris file…</div></td></tr>
+            <tr class="staterow"><td colspan="5"><div class="st"><div class="spin"></div>loading file inventory…</div></td></tr>
           </tbody>
         </table>
       </div>
-      <div class="morewrap" id="moreWrap" hidden><button class="btn" id="moreBtn">Muat lagi</button></div>
+      <div class="morewrap" id="moreWrap" hidden><button class="btn" id="moreBtn">Load more</button></div>
     </section>
   </main>
 </div>
 
-<footer>Dilayani oleh <b>explorer.py</b> · UI Dashboard v4.0 · zero-dependency · tema adaptif · <span id="ft">menghubungi server…</span></footer>
+<footer>Served by <b>explorer.py</b> · Dashboard UI v4.0 · zero-dependency · adaptive theme · <span id="ft">connecting to server…</span></footer>
 
-<!-- Dialog pratinjau file -->
+<!-- File preview dialog -->
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mName">
   <div class="mbox">
     <div class="mhead">
       <div class="mtxt"><div id="mName"></div><span id="mMeta"></span></div>
-      <button class="ibtn" id="mCopy" title="Salin path file di server" aria-label="Salin path file di server"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg></button>
-      <a class="btn acc" id="mDl" download><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Unduh</a>
-      <button class="ibtn" id="mClose" title="Tutup pratinjau" aria-label="Tutup pratinjau"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="ibtn" id="mCopy" title="Copy file path on server" aria-label="Copy file path on server"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg></button>
+      <a class="btn acc" id="mDl" download><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Download</a>
+      <button class="ibtn" id="mClose" title="Close preview" aria-label="Close preview"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="mbody" id="mBody"></div>
   </div>

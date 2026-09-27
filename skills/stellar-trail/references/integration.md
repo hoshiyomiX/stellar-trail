@@ -16,15 +16,15 @@ The two halves are complementary: the 6-phase workflow governs HOW a task execut
 | Phase 6 — report delivered | M1 checkpoint results; session-end signal → M3 | Results and next steps are exactly what the next session needs |
 | Any N/A marker or task switch | M1 checkpoint the state change | Switches are where state gets confused |
 
-**Marker coexistence:** the fase marker `## 🌠 FASE n — LABEL` (sub-judul heading; content on the lines below) and the `[MEM | LABEL]` line appear separately, each on its own line. Never merge them — they audit different protocols. The turn opens with the protocol banner (skill name + version, once, before the first fase marker — SKILL.md section 1); a typical turn that ships an artifact ends with:
+**Marker coexistence:** the phase marker `## 🌠 PHASE n — LABEL` (sub-heading; content on the lines below) and the `[MEMORY | LABEL]` line appear separately, each on its own line. Never merge them — they audit different protocols. The turn opens with the protocol banner (skill name + version, once, before the first phase marker — SKILL.md section 1); a typical turn that ships an artifact ends with:
 
 ```
-## 🌠 FASE 6 — LAPORAN
+## 🌠 PHASE 6 — REPORT
 ...
-[MEM | CHECKPOINT] task __ — SESSION-STATE diperbarui (hasil + artefak + langkah berikutnya)
+[MEMORY | CHECKPOINT] task __ — SESSION-STATE updated (results + artifacts + next steps)
 ```
 
-**Ordering rule:** when a turn contains both families, memory markers follow the phase marker they belong to (checkpoint after the phase it captures; handoff after the final report). The ONLY marker that precedes a phase marker is `[MEM | RESTORED]` at session start — restoration always comes first.
+**Ordering rule:** when a turn contains both families, memory markers follow the phase marker they belong to (checkpoint after the phase it captures; handoff after the final report). The ONLY marker that precedes a phase marker is `[MEMORY | RESTORED]` at session start — restoration always comes first.
 
 ## 2. Task ID Continuity / Kesinambungan Task ID
 
@@ -63,7 +63,7 @@ Division of labor: **subagents write worklog entries and return results; the mai
 | User references work that is in NO memory file | Search worklog.md and the filesystem (download/, scripts/, skills/) BEFORE claiming ignorance. If found: restore it and record the gap (why wasn't it checkpointed?). If truly not found: say so honestly, offer to reconstruct |
 | First-ever session (no memory exists) | M0 becomes an explicit "no prior memory" statement + initialize the memory/ skeleton. This is correct behavior, not a failure |
 | Session summary says X, memory files say Y | Memory files win for facts; investigate worklog to understand why they differ; promote anything the summary uniquely preserves |
-| User corrects restored context ("bukan gitu, yang kemarin itu…") | The user outranks the files: update memory immediately (M1), note the correction, apologize briefly — the files serve the user, not the reverse |
+| User corrects restored context ("no, not like that — what we did yesterday was…") | The user outranks the files: update memory immediately (M1), note the correction, apologize briefly — the files serve the user, not the reverse |
 | Continuation arrives while a task is mid-flight in SESSION-STATE | Present the restored state INCLUDING the in-flight status and the exact resume point; confirm before resuming |
 | User asks to redo/revise something already sealed | Open a NEW Task ID with `ref: #oldID`; point at the existing artifact first; the old task stays sealed forever (4d H4) |
 | M0 finds DONE/CANCELLED rows in the Active table (legacy write by an older protocol version) | Quarantine, never execute: the first M1 moves them to the Sealed list (4d H7) |
@@ -75,14 +75,14 @@ Division of labor: **subagents write worklog entries and return results; the mai
 | Session-end signal arrives mid-task (user must leave NOW) | M3 immediately, even if the task is unfinished — the handoff records the exact resume point, and the next M0 lands running |
 | User asks to disable the protocol itself | Do not silently comply mid-task: explain the trade-off (one confirmation round vs. rework risk; checkpoint cost vs. lost context), then follow the user's explicit decision and record it as a locked decision in memory |
 
-## 5. Cadence Summary / Ringkasan Irama
+## 5. Cadence Summary
 
 ```
-Turn-level:    [MEM | CHECKPOINT] whenever material state changes
+Turn-level:    [MEMORY | CHECKPOINT] whenever material state changes
 Stretch-level: checkpoint BEFORE long implementations (pre-emptive M1)
-Session-level: [MEM | HANDOFF] on ANY exit signal
-Boot-level:    [MEM | RESTORED] before the first substantive answer
-Pressure:      [MEM | COMPRESS] write now, CRITICAL first
+Session-level: [MEMORY | HANDOFF] on ANY exit signal
+Boot-level:    [MEMORY | RESTORED] before the first substantive answer
+Pressure:      [MEMORY | COMPRESS] write now, CRITICAL first
 ```
 
-**Penjelasan (ID):** Irama ini dirancang dengan asumsi pesimis yang sehat: setiap pesan bisa jadi pesan terakhir sebelum context habis. Checkpoint yang sering terlihat boros, tetapi biayanya selalu lebih murah daripada kehilangan satu task utuh — dan jauh lebih murah daripada membuat user mengulang semua penjelasannya dari nol.
+**Rationale:** This cadence is designed on a healthy pessimistic assumption: every message could be the last before the context runs out. Frequent checkpoints look wasteful, but their cost is always cheaper than losing an entire task — and far cheaper than making the user repeat every explanation from zero.

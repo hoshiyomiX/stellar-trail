@@ -52,10 +52,10 @@ An undocumented deviation is indistinguishable from chaos; a documented one is e
 ## Marker Templates / Template Penanda
 
 ```
-## 🌠 FASE 3 — RENCANA
-5 langkah: (1) muat skill xlsx (2) susun struktur (3) tulis & jalankan script (4) verifikasi output (5) laporkan
+## 🌠 PHASE 3 — PLAN
+5 steps: (1) load the xlsx skill (2) structure the sheet (3) write & run the script (4) verify the output (5) report
 
-## 🌠 FASE 3 — N/A (Type 0 conversational)
+## 🌠 PHASE 3 — N/A (Type 0 conversational)
 ```
 
-**Penjelasan (ID):** Rencana yang tertulis punya tiga fungsi: (1) membuat urutan eksekusi bisa diaudit pengguna, (2) memaksa Anda membayangkan SELURUH pekerjaan sebelum terjebak di tengahnya, dan (3) menjadi dasar objektif untuk menandai selesai — "selesai" hanya sah jika ada langkah yang dicoret, bukan perasaan bahwa pekerjaan sudah beres. Bahkan task trivial wajib punya daftar 1-2 langkah: daftar itu murah, dan kebiasaan itu yang menjaga protokol tetap hidup.
+**Rationale:** A written plan has three functions: (1) it makes the execution sequence auditable by the user, (2) it forces you to imagine the ENTIRE job before getting stuck in the middle of it, and (3) it provides the objective basis for marking done — "done" is only valid when a step is crossed out, not when the work feels finished. Even trivial tasks must have a 1-2 step list: the list is cheap, and that habit is what keeps the protocol alive.

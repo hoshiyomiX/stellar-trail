@@ -1,17 +1,17 @@
-# Ground Base Knowledge — Canonical Classification Reference / Basis Pengetahuan Acuan Klasifikasi
+# Ground Base Knowledge — Canonical Classification Reference
 
 **Role: Phase 1 classifications must be GROUNDED in this base — every type/language/complexity decision traces to a rule ID below. Intuition, habit, and "it feels like" are classification defects, not shortcuts.**
 
-**Penjelasan (ID):** Mengapa perlu basis acuan? Karena klasifikasi bebas ("menurut perasaan saya ini Type 3") tidak bisa diaudit, tidak bisa diperbaiki, dan tidak konsisten antar session. Dengan basis acuan, setiap keputusan klasifikasi punya alamat yang bisa dikutip — salah alamat bisa diperdebatkan dan diperbaiki, bukan sekadar salah tebak. Inilah yang dimaksud "referensi yang tepat & benar": bukan referensi paling lengkap, tapi referensi yang KANONIK — satu sumber kebenaran untuk klasifikasi.
+**Rationale:** Why a ground base? Because freeform classification ("I feel like this is Type 3") cannot be audited, cannot be corrected, and is inconsistent across sessions. With a ground base, every classification decision has a citable address — a wrong address can be debated and fixed, not just a wrong guess. That is what "the correct & accurate reference" means: not the most complete reference, but the CANONICAL one — a single source of truth for classification.
 
-## How to Use / Cara Pakai
+## How to Use
 
 1. BEFORE classifying, consult the matching rule groups: **GBK-T** (type), **GBK-L** (language), **GBK-C** (complexity), **GBK-A** (ambiguity registry), **GBK-E** (environment ground truths).
-2. Cite the applied rule IDs in the `## 🌠 FASE 1 — KLASIFIKASI` marker (or its content line), e.g. `Type 1 (GBK-T1: final deliverable = file dokumen)`.
+2. Cite the applied rule IDs in the `## 🌠 PHASE 1 — CLASSIFICATION` marker (or its content line), e.g. `Type 1 (GBK-T1: final deliverable = a document file)`.
 3. On any conflict between intuition and this base, **the base wins** — if the base itself is wrong, flag it as a proposed locked-decision change instead of silently deviating.
 4. This base is versioned with the skill; changes to it are changelog entries, not silent edits.
 
-## GBK-T — Task Type Taxonomy / Taksonomi Jenis Task
+## GBK-T — Task Type Taxonomy
 
 **Decision principle (GBK-T0): classify by the FINAL DELIVERABLE the user wants to end up with — never by the source material or the tools mentioned along the way.**
 
@@ -27,14 +27,14 @@
 - **Boundary rule (GBK-T7): means vs ends** — tools and inputs mentioned in the request do not change the type; only the ends do. "Analyze this CSV and give me a PDF report" = Type 1 (ends = PDF), processing is means.
 - **Platform skill mapping (GBK-T8):** Type 1 → docx/pdf/xlsx/pptx skill by requested format · Type 2 → charts skill · Type 3 → fullstack-dev skill · Type 4 → direct scripting. The mapping is mandatory routing, not a suggestion.
 
-## GBK-L — Language Rules / Aturan Bahasa
+## GBK-L — Language Rules
 
 - **GBK-L1:** The response language = the language of the user's CURRENT message. Dialect/mixed registers: follow the DOMINANT language of the message, not individual loanwords.
 - **GBK-L2:** Deliverable content language = user's language UNLESS the user explicitly pins another language for the artifact. A summary request in Chinese about an Indonesian-language project produces a Chinese summary.
-- **GBK-L3:** Protocol markers (`## 🌠 FASE n — LABEL` sub-judul; `[MEM | …]`) carry content in the user's language; the marker keywords themselves are protocol constants and never translated.
+- **GBK-L3:** Protocol markers (`## 🌠 PHASE n — LABEL` sub-heading; `[MEMORY | …]`) carry content in the user's language; the marker keywords themselves are protocol constants and never translated.
 - **GBK-L4:** Explicitly pinned language survives subsequent turns even if later messages mix languages — record it once, apply it until the user changes it.
 
-## GBK-C — Complexity Calibration / Kalibrasi Kompleksitas
+## GBK-C — Complexity Calibration
 
 | Rule | Level | Calibration (ALL that apply) |
 |------|-------|------------------------------|
@@ -45,7 +45,7 @@
 - **GBK-C4:** Complexity compresses format, never phases (Absolute Mandate rule 4). A trivial task still runs all applicable phases — each just shrinks.
 - **GBK-C5:** Calibration may be RAISED mid-task when scope grows (discovered dependencies, new artifacts); it is never silently lowered.
 
-## GBK-A — Ambiguity Registry / Registri Ambiguitas
+## GBK-A — Ambiguity Registry
 
 Known ambiguous patterns and their REQUIRED handling — ambiguity is resolved in Phase 2, never by silent guessing:
 
@@ -57,7 +57,7 @@ Known ambiguous patterns and their REQUIRED handling — ambiguity is resolved i
 | GBK-A4 | New request inside an ongoing task thread | Separate classification: continuation of the active task, or a new task with its own cycle? When unclear → ask |
 | GBK-A5 | Word that matches multiple types in mixed languages | Translate the INTENT, not the word: the final-deliverable principle (GBK-T0) decides |
 
-## GBK-E — Environment Ground Truths / Kebenaran Dasar Lingkungan
+## GBK-E — Environment Ground Truths
 
 Facts about the working environment that classifications and plans must respect (these are TRUE statements, not aspirations):
 
@@ -67,4 +67,4 @@ Facts about the working environment that classifications and plans must respect 
 - **GBK-E4:** Terminal-verifiable enforcement is executed via the bundled gate script (`scripts/enforce-gates.sh`); non-terminal rules remain text mandates (SKILL.md section 8b). Never CLAIM a script run that did not happen.
 - **GBK-E5:** Environments differ (fonts, tools, network). A classification that assumes a specific font/tool availability without checking is grounded in wish, not knowledge — verify or flag as a Phase 2 question.
 
-**Penjelasan (ID):** GBK-E adalah bagian yang paling sering berubah dan paling sering dilupakan — ia menjawab "apa yang BENAR-BENAR berlaku di lingkungan ini" sehingga rencana tidak dibangun di atas asumsi. Bila sebuah fakta lingkungan terbukti salah (misalnya path berubah), perbaiki fakta di sini lewat keputusan terkunci — jangan biarkan basis acuan dan realitas berbeda pendapat.
+**Rationale:** GBK-E is the most frequently changed and most frequently forgotten part — it answers "what ACTUALLY applies in this environment" so plans are not built on assumptions. When an environment fact proves wrong (e.g. a path changed), fix the fact here via a locked decision — never let the ground base and reality disagree.

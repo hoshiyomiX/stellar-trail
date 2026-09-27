@@ -1,434 +1,438 @@
 # Environment Resilience — Anti-Rollback Playbook (Container Platforms)
 
-> **Kapan membaca file ini:** lingkungan kerja Anda berjalan di container/sandbox yang bisa di-reset
-> (contoh: preview container platform, ephemeral CI runner) DAN Anda melihat gejala: file hasil kerja
-> "hilang" setelah restart, versi file terdegradasi ke kondisi lama, atau skill/skrip custom lenyap.
-> Bila Anda bekerja di mesin lokal/statis yang tidak pernah di-reset, seksi ini tidak berlaku — abaikan.
+> **When to read this file:** your working environment runs in a resettable container/sandbox
+> (e.g. a platform preview container, an ephemeral CI runner) AND you see the symptoms: work
+> files "disappearing" after a restart, file versions degraded to an older state, or custom
+> skills/scripts vanishing. If you work on a local/static machine that is never reset, this
+> section does not apply — ignore it.
 
-## Daftar Isi
+## Table of Contents
 
-(Sejak v3.6.1 sebagai satu baris ringkas; sejak v3.6.4 format heading + daftar
-per standar skill-creator untuk referensi >300 baris — dan menyegarkan entri
-yang tertinggal: §8 ditambahkan v3.6.3 tapi tak pernah masuk daftar lama.)
+(Since v3.6.1 as a one-line list; since v3.6.4 heading + list format per skill-creator
+standards for references >300 lines — refreshing stale entries. Restructured in v3.6.7 for
+the single-install-flow architecture: the retired repair scripts live in Appendix A.)
 
-1. Model Ancaman: Bagaimana Container Me-Rollback State Anda
-2. Lapisan Pertahanan (sejak v3.3.0 — lapis shadow backup dihapus)
-3. Memakai Skrip — 3a snapshot · 3b heal · 3c vault · 3d audit
-4. Prosedur Pasca-Reset (Decision Tree Saat Boot Segar)
-5. Batasan & Etika
-6. Bukti Lapangan / Receipts (forensik Task 36–38, 2026-09-19/20)
-7. Consumer Sandbox Deployment — bootstrap-sandbox.sh (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; guard rilis watcher v1.8 v3.6.4 Task 64)
-8. Migrasi Versi Crash-Safe + Forensik M0 (v3.6.3, Task 62)
-9. Auto-Update Pra-Fase — update-skill.sh (v3.6.6, Task 67)
-Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
-Appendix B: Doktrin Standalone-Helper — duplikasi kecil lintas skrip = by-design (R6 audit T63)
+1. Threat Model: How a Container Rolls Back Your State
+2. Defense Layers (v3.6.7 — cache-replay restore + verify-only monitoring; shadow backup removed v3.3.0; multi-source repair retired v3.6.7)
+3. Using the Scripts — 3a snapshot · 3b retired repair chain · 3c watcher · 3d audit
+4. Post-Reset Procedure (Decision Tree at a Fresh Boot)
+5. Limits & Ethics
+6. Field Evidence / Receipts (Task 36–38 forensics, 2026-09-19/20)
+7. Consumer Sandbox Deployment — bootstrap-sandbox.sh (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; release guard v3.6.4 Task 64; version+syntax gates v3.6.7)
+8. Crash-Safe Version Migration + M0 Forensics (v3.6.3, Task 62)
+9. Pre-Phase Auto-Update — update-skill.sh (v3.6.6 Task 67; module arming v3.6.7 Task 68)
+Appendix A: Evolution of the heal-skill.sh Repair Chain — RETIRED v3.6.7 (moved from the SKILL.md body in v3.6.0)
+Appendix B: Standalone-Helper Doctrine — small cross-script duplication = by-design (R6 audit T63)
 
-## 1. Model Ancaman: Bagaimana Container Me-Rollback State Anda
+## 1. Threat Model: How a Container Rolls Back Your State
 
-Banyak platform container memulihkan direktori proyek dari sebuah **arsip restore** (contoh nyata:
-`/home/sync/repo.tar` yang diekstrak oleh hook `/start.sh` saat boot — `rm -rf <project>` kecuali
-mountpoint, lalu `tar xf repo.tar`). Arsip ini idealnya ditulis ulang oleh **pre-stop packer** saat
-container berhenti. Masalahnya: **pre-stop tidak selalu jalan** — container bisa di-crash, di-force-kill,
-atau pack-nya gagal (cabang kegagalan ini diakui sendiri oleh hook platform). Akibatnya boot berikutnya
-me-restore **kondisi lama**: rollback diam-diam yang menghapus jam-jam kerja.
+Many container platforms restore the project directory from a **restore archive** (real example:
+`/home/sync/repo.tar`, extracted by the `/start.sh` hook at boot — `rm -rf <project>` except
+mountpoints, then `tar xf repo.tar`). This archive is ideally rewritten by a **pre-stop packer**
+when the container stops. The problem: **pre-stop does not always run** — the container can be
+crashed, force-killed, or the pack can fail (a failure branch the platform hook itself
+acknowledges). The next boot then restores an **old state**: a silent rollback that erases hours
+of work.
 
-Empat fakta struktural yang bisa dimanfaatkan (diverifikasi empiris pada satu platform container, 2026):
+Four structural facts that can be exploited (verified empirically on one container platform, 2026):
 
-1. **Sumber restore terbaca**: hook boot dan arsip restore biasanya dapat dibaca dari dalam container
-   (`cat` hook-nya, `tar -tf` arsipnya) — Anda bisa membedah formatnya tanpa menebak.
-2. **Mount object-storage bertahan**: direktori yang di-mounted dari object storage (mis. ossfs) hidup
-   DI LUAR container dan tidak ikut ter-rollback — kanal penyelamatan untuk backup dan marker state.
-3. **Boot menoleransi arsip korup** (warning + lanjut) — kegagalan refresh tidak membuat container mati.
-4. **Packer bisa mengecualikan direktori penting** (forensik nyata: `skills/` tidak pernah masuk arsip
-   packer platform) — instalasi skill adalah target rollback yang paling sering kena.
+1. **The restore source is readable**: the boot hook and the restore archive can usually be read
+   from inside the container (`cat` the hook, `tar -tf` the archive) — you can dissect the format
+   instead of guessing.
+2. **Object-storage mounts survive**: directories mounted from object storage (e.g. ossfs) live
+   OUTSIDE the container and are not rolled back — the rescue channel for backups and state markers.
+3. **Boot tolerates a corrupt archive** (warning + continue) — a failed refresh does not kill the
+   container.
+4. **The packer can exclude important directories** (real forensics: `skills/` never made it into
+   the platform packer's archive) — a skill installation is the most frequent rollback victim.
 
-## 2. Lapisan Pertahanan (sejak v3.3.0 — lapis shadow backup dihapus; catatan arsitektur 2026-09-19 di bawah)
+## 2. Defense Layers (v3.6.7 — cache-replay restore + verify-only monitoring)
 
-| Lapis | Peran | Kapan bekerja |
+| Layer | Role | When it works |
 |---|---|---|
-| **L1 — Refresh sumber** (`scripts/snapshot-repo.sh`) | Menimpa arsip restore platform dengan snapshot kondisi TERKINI — kini termasuk `skills/stellar-trail` (append bedah) — sehingga restore boot native = state segar *selama arsip itu bertahan* | `--apply` setelah milestone signifikan; `--apply-auto` berkala (debounce + cooldown 15 mnt) |
-| **L2 — Self-heal instalasi** (`scripts/heal-skill.sh`) | Verifikasi manifest SHA-256 instalasi skill; bila drift (file hilang/rusak/ekstra, versi `_meta.json` mundur) → perbaikan dari sumber sehat berikutnya (pemilihan berbasis versi, v3.5.4): kanonik → vault kelas-A → arsip restore → registry; juga melaporkan state pin semua skill di lock + info sehat-tapi-tua (v3.5.3) | `--check` (deteksi + heal) / `--force`; cocok untuk boot hook & jalankan berkala |
-| **L3 — Backup original** | Undo: arsip restore asli platform disalin sebelum ditimpa — bisa dikembalikan kapan pun | Selalu, sebelum setiap swap L1 |
+| **L1 — Source refresh** (`scripts/snapshot-repo.sh`) | Overwrites the platform restore archive with a snapshot of the CURRENT state — now including `skills/stellar-trail` (surgical append) — so the native boot restore = fresh state *for as long as that archive survives* | `--apply` after significant milestones; `--apply-auto` periodically (debounce + 15-min cooldown) |
+| **L2a — Cache-replay boot restore** (`scripts/bootstrap-sandbox.sh` → generated `.zscripts/dev.sh`) | At every boot, verifies `skills/stellar-trail` against the canonical copy's SHA-256 manifest (`download/stellar-trail/`) and restores it byte-identically when broken or missing — with a **no-downgrade version gate** (a healthy NEWER live install is never overwritten; a corrupt-but-newer install raises a watcher alarm instead of a silent repair) | Automatic at every boot; the canonical copy persists via the platform archive (which does include `download/`) |
+| **L2b — Verify-only monitoring** (`scripts/watcher.sh` v2.0) | Periodic integrity verification of the installed copies against the checksum manifest; on failure: **alarm + the remediation message** (the single install command). NO automatic multi-source repair — by design | Watchdog loop, ~every 10 minutes |
+| **L3 — Original backup** | Undo: the platform's original restore archive is copied before being overwritten — restorable at any time | Always, before every L1 swap |
 
-L1 mencegah rollback **di sumbernya**; L2 **menyembuhkan instalasi** bila rollback/clobber tetap terjadi
-(arsip basi, cache platform, taruhan apa pun); L3 menjamin setiap intervensi terhadap infrastruktur
-**bisa di-undo**. Ketiganya saling independen — kegagalan satu lapis tidak melumpuhkan dua lainnya.
+L1 prevents rollback **at its source**; L2a **restores the installation** from the canonical
+bytes when a rollback or clobber still happens; L2b **detects and reports** drift that the boot
+restore could not cover; L3 guarantees every infrastructure intervention **can be undone**. The
+layers are mutually independent — one layer's failure does not disable the others. Real repair —
+when even the canonical copy is bad — is NOT a layer: it is the single install command
+(`npx skills add hoshiyomiX/stellar-trail`), the one and only installation flow, executed
+deliberately with full verification (see section 9).
 
-**Temuan arsitektur 2026-09-19 (forensik boot):** pre-stop packer platform ternyata MENIMPA arsip
-restore dengan arsipnya sendiri di setiap siklus henti — build L1 kita (termasuk append bedah
-`skills/stellar-trail`) **tidak pernah bertahan lintas boot**. Bukti: boot 05:34 menemukan repo.tar
-"asing" (0 entri `skills/`) dan direktori `skills/stellar-trail` hilang total, padahal build L1
-malam sebelumnya membawa 32 entri skill. Konsekuensinya, peran lapisan bergeser: **rantai lintas-boot
-yang benar-benar efektif = kanonik `download/stellar-trail/` (persisten via arsip platform, yang
-memang memuat `download/`) + L2 boot-heal** (menyembuhkan instalasi dari kanonik itu, termasuk
-membuat ulang `_meta.json`/`origin.json` bila instalasi ter-wipe total — sejak v3.5.2). L1 tetap
-bernilai untuk kesegaran intra-boot (repo.tar tidak pernah >15 mnt lebih tua) dan kanal undo L3.
+**Architecture finding 2026-09-19 (boot forensics):** the platform pre-stop packer actually
+OVERWRITES the restore archive with its own at every stop cycle — our L1 build (including the
+`skills/stellar-trail` surgical append) **never survives across boots**. Evidence: the 05:34 boot
+found a "foreign" repo.tar (0 `skills/` entries) and the `skills/stellar-trail` directory gone
+entirely, even though the previous night's L1 build carried 32 skill entries. Consequence, layer
+roles shifted: **the truly effective cross-boot chain = the canonical `download/stellar-trail/`
+(persistent via the platform archive, which does include `download/`) + the L2a boot restore**.
+L1 remains valuable for intra-boot freshness (repo.tar never >15 min stale) and the L3 undo
+channel.
 
-**Dua konvensi lokasi install clawhub (temuan 2026-09-19):** clawhub CLI ≥ 0.23.3 memasang fresh
-install **owner-scoped**: `skills/@owner/stellar-trail` dengan lock key `@owner/stellar-trail`;
-instalasi era CLI lebih lama bisa flat: `skills/stellar-trail` dengan lock key `stellar-trail`.
-Seluruh rantai L2 dan boot-hook (dev.sh / template) sejak v3.5.2 **location-aware**: mencari dan
-menyembuhkan KEDUA layout, resolusi sumber walk-up multi-level, dan hint update membaca lock key
-aktual dari `.clawhub/lock.json`.
+**Two clawhub install-location conventions (finding 2026-09-19):** clawhub CLI ≥ 0.23.3 installs
+fresh as **owner-scoped**: `skills/@owner/stellar-trail` with lock key `@owner/stellar-trail`;
+installations from older-CLI eras may be flat: `skills/stellar-trail` with lock key
+`stellar-trail`. Since v3.5.2 the entire chain and the boot hook are **location-aware**: they
+find and handle BOTH layouts.
 
-**Mengapa tidak ada lagi lapis shadow backup (pelajaran empiris, dihapus di v3.3.0):** generasi
-arsitektur sebelumnya menyertakan shadow backup rolling (snapshot proyek periodik ke mount persistent,
-dipulihkan otomatis saat deteksi stale). Empat temuan forensik memvonisnya merugikan: (1) deteksi
-stale-nya **false-positive** — aktivitas backupnya sendiri menaikkan heartbeat lalu memicu percobaan
-restore yang gagal (insiden 07:38 UTC: dua percobaan restore beruntun gagal ekstrak); (2) **blind spot
-yang sama** dengan sumbernya — `skills/` tetap tidak terlindungi justru oleh lapis yang katanya
-penyelamat; (3) **failure domain yang sama** — hidup di mount object storage yang sama persis dengan
-arsip yang diamankan; (4) biaya tulis 62 MB per 30 menit untuk perlindungan semu. Pelajaran umumnya:
-**backup yang jalur restore-nya tidak pernah teruji lebih berbahaya daripada tidak ada backup** — ia
-memberi rasa aman sambil menambah mode kegagalan baru. Dua lapis yang tersisa kini keduanya teruji
-end-to-end, dan kanal ketiga (registry ClawHub) selalu tersedia sebagai jaring terakhir.
+**Why there is no shadow-backup layer anymore (empirical lesson, removed in v3.3.0):** an
+earlier architecture generation shipped a rolling shadow backup (periodic project snapshots to a
+persistent mount, auto-restored on stale detection). Four forensic findings condemned it:
+(1) its stale detection was **false-positive-prone** — its own backup activity raised the
+heartbeat and triggered failing restore attempts (the 07:38 UTC incident: two consecutive failed
+extract restores); (2) **the same blind spot** as its source — `skills/` remained unprotected by
+the very layer claiming to protect it; (3) **the same failure domain** — it lived on the exact
+object-storage mount as the archive it secured; (4) a 62 MB write cost per 30 minutes for
+illusory protection. The general lesson: **a backup whose restore path was never tested is more
+dangerous than no backup** — it provides a feeling of safety while adding new failure modes.
 
-## 3. Memakai Skrip
+**Why the multi-source self-repair chain was retired (v3.6.7):** the heal-skill.sh chain
+(v3.3.0 → v3.5.8, Appendix A) was a second, parallel installer — six candidate sources ranked by
+version, silent repairs by default. It violated the single-install-flow requirement, and its
+silent self-repair once let a poisoned canonical copy win a version selection (the 2026-09-22
+post-reset incident's root cause). v3.6.7 replaces it with the division of labor above: restore
+= boot cache replay (L2a, from the ONE canonical copy), detect = verify-only monitoring (L2b),
+repair = THE install command. One installer, one source of truth, zero silent repairs.
 
-### 3a. `scripts/snapshot-repo.sh` (L1 — refresh arsip restore)
+## 3. Using the Scripts
 
-```
-bash scripts/snapshot-repo.sh --status             # diagnosis: usia arsip restore, verdict BASI/SEGAR
-bash scripts/snapshot-repo.sh --dry-run            # build + verifikasi penuh TANPA menyentuh arsip
-bash scripts/snapshot-repo.sh --apply              # backup asli -> build -> verifikasi -> swap -> verifikasi
-bash scripts/snapshot-repo.sh --apply-auto         # --apply dengan gerbang ganda (debounce + cooldown) —
-                                                   # aman dipanggil berkala dari boot hook / watcher
-bash scripts/snapshot-repo.sh --restore-original   # undo: kembalikan arsip asli terakhir (terverifikasi)
-```
-
-Prinsip keamanan yang dipegang skrip (jangan dilanggar saat memodifikasi):
-
-- **Konsen eksplisit untuk aksi manual**: `--apply`/`--restore-original` hanya dijalankan saat diminta;
-  `--apply-auto` sengaja berat gerbangnya (debounce + cooldown) agar aman dipicu berkala.
-- **Backup-first**: arsip asli disalin ke mount persistent SEBELUM swap; bila backup gagal, swap batal.
-- **Verify-before-swap**: tar divalidasi (struktur + jumlah entri + entri kunci) dua kali — build dan
-  staging — sebelum rename-overwrite; final diverifikasi lagi setelah swap.
-- **Audit member anti traversal**: arsip restore diekstrak platform via `tar xf` tanpa validasi
-  member, maka skrip sendiri yang menjaga: member absolut atau berkomponen `..` DITOLAK keras,
-  symlink ber-target absolut diperingatkan; `--restore-original` pun diaudit sebelum swap
-  (undo tetap byte-identical — verifikasi hanya membaca, arsip korup/hostile ditolak agar tidak
-  merusak boot berikutnya).
-- **Build anti argument-injection**: daftar entri NUL-terpisah via `tar --null -T` — nama file
-  tidak pernah di-parse sebagai opsi tar (file `--use-compress-program=...` di project root
-  tidak bisa membuat tar mengeksekusi perintah); nama diawali `-` atau ber-newline di-skip.
-  Disiplin penyerta: fungsi yang memproduksi data di stdout tidak boleh mencetak diagnostik
-  ke stdout (`slog_q` log-only) — diagnostik bocor akan terbaca sebagai entri daftar.
-- **Marker fingerprint**: arsip buatan sendiri ditandai (mtime|size) agar tidak dibackup berulang dan
-  backup original sejati tidak tertimpa (pelajaran bug kolisi nama resolusi-detik).
-- **Format mengikuti packer platform**: entri relatif tanpa prefix `./`, exclude `node_modules/`,
-  `db/`, `upload/`, `.venv/`, `.next/` — beda format = restore aneh. Pengecualian `skills/`
-  milik packer ditutup dengan append bedah `skills/stellar-trail` (path literal, bukan ekspansi
-  nama file — vektor injection tidak berlaku).
-- **Atomic sebisanya mount**: build di disk lokal -> salin ke nama staging di mount yang sama ->
-  rename-overwrite in-mount (rename didukung umum oleh FUSE object-storage).
-
-### 3b. `scripts/heal-skill.sh` (L2 — self-heal instalasi, sejak v3.3.0)
+### 3a. `scripts/snapshot-repo.sh` (L1 — restore-archive refresh)
 
 ```
-bash scripts/heal-skill.sh --status     # laporan versi + lock + drift + pin (semua skill) + info usia, TANPA aksi
-bash scripts/heal-skill.sh --check      # deteksi drift; heal bila ada (default) — pin dilaporkan juga
-bash scripts/heal-skill.sh --force      # heal tanpa deteksi
-bash scripts/heal-skill.sh --manifest   # regenerasi manifest (SAAT RILIS, di salinan kanonik)
-bash scripts/heal-skill.sh --dir <path> <mode>   # target instalasi stellar-trail lain
+bash scripts/snapshot-repo.sh --status             # diagnosis: restore-archive age, STALE/FRESH verdict
+bash scripts/snapshot-repo.sh --dry-run            # build + full verification WITHOUT touching the archive
+bash scripts/snapshot-repo.sh --apply              # backup original -> build -> verify -> swap -> verify
+bash scripts/snapshot-repo.sh --apply-auto         # --apply with double gating (debounce + cooldown) —
+                                                   # safe to call periodically from the boot hook / watcher
+bash scripts/snapshot-repo.sh --restore-original   # undo: restore the latest original archive (verified)
 ```
 
-- **Verifikasi tanpa sumber eksternal**: manifest `assets/integrity.sha256` (hash seluruh file
-  konten) + `assets/integrity.version` (versi rilis) — file hilang, rusak, ekstra, dan versi
-  `_meta.json` yang mundur (signature persis insiden degrade nyata) semuanya terdeteksi.
-- **Perbaikan multi-sumber berurut** (location-aware sejak v3.5.2; vault-aware + version-aware
-  sejak v3.5.4): `STELLAR_CANONICAL` (env — override absolut) → `<proyek>/download/stellar-trail`
-  (deteksi walk-up **2/3/4 level** dari lokasi skill — flat `skills/<slug>` maupun owner-scoped
-  `skills/@owner/<slug>`) → **vault kelas-A** (`/home/sync/skill-vault/stellar-trail` — override
-  `STELLAR_VAULT` — dan `<proyek>/upload/skill-vault/stellar-trail` ossfs; diisi
-  `scripts/vault-sync.sh` saat rilis, lihat 3c) → arsip restore
-  (`STELLAR_RESTORE_TAR`, default `/home/sync/repo.tar`, subtree sesuai **layout aktual**
-  instalasi) → **saudara konvensi** (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail`,
-  v3.5.7 — `clawhub update --force` hanya menyegarkan owner-scoped, maka flat yang dibaca
-  platform kini bisa pulih dari saudaranya yang segar) → hint manual pasang ulang
-  via GitHub git-clone + verify (v3.6.2, Task 60 — rute terbukgi Task 59, tanpa
-  login; `clawhub update <lock-key> --force` hanya alternatif BILA registry pulih:
-  suspended 2026-09-24, appeal pending). Bila semua sumber lokal gagal, skrip **gagal keras**: tanpa manifest
-  DAN tanpa sumber, `--check` exit 1 dengan pesan eksplisit (sejak v3.5.2 — sebelumnya
-  WARN senyap exit 0) — verifikasi yang mustahil tidak pernah menyamar jadi sukses.
-- **Version-assert anti-timpa-baru (v3.5.4)**: kandidat sumber yang versinya lebih TUA dari
-  instalasi (rilis manifest, fallback `_meta`) DILEWATI — heal tidak pernah menurunkan versi
-  instalasi secara senyap; pemenang = versi tertinggi (tie-break urutan lama). Skenario yang
-  dibuka: kanonik restore-basi basi (Task 36) + vault segar → vault menang; instalasi ter-wipe
-  total → versi tertinggi yang tersedia.
-- **Cross-check lock clawhub (v3.5.7, §6.1 insiden konsumer 2026-09-22)**: versi skill di
-  `.clawhub/lock.json` dibandingkan vs disk — lock > disk = verdict **DOWNGRADED** + hint
-  pasang ulang (v3.6.2: GitHub; dulu `clawhub update`), dan `--check` exit ≠ 0 sampai tertutup; pasca-heal masih < lock = GAGAL
-  exit 1. `lock.json` TIDAK ikut di-restore arsip `skills/` → jangkar out-of-band termurah:
-  rollback arsip-restore terdeteksi BAHKAN saat semua sumber lokal mati — jebakan false-CLEAN
-  "manifest-vs-diri-sendiri" (sehat-tapi-tua) tertutup. `--status` menampilkan baris `lock:`.
-- **Laporan pin & usia (v3.5.3)**: semua mode melaporkan state pin SEMUA skill di `.clawhub/lock.json`
-  — `PINNED(reason)` = WARN: pin memblokir `clawhub update`/`install` skill itu dan membuat
-  `update --all` melewatkannya SENYAP (exit 0 tanpa perbaikan), maka tiap WARN membawa hint
-  `clawhub unpin <key>`; verdict drift & exit code TIDAK berubah (pin tidak menyentuh file
-  skill — heal tetap pin-agnostic). Ditambah info sehat-tapi-tua: instalasi BERSIH vs manifest
-  sendiri tapi kanonik lebih baru → hint upgrade disengaja `--force` (heal ≠ upgrade by design;
-  penangkap edge restore-basi yang lolos `--check`). Sumber perbaikan kini dilaporkan BERLABEL
-  (env / walk-up-N / platform default / arsip restore) — urutan & mekanisme tidak berubah.
-- **Aman by design**: identitas install clawhub (`_meta.json` ownerId/publishedAt, `.clawhub/`)
-  tidak pernah ditimpa — hanya field versi yang dipatch konsisten; bila keduanya absen akibat
-  instalasi ter-wipe total saat boot, file minimal dibuat ulang (v3.5.2); hasil heal 0644 tanpa
-  exec bit, identik dengan perilaku registry (semua invokasi memang via `bash`/`python3`).
-- **Di lingkungan reset-prone**: panggil `--check` dari boot hook (setelah L1) dan/atau berkala
-  dari watcher — biayanya lokal dan murah; manifest membuat hasilnya bisa diaudit.
-- **Sejak v3.5.8 — source self-verify**: kandidat sumber yang membawa manifest rilis wajib lolos
-  verifikasi internal (pohon ≡ manifest-nya sendiri) SEBELUM dipilih. Latar: insiden lapangan
-  2026-09-22 (receipt §6) — kanonik bawa manifest basi (edit pasca regen) menang seleksi versi,
-  disalin setia oleh heal, sehingga boot-heal GAGAL pasca-reset justru saat paling dibutuhkan.
-  Kini sumber racun DILEWATI dan kandidat sehat berikutnya (mis. vault kelas-A) mengambil alih;
-  seluruh kandidat eligan racun = GAGAL keras (menyalin kerusakan bukanlah penyembuhan);
-  override env tetap dihormati dengan peringatan keras; sumber tanpa manifest tetap eligibel
-  (perilaku lama utuh — verifikasi sumber-basi dua arah tetap berlaku di do_heal).
+Security principles the script holds (do not violate them when modifying):
 
-### 3c. `scripts/vault-sync.sh` (v3.5.4 — vault kelas-A, adopsi Task 35/41)
+- **Explicit consent for manual actions**: `--apply`/`--restore-original` run only on request;
+  `--apply-auto` is deliberately heavily gated (debounce + cooldown) so it is safe to trigger periodically.
+- **Backup-first**: the original archive is copied to a persistent mount BEFORE the swap; if the
+  backup fails, the swap is cancelled.
+- **Verify-before-swap**: the tar is validated (structure + entry count + key entries) twice —
+  build and staging — before the rename-overwrite; verified again after the swap.
+- **Anti-traversal member audit**: the platform extracts the restore archive via `tar xf` with no
+  member validation, so the script guards it itself: absolute members or any `..` component are
+  HARD-REJECTED, absolute-target symlinks are warned; `--restore-original` is audited before its
+  swap too (undo stays byte-identical — verification only reads; a corrupt/hostile archive is
+  rejected so it cannot break the next boot).
+- **Anti argument-injection build**: NUL-separated entry list via `tar --null -T` — file names
+  are never parsed as tar options (a file named `--use-compress-program=...` in the project root
+  cannot make tar execute a command); names starting with `-` or containing a newline are skipped.
+  Output discipline: functions producing data on stdout must not print diagnostics to stdout
+  (`slog_q` logs only) — leaked diagnostics would be read as list entries.
+- **Fingerprint marker**: our own archive is marked (mtime|size) so it is never backed up twice
+  and a true original backup is never overwritten (lesson from a second-resolution name-collision bug).
+- **Format follows the platform packer**: relative entries without the `./` prefix, excludes
+  `node_modules/`, `db/`, `upload/`, `.venv/`, `.next/` — a different format = weird restores.
+  The packer's `skills/` exclusion is closed by the `skills/stellar-trail` surgical append
+  (literal path, not a file-name expansion — the injection vector does not apply).
+- **As atomic as the mount allows**: build on local disk -> copy to a staging name on the same
+  mount -> in-mount rename-overwrite (rename is generally supported by FUSE object storage).
+
+### 3b. RETIRED in v3.6.7: `scripts/heal-skill.sh` + `scripts/vault-sync.sh`
+
+Both scripts were **deleted** in the v3.6.7 architecture redo. The full evolution history and
+the incidents that shaped them remain documented in **Appendix A** (historical record — the
+lessons are still true; the mechanism is gone). The succession map, verified line-by-line from
+the retired sources:
+
+| Retired responsibility | Successor in v3.6.7 |
+|---|---|
+| Periodic integrity verification (`--check`) | `watcher.sh` v2.0 check 4 — verify-only, ~every 10 min, alarm + install hint (3c) |
+| Multi-source repair (6 sources, version-ranked) | **The single install command** `npx skills add hoshiyomiX/stellar-trail` — no alternate sources exist anymore |
+| Install execution (rsync + verify) | `update-skill.sh` — thin wrapper that runs THE command with a verified override (section 9) |
+| Downgrade detection (version-assert) | Triple: `update-skill.sh` refuses older origins · the boot restore's version gate skips older canonicals · the M0 sanity alarm |
+| Release-file restore (skill-card.md etc.) | `watcher.sh` v2.0 check 3 — local-only restore from a healthy same-version install |
+| Canonical refresh | `bootstrap-sandbox.sh --ensure` |
+| Vault refresh (`vault-sync.sh --apply`) | **Retired with zero successors — the vault had zero readers once heal-skill was gone** (a writer with no readers is dead code manufacturing stale-copy downgrade risk) |
+| Manifest regeneration (`--manifest`) | Release-time maintainer action (the release checklist), not a runtime script |
+| `version_lt()` trio doctrine | Now exactly TWO controlled copies: `update-skill.sh` + the `bootstrap-sandbox.sh` generated-hook gate (Appendix B) |
+
+Why deletion was correct (from the recovered sources): heal-skill.sh was a **parallel installer**
+(6 sources, 7 paths) that directly violated the locked single-install-flow requirement, and its
+seven evolution stages were incident patches piled on patches; vault-sync.sh was a **writer with
+no readers** (its header named heal-skill.sh as its sole consumer) — keeping it would only
+manufacture a third stale copy with downgrade risk.
+
+### 3c. `scripts/watcher.sh` (v2.0 — runtime watchdog, verify-only monitoring)
 
 ```
-bash scripts/vault-sync.sh --status   # laporan state kedua vault (ada? versi?)
-bash scripts/vault-sync.sh --check    # verifikasi manifest tanpa menulis — drill berkala
-bash scripts/vault-sync.sh --apply    # salin kanonik → kedua vault + verifikasi (SAAT RILIS)
+bash .zscripts/watcher.sh --ensure        # start if not running (idempotent; dev.sh + M0 call this)
+bash .zscripts/watcher.sh --status        # daemon status via PIDFILE (never trust pgrep — see §6 drill finding)
+bash .zscripts/watcher.sh --stop          # stop + set the stop-flag
+bash .zscripts/watcher.sh --force-start   # start even with a stop-flag present
 ```
 
-Vault = salinan penuh kanonik yang hidup DI LUAR siklus wipe/restore
-(`/home/sync/skill-vault/` + `<proyek>/upload/skill-vault/` ossfs — keduanya kelas-A
-persisten). Heal membacanya otomatis sebagai kandidat sumber (3b). Disiplin: `--apply`
-pada write yang SAMA dengan publish; `--check` pada drill bulanan; assert simetris
-menolak `--apply` yang akan menimpa vault lebih baru dengan kanonik lebih tua.
-Sejak v3.5.7: `--apply` menstempel **versi + tanggal** di `README.md` root vault
-(jangkar out-of-band yang mudah dibaca), dan **konsumer dapat menjalankan `--apply`
-langsung dari direktori instalasi** (`bash skills/stellar-trail/scripts/vault-sync.sh
---apply` — kanonik = parent dari `scripts/`) — self-arm agar vault terisi sejak menit
-pertama, sebelum recycle container pertama; heal menampilkan hint ini saat kedua vault kosong.
+The 30-second loop runs six checks: (1) download/ change trigger → dev.sh; (2) explorer health →
+auto-restart via explorer.sh --ensure (skipped when a Next.js project owns the preview port);
+(3) release-file guard — `skill-card.md` + `assets/integrity.sha256` in the canonical copy must
+exist and stay version-fresh, restored ONLY from a healthy local same-version install (no vault,
+no network); (4) installation integrity ~every 10 minutes — **verify-only**: on manifest
+failure it logs `INTEGRITY ALARM` with the remediation message (`npx skills add
+hoshiyomiX/stellar-trail`); there is no silent repair by design; (5) archive refresh ~every 15
+minutes via repo-snapshot.sh --apply-auto; (6) compliance sentinel ~every 2 minutes — alarms in
+the worklog when it grows without an M1 checkpoint. The daemon survives per-tool-call process
+cleanup as a double-fork orphan (PPID=1, setsid).
 
-### 3d. `scripts/audit-compliance.sh` (v3.5.5 — audit kepatuhan dari LUAR model, R3)
+### 3d. `scripts/audit-compliance.sh` (v3.5.5 — compliance audit from OUTSIDE the model, R3)
 
-Lahir dari laporan insiden 2026-09-21: tiga session proyek lain berjalan ZERO-compliance (tanpa banner/checkpoint/handoff) dan hanya terdeteksi lewat audit manual user — pelanggaran senyap karena respons tanpa marker tidak menimbulkan error apa pun. Skrip ini TIDAK mempercayai disiplin model: ia membaca artefak di disk dan memberi verdict PASS/WARN/FAIL + exit code (0 = tidak ada FAIL).
+Born from the 2026-09-21 incident report: three sessions of another project ran ZERO-compliance
+(no banner/checkpoint/handoff) and were only caught by a manual user audit — silent violations
+because marker-less responses raise no errors at all. This script does NOT trust model
+discipline: it reads artifacts on disk and issues a PASS/WARN/FAIL verdict + exit code
+(0 = no FAIL).
 
 ```
 bash scripts/audit-compliance.sh [--root <project-root>] [--quiet]
 ```
 
-Checks: **C1** memory/SESSION-STATE.md ada · **C2** hygiene Active-table (H2 — baris terminal di tabel aktif = FAIL) · **C3** staleness worklog-vs-SESSION-STATE (worklog aktif tapi tidak ada checkpoint M1 >30 mnt = WARN — persis signature insiden) · **C4** version sanity instalasi-vs-lock (4c) · **C5** hook R1 ada di tail worklog. Pola pendampingnya (**R2**, infra per-project — bukan bundled): **watcher sentinel** — daemon polling (pola `.zscripts/watcher.sh` v1.6) mendeteksi signature yang sama tiap ~2 mnt dan meng-append COMPLIANCE-ALARM ke tail worklog, anchor yang pasti dibaca session berikutnya. Keduanya menutup celah "non-compliance tak terlihat" dari luar model.
+Checks: **C1** memory/SESSION-STATE.md exists · **C2** Active-table hygiene (H2 — terminal rows
+in the active table = FAIL) · **C3** worklog-vs-SESSION-STATE staleness (an active worklog with
+no M1 checkpoint >30 min = WARN — exactly the incident signature) · **C4** installed-vs-canonical
+version sanity (4c) · **C5** R1 hook present at the worklog tail. Its companion pattern (**R2**,
+per-project infra — not bundled): the **watcher sentinel** — the watchdog's compliance check
+detects the same signature every ~2 minutes and appends a COMPLIANCE-ALARM to the worklog tail,
+an anchor the next session is guaranteed to read. Together they close the "invisible
+non-compliance" gap from outside the model.
 
-## 4. Prosedur Pasca-Reset (Decision Tree Saat Boot Segar)
+## 4. Post-Reset Procedure (Decision Tree at a Fresh Boot)
 
-1. **Deteksi apakah rollback/degrade terjadi**: gejala cepat — file termutakhir hilang, atau
-   `bash scripts/heal-skill.sh --status` melaporkan DRIFT / versi `_meta` mundur.
-2. **Drift terdeteksi** ⇒ `bash scripts/heal-skill.sh --check` — heal otomatis dari kanonik atau
-   arsip restore; lalu jalankan L1 `--apply` agar sumber ikut segar; `git status` untuk file ekstra
-   sisa restore (rsync-heal menghapus ekstra di dalam skill dir, bukan seluruh proyek).
-3. **Kanonik ikut hilang** ⇒ heal dari arsip restore (repo.tar membawa `skills/stellar-trail`);
-   bila arsip pun basi ⇒ pasang ulang via GitHub git-clone + verify (v3.6.2, Task 60 —
-   rute terbukgi Task 59, tanpa login):
-   `git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/st-src && rm -rf <skills-dir>/stellar-trail && cp -r /tmp/st-src/skills/stellar-trail <skills-dir>/stellar-trail && cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256`
-   (hint lengkap tercetak otomatis oleh heal-skill — lock key aktual ikut terbawa).
-   `clawhub update <lock-key> --force` hanya bila registry pulih (suspended 2026-09-24,
-   appeal pending; `~/.config` tidak persisten lintas restart — token login harus di-set ulang).
-3b. **`clawhub update --force` hanya menyegarkan lokasi owner-scoped** (`skills/@owner/stellar-trail`)
-   — instalasi flat yang dibaca platform TIDAK tersentuh (temuan empiris insiden konsumer
-   2026-09-22; tetap relevan bila registry pulih). Setelah update, jalankan
-   `bash skills/stellar-trail/scripts/heal-skill.sh --check` — flat sembuh otomatis dari
-   **saudara konvensi**. **Re-arm satu baris pasca-insiden rollback (rute GitHub, v3.6.2)**:
-   `git clone --depth 1 https://github.com/hoshiyomiX/stellar-trail.git /tmp/st-src && rm -rf skills/stellar-trail && cp -r /tmp/st-src/skills/stellar-trail skills/stellar-trail && bash skills/stellar-trail/scripts/heal-skill.sh --check && bash skills/stellar-trail/scripts/vault-sync.sh --apply`
-   (pasang ulang terverifikasi → heal flat → isi ulang vault). Bila banner versi di respons
-   agent masih tua setelah semua ini, lihat Known Risks skill-card: failure mode aktivasi
-   continuation (rule 11).
-4. **Tidak terjadi** ⇒ cukup pastikan L1 segar bila hendak berhenti/istirahat.
-5. **memory/ ikut hilang** (reset total) ⇒ pulihkan dari handoff terbaru di mount persistent;
-   bila tidak ada, jalankan cold-start protocol (Part II seksi 2) — jangan pernah mengklaim
-   "tidak ada riwayat" sebelum memeriksa semua kanal.
+1. **Detect whether a rollback/degrade happened**: quick symptoms — newest files missing, or
+   the M0 version sanity alarm fired (installed banner version older than the release recorded
+   in memory), or `INTEGRITY ALARM` lines from the watcher in `.zscripts/watcher.log`.
+2. **Drift detected** ⇒ re-run THE install command — `npx skills add hoshiyomiX/stellar-trail`
+   (or `bash skills/stellar-trail/scripts/update-skill.sh --force`): the single flow re-installs
+   verified bytes; then run L1 `--apply` so the source archive is fresh too; `git status` for
+   extra leftover files from the restore.
+3. **The canonical copy is gone too** (total wipe of `download/`) ⇒ the install command rebuilds
+   it — run `bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure --with-explorer
+   --with-snapshot` after installing to re-seed the canonical + arm the boot hook; repo.tar's
+   `skills/stellar-trail` append (L1) is a same-boot fallback while the archive survives. If
+   the agent's response banner still shows an old version after all this, see the skill-card
+   Known Risks: the continuation-activation failure mode (rule 11).
+4. **Nothing happened** ⇒ just ensure L1 is fresh if you are about to stop/rest.
+5. **memory/ is gone too** (total reset) ⇒ recover from the latest handoff on the persistent
+   mount; if none exists, run the cold-start protocol (Part II section 2) — never claim "no
+   history" before checking every channel.
 
-## 5. Batasan & Etika
+## 5. Limits & Ethics
 
-- Jangan pernah menjalankan L1 pada lingkungan yang bukan milik user Anda — menimpa arsip restore
-  adalah intervensi terhadap infrastruktur; hanya sah bila user yang memiliki environment memintanya.
-- `skills/` dulunya konvensi pengecualian packer platform; sejak v3.3.0 arsip L1 menyertakan
-  `skills/stellar-trail` via append bedah, dan kanal pemulihannya berlapis: arsip itu (L1) →
-  `heal-skill.sh` dari kanonik/arsip (L2) → pasang ulang git-clone GitHub (L3, v3.6.2 —
-  paket `.skill` / registry clawhub hanya bila registry pulih: suspended 2026-09-24).
-- Skrip ini menangani ARSIP RESTORE dan INSTALASI SKILL, bukan menggantikan `git`: commit tetap
-  sumber kebenaran untuk diff/status; snapshot hanya untuk pemulihan bencana.
+- Never run L1 on an environment you do not own — overwriting the restore archive is an
+  infrastructure intervention; it is only legitimate when the environment's owner requests it.
+- `skills/` used to be a platform-packer exclusion; since v3.3.0 the L1 archive includes
+  `skills/stellar-trail` via surgical append, and its recovery channels are layered: that
+  archive (L1) → the boot cache replay from canonical (L2a) → re-install via the single install
+  command (the final resort, fully verified).
+- These scripts handle the RESTORE ARCHIVE and the SKILL INSTALLATION; they do not replace
+  `git`: commits remain the source of truth for diff/status; snapshots are for disaster recovery.
 
-## 6. Bukti Lapangan / Receipts (forensik Task 36–38, 2026-09-19/20)
+## 6. Field Evidence / Receipts (Task 36–38 forensics, 2026-09-19/20)
 
-Temuan terverifikasi yang mendasari arsitektur seksi ini — dicatat sebagai receipt agar
-desainnya bisa diaudit, bukan diterima dengan iman:
+Verified findings underpinning this section's architecture — recorded as receipts so the design
+can be audited, not accepted on faith. Rows describing the retired heal chain describe the
+mechanism AS IT WAS; see Appendix A.
 
-| Receipt | Bukti terverifikasi | Implikasi desain |
+| Receipt | Verified evidence | Design implication |
 |---|---|---|
-| **Task 36 — mekanisme boot** | Klaim "zip menimpa instalasi" GUGUR (`stellar-trail.zip` tak pernah ada di disk/arsip); non-persistensi `skills/` BENAR (boot = wipe + packer mengecualikan `skills/`); heal 2/2 boot nyata + sandbox A/B LOLOS (kontrol tanpa heal tetap rusak, dengan heal pulih) | Boot-heal wajib di hook; kanonik `download/` = jangkar lintas-boot |
-| **Task 37 — pin = kunci versi** | `clawhub pin` memblokir `update --force --version` tepat saat dibutuhkan restore/upgrade; `upload/` TERNYATA ossfs kelas-A (bukan kelas-C sebagaimana sempat dikira) | Pin tidak dipakai untuk persistensi; `upload/` sah sebagai lokasi vault |
-| **Task 38 — pin = anti-restore (0/6)** | Skill ter-pin + direktori hilang: `update`/`install` = error exit 1; `update --all` = "Skipped … pinned" SENYAP exit 0 (paling berbahaya — tampak sukses); `list` menampilkan zombie "pinned" untuk skill yang tak ada di disk; pin sticky melewati heal. TANPA pin: `update`/`install` = re-download sehat dari registry (jalur restore registry TERBUKTI ADA). Heal kanonik lokal = 0,112 detik offline | Larangan `clawhub pin stellar-trail`; laporan pin semua skill (v3.5.3); registry = fallback jaring terakhir |
-| **Task 39 → produk** | Temuan 37–38 dibawa ke produk: `pin_report()` semua skill + `age_info()` sehat-tapi-tua + sumber berlabel — suite 32/32, 5 lapis selaras | Receipt menjadi fitur, bukan sekadar catatan |
-| **Task 40 → v3.5.4** | Boot-heal men-deland 3.5.4 di install live saat sesi restart TANPA lock sync (sumber walk-up kanonik bekerja di lapangan); verdict registry "suspicious" (kelas 3.0.0 — disclosed-but-overbroad) TIDAK memblokir promosi latest maupun `update --force` | Rantai multi-sumber tervalidasi produksi; verdict Review-level = sifat protokol yang diungkap jujur, bukan defect |
-| **Insiden 2026-09-21 → v3.5.5** | 3 session proyek lain ZERO-compliance — hanya terdeteksi audit manual user; akar: description di system prompt ≠ body termuat (konfirmasi produksi ke-2 failure mode Activation rule 11) + continuation summary tidak membawa pemicu aktivasi (RC2) + pelanggaran tak terlihat (RC3) | R1 hook worklog + R2 sentinel + R3 audit script + R4 description imperatif (v3.5.5) — pertahanan berlapis DI LUAR disiplin model |
-| **Insiden konsumer 2026-09-22 → v3.5.7** | Recycle container memulihkan `skills/` dari arsip basi: flat 3.5.5→3.5.4 SENYAP, direktori `@owner` hilang, kedua vault kosong (tak pernah diisi konsumer), `heal --check` BERSIH (manifest-vs-diri-sendiri; lock 3.5.5 tak pernah dibandingkan); `clawhub update --force` sukses tapi HANYA menyegarkan owner-scoped; aktivasi continuation gagal (konfirmasi produksi ke-3 rule 11) — laporan: upload/stellar-trail-feedback-issue.md §6.1–6.8 | Cross-check lock → verdict DOWNGRADED + exit ≠ 0 (jangkar out-of-band); saudara konvensi jadi kandidat sumber heal; hint self-arm vault + versi di README vault; Known Risks aktivasi + re-arm satu baris (§4 3b); gate konsistensi versi packaging |
-| **Drill terkontrol 2026-09-22 → v3.5.7 (Task 43)** | Insiden direplikasi end-to-end via `scripts/drill_v357_restore.sh` (skrip drill lingkup-proyek — tidak dikirim dalam paket; sandbox terisolasi, env hermetik): **Drill A** kill `explorer.py` → watcher auto-heal memulihkan dalam **20 detik** (target <60 dtk); **Drill B** restore arsip basi (disk 3.5.4) + lock terkini + SEMUA sumber mati → verdict `DOWNGRADED` + **GAGAL keras exit 1** + nol klaim BERSIH palsu (false-CLEAN insiden TERTUTUP), lalu + saudara owner-scoped segar → heal dari saudara BERLABEL → BERSIH drift nol — **14/14 asersi PASS**; **Drill C** drift disuntikkan ke `explorer.py` deployment → `--ensure` memulihkan md5 dari kanonik + restart server + healthz ok (receipt: explorer.log `sync-fresh`). Temuan sampingan: `pgrep -f watcher.sh` = **false negative** (watcher berjalan sebagai orphan `bash -c` inline, tak tertangkap pola) — cek status watcher WAJIB via `watcher.sh --status` (PIDFILE), bukan pgrep | Mekanisme v3.5.7 kini berstatus TERBUKTI-LAPANGAN-TERKONTROL (bukan lagi teruji-suite saja): tripwire lock + sumber saudara + auto-heal proses + sync kesegaran deployment — masing-masing dengan receipt yang dapat direproduksi |
-| **Defek alur rilis 3.5.7 (ditemukan pasca-submit, diperbaiki kanonik)** | 1) `vault-sync.sh`: backtick markdown dalam string `README_BODY` berkutip-ganda dieksekusi bash (noise stderr + placeholder `<direktori-instalasi>` termakan) — fix: escape backtick; 2) disiplin urutan: ubah file kanonik WAJIB disusul `--manifest` sebelum `--apply`/paket (pelanggaran kecil tertangkap verifikasi vault); 3) sed bump versi TIDAK menyentuh pola regex ter-escape (`3\.5\.6`) di suite — 18 FAIL semuanya bug fixture; 4) asersi suite yang bergantung state lingkungan nyata (T6: vault kelas-A masih tua) harus hermetik sejak awal | Suite +2 asersi regresi (109/109); T6 hermetik; paket final SHA cc9dbd38… — pelajaran: verifikasi pasca-setiap-edit, bukan hanya pasca-batch |
-| **Audit pasca-reset platform 2026-09-22 22:28 UTC (Task 43, sesi 26)** | Container mati ~16 jam (sejak ~06:29 UTC) → boot 22:27:57; restore arsip platform membawa kondisi final kemarin secara UTUH (mtime terawetkan tar). Audit jendela 6 jam: **NOL rollback versi** — 3.5.7 selamat di live flat + kanonik + kedua vault; lock 3.5.5 (out-of-band; disk ≥ lock = sehat, bukan DOWNGRADED); watcher + explorer bangkit otomatis (pid baru, healthz ok, `fresh` vs kanonik ok); repo.tar disegarkan boot (2773 entri). Satu-satunya temuan: boot-heal force melapor **GAGAL — 1 rusak** (`environment-resilience.md` vs manifest) — **bukan kerusakan reset**: edit receipt pamungkas kemarin (05:50:06) mendarat SETELAH manifest final (05:47:12) + paket (05:47:35) + vault-sync, meninggalkan kanonik inkonsisten-manifest; reset hanya mengungkapnya. Remediasi: receipt ini → `--manifest` → propagate live → `vault-sync --apply` → rebuild paket | Dua pelajaran: (1) verifikasi wajib PASCA setiap edit **termasuk edit terakhir** — klaim "semua selaras" di checkpoint kemarin berasal dari verifikasi pra-edit-pamungkas; (2) boot-heal force-mode terbukti di lapangan (tak terencana) sebagai penangkap manifest-lag — GAGAL kerasnya adalah deteksi yang BENAR, bukan false alarm |
-| **Hardening v3.5.8 dari temuan audit pasca-reset (Task 44, 2026-09-23)** | Dua lapis lahir dari insiden manifest-lag 2026-09-22: (1) **source self-verify** di `heal-skill.sh` — kandidat sumber bermanifest wajib lolos pohon ≡ manifest-nya sendiri sebelum dipilih (sumber racun dilewati → failover vault kelas-A; semua kandidat eligan racun = GAGAL keras; env override dihormati + peringatan keras; sumber tanpa manifest tetap eligibel); (2) **gate pohon ≡ manifest** di packaging — build GAGAL exit 1 sebelum zip ditulis bila kanonik ≠ manifest dua arah (kunci kelas jebakan "edit tanpa regen") | Failover menggantikan kegagalan: pertahanan terakhir harus kebal terhadap keracunan SUMBERNYA sendiri; gerbang build = titik cek otomatis terakhir sebelum kerusakan menyebar ke konsumer |
+| **Task 36 — boot mechanism** | The "zip overwrites the install" hypothesis FELL (no `stellar-trail.zip` ever existed on disk/in archives); `skills/` non-persistence was REAL (boot = wipe + packer excludes `skills/`); heal worked 2/2 on real boots + sandbox A/B PASSED (the no-heal control stayed broken, the healed one recovered) | A boot restore hook is mandatory; the canonical `download/` = the cross-boot anchor |
+| **Task 37 — pin = version lock** | `clawhub pin` blocked `update --force --version` exactly when a restore/upgrade needed it; `upload/` turned out to be class-A ossfs (not class-C as briefly believed) | Pin is not used for persistence; `upload/` is legitimate vault territory (era note: the vault itself was retired in v3.6.7) |
+| **Task 38 — pin = anti-restore (0/6)** | A pinned skill + missing directory: `update`/`install` = error exit 1; `update --all` = "Skipped … pinned" SILENTLY exit 0 (the most dangerous — looks like success); `list` showed zombie "pinned" entries for skills absent from disk; pin state was sticky across heals. WITHOUT a pin: `update`/`install` = a healthy registry re-download (the registry restore path PROVEN to exist). A local canonical heal took 0.112 s offline | `clawhub pin stellar-trail` is forbidden; pin reporting for all skills shipped (v3.5.3); the registry was the last-resort net (until its retirement-era suspension) |
+| **Task 39 → product** | Findings 37–38 carried into the product: `pin_report()` for all skills + `age_info()` healthy-but-old + labeled sources — suite 32/32, five layers aligned | Receipts became features, not just notes |
+| **Task 40 → v3.5.4** | Boot-heal downgraded 3.5.4 on the live install at session restart WITHOUT a lock sync (the walk-up canonical source worked in the field); the registry's "suspicious" verdict (class 3.0.0 — disclosed-but-overbroad) did NOT block latest promotion nor `update --force` | The multi-source chain was production-validated (era); a Review-level verdict = honestly disclosed protocol character, not a defect |
+| **Incident 2026-09-21 → v3.5.5** | 3 sessions of another project ZERO-compliance — caught only by a manual user audit; roots: description in the system prompt ≠ body loaded (the 2nd production confirmation of Activation rule 11's failure mode) + the continuation summary carried no activation trigger (RC2) + violations were invisible (RC3) | R1 worklog hook + R2 sentinel + R3 audit script + R4 imperative description (v3.5.5) — layered defenses OUTSIDE model discipline |
+| **Consumer incident 2026-09-22 → v3.5.7** | A container recycle restored `skills/` from a stale archive: flat 3.5.5→3.5.4 SILENTLY, the `@owner` directory gone, both vaults empty (the consumer never filled them), `heal --check` reported CLEAN (manifest-vs-itself; lock 3.5.5 was never compared); `clawhub update --force` succeeded but ONLY refreshed the owner-scoped copy; continuation activation failed (3rd production confirmation of rule 11) — report: upload/stellar-trail-feedback-issue.md §6.1–6.8 | Lock cross-check → verdict DOWNGRADED + exit ≠ 0 (out-of-band anchor); sibling-convention as a heal source; vault self-arm hint + version stamp; one-line re-arm; packaging version-consistency gate — all era mechanisms, superseded in v3.6.7 by the single-flow doctrine |
+| **Controlled drill 2026-09-22 → v3.5.7 (Task 43)** | The incident replicated end-to-end via a drill script (project-scope, not shipped; isolated sandbox, hermetic env): **Drill A** killing `explorer.py` → watcher auto-heal recovered it in **20 seconds** (target <60 s); **Drill B** stale-archive restore + fresh lock + ALL sources dead → verdict `DOWNGRADED` + **hard FAIL exit 1** + zero false-CLEAN claims (the incident's false-CLEAN closed), then a fresh owner-scoped sibling → labeled sibling heal → CLEAN zero drift — **14/14 assertions PASS**; **Drill C** injected drift into the deployed `explorer.py` → `--ensure` restored md5 from canonical + restarted the server + healthz ok. Side finding: `pgrep -f watcher.sh` = **false negative** (the watcher runs as an orphan inline `bash -c`, not matched by the pattern) — watcher status MUST be checked via `watcher.sh --status` (PIDFILE), never pgrep | The v3.5.7 mechanisms were field-proven-under-control (not just suite-tested): lock tripwire + sibling source + process auto-heal + deployment freshness sync — each with a reproducible receipt |
+| **3.5.7 release-flow defects (found post-submit, fixed in canonical)** | 1) `vault-sync.sh`: markdown backticks inside a double-quoted `README_BODY` string were executed by bash (stderr noise + the `<install-dir>` placeholder eaten) — fixed by escaping; 2) order discipline: canonical edits MUST be followed by `--manifest` before `--apply`/packaging; 3) a sed version-bump did not touch escaped regex patterns in the suite — 18 FAILs were all fixture bugs; 4) suite assertions depending on real environment state must be hermetic from the start | Suite +2 regression assertions (109/109); verify after EVERY edit, not only after batches |
+| **Platform post-reset audit 2026-09-22 22:28 UTC (Task 43, session 26)** | Container dead ~16 hours (since ~06:29 UTC) → boot 22:27:57; the platform archive restore brought yesterday's final state INTACT (tar preserves mtimes). A 6-hour audit window: **ZERO version rollback** — 3.5.7 survived on live flat + canonical + both vaults; lock 3.5.5 (out-of-band; disk ≥ lock = healthy, not DOWNGRADED); watcher + explorer rose automatically (new pids, healthz ok, `fresh` vs canonical ok); repo.tar refreshed at boot (2773 entries). The single finding: force boot-heal reported **FAIL — 1 corrupt** (`environment-resilience.md` vs manifest) — **not reset damage**: yesterday's final receipt edit (05:50:06) landed AFTER the final manifest (05:47:12) + package (05:47:35) + vault-sync, leaving the canonical manifest-inconsistent; the reset merely exposed it | Two lessons: (1) verification is mandatory AFTER every edit **including the last one** — yesterday's "everything aligned" checkpoint came from a pre-final-edit verification; (2) force-mode verification proved itself in the field (unplanned) as a manifest-lag catcher — its hard FAIL was CORRECT detection, not a false alarm |
+| **Hardening v3.5.8 from the post-reset audit findings (Task 44, 2026-09-23)** | Two layers born from the 2026-09-22 manifest-lag incident: (1) **source self-verify** in `heal-skill.sh` — a source candidate carrying a manifest must pass tree ≡ its own manifest before selection; (2) a **tree ≡ manifest gate** in packaging — the build FAILS exit 1 before the zip is written when canonical ≠ manifest in either direction | Failover over failure: the last line of defense must be immune to poisoning of ITS OWN source; the build gate = the last automatic checkpoint before damage spreads to consumers. (Era note: both mechanisms were retired with the heal chain in v3.6.7 — the verified-override install in section 9 carries the same spirit: staging + full manifest verification BEFORE anything is swapped) |
 
-## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh` (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; guard rilis watcher v1.8 v3.6.4 Task 64)
+## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh` (v3.6.1 Task 56; core+watcher v3.6.3 Task 62; release guard v3.6.4 Task 64; gates v3.6.7)
 
-Sandbox referensi membangun lapisan pertahanan seksi 2–4 secara manual lintas Task 26–47; paket publik
-hanya mengirim protokol + skrip + aset. Forensik Task 55 (3/3 klaim lapangan terkonfirmasi) membuktikan
-akibatnya di sandbox konsumer: (1) file skill hilang pasca reset — packer mengecualikan `skills/` dari
-arsip restore (bukti: arsip packer asli 3807 entri, 0 entri `skills/`); (2) layanan (explorer) mati
-permanen — tidak ada boot hook yang menghidupkannya kembali; (3) rantai aktivasi putus — `worklog.md`
-tidak pernah dibuat, hook R1 absen, dan pasca wipe total skill hilang dari system prompt sementara
-`memory/` selamat di disk tanpa pembaca.
+The reference sandbox built the section 2–4 defense layers manually across Tasks 26–47; the
+public package ships only the protocol + scripts + assets. Task 55 forensics (3/3 field claims
+confirmed) proved the consequences in a consumer sandbox: (1) skill files gone after a reset —
+the packer excludes `skills/` from the restore archive (evidence: the original packer archive
+had 3807 entries, 0 under `skills/`); (2) services (explorer) dead permanently — no boot hook
+revived them; (3) the activation chain broken — `worklog.md` was never created, the R1 hook was
+absent, and after a total wipe the skill vanished from the system prompt while `memory/`
+survived on disk with no reader.
 
-`scripts/bootstrap-sandbox.sh` memasang arsitektur yang sama dalam SATU perintah:
+`scripts/bootstrap-sandbox.sh` installs the same architecture in ONE command:
 
-| Modul | Dipasang | Jalur tunggal (tanpa fallback redundan) | Bug ditutup |
+| Module | Installed | Single path (no redundant fallbacks) | Bugs closed |
 |---|---|---|---|
-| core (selalu) | kanonik `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` (v3.6.3) + seed `worklog.md` (hook R1) + scaffold `memory/` | seed = salinan instalasi hidup (self-locating, offline); dev.sh memulihkan `skills/stellar-trail` dari kanonik tiap boot (verifikasi manifest SHA-256); watcher v1.8 = daemon auto-heal runtime (explorer healthz + heal berkala + repo refresh + compliance alarm + guard file rilis non-manifest — skill-card.md & assets/integrity.sha256 dicek keberadaan+kesegaran versinya tiap siklus, auto-restore dari vault kelas-A segar; celah 4 insiden pasca-boot yang tak terlihat heal --check, R1 audit T63) yang dihidupkan dev.sh — menutup gap laporan konsumer T46 F2: kontraknya dirujuk 4 komponen tapi filenya tak pernah dikirim | #1 #2 #3 |
-| `--with-explorer` | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + langkah `--ensure` di dev.sh | launcher self-locating + drift-sync dari kanonik; guard Next.js tetap berlaku | #2 |
-| `--with-snapshot` | `.zscripts/repo-snapshot.sh` + langkah `--apply-auto` di dev.sh | env `WMG_PROJECT` diteruskan dev.sh (utk platform dengan `/home/sync`) | #1 (lapis tambahan) |
+| core (always) | canonical `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` (v3.6.3) + `worklog.md` seed (R1 hook) + `memory/` scaffolding | seed = a copy of the live installation (self-locating, offline); dev.sh restores `skills/stellar-trail` from the canonical at every boot (SHA-256 manifest verification + the v3.6.7 no-downgrade version gate); watcher v2.0 = the runtime watchdog (explorer health + verify-only integrity checks + release-file guard with local-only restore + archive refresh + compliance alarm), started by dev.sh — closing the T46 F2 consumer gap: its contract was long referenced by 4 components whose file was never shipped | #1 #2 #3 |
+| `--with-explorer` | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + an `--ensure` step in dev.sh | self-locating launcher + drift-sync from canonical; the Next.js guard still applies | #2 |
+| `--with-snapshot` | `.zscripts/repo-snapshot.sh` + an `--apply-auto` step in dev.sh | the `WMG_PROJECT` env is forwarded by dev.sh (for platforms with `/home/sync`) | #1 (an extra layer) |
 
-Yang bertahan reset (kontrak packer, diverifikasi dari arsip asli): `download/` + `.zscripts/` +
-`memory/` + `worklog.md`. Yang ter-wipe: `skills/` — dan justru itu yang dipulihkan dev.sh dari kanonik.
+What survives resets (packer contract, verified from the original archive): `download/` +
+`.zscripts/` + `memory/` + `worklog.md`. What gets wiped: `skills/` — exactly what dev.sh
+restores from the canonical.
 
-Perintah: `bash scripts/bootstrap-sandbox.sh` (core) · `--ensure` (idempoten, dipanggil Activation
-rule 14 di M0) · `--with-explorer` / `--with-snapshot` · `--status` (read-only) · `--project-dir` ·
-`--force-devsh` (timpa dev.sh non-bootstrap — deployment referensi tidak pernah ditimpa tanpa flag ini).
+Commands: `bash scripts/bootstrap-sandbox.sh` (core) · `--ensure` (idempotent, invoked by
+Activation rule 14 at M0) · `--with-explorer` / `--with-snapshot` · `--status` (read-only) ·
+`--project-dir` · `--force-devsh` (overwrite a non-bootstrap dev.sh — the reference deployment
+is never overwritten without this flag).
 
-Disiplin yang dijaga: idempoten (menulis hanya bila konten berbeda); TIDAK PERNAH menimpa konten
-`memory/`, `worklog.md`, atau dev.sh asing; tidak menyentuh `.clawhub/` (domain heal-skill.sh);
-scaffold memory menyandang status consent-pending (SKILL.md 4b) — sesi pertama wajib meminta
-konfirmasi user sebelum menulis state substansial. Bukti verifikasi (smoke idempotensi + simulasi
-fresh-reset 3/3 bug tertutup): `scripts/tmp-task56/` di sandbox referensi.
+Discipline held: idempotent (writes only when content differs); NEVER overwrites `memory/`,
+`worklog.md`, or a foreign dev.sh; does not touch `.clawhub/`; the memory scaffold carries
+consent-pending status (SKILL.md 4b) — the first session must ask the user for confirmation
+before writing substantive state. v3.6.7 hardening (lifecycle-validated 16/16): the generated
+hook's restore step carries the no-downgrade version gate, and the generated hook itself is
+syntax-checked (`bash -n`) at generation time — a heredoc typo dies at generation, never inside
+`/start.sh` at next boot.
 
-## 8. Migrasi Versi Crash-Safe + Forensik M0 (v3.6.3, Task 62)
+## 8. Crash-Safe Version Migration + M0 Forensics (v3.6.3, Task 62)
 
-Dua pelajaran dari laporan forensik konsumer (2026-09-25, migrasi npx 3.5.4 → 3.6.2):
+Two lessons from a consumer forensic report (2026-09-25, an npx 3.5.4 → 3.6.2 migration):
 
-**Urutan migrasi crash-safe (R2/F5).** Urutan "swap direktori kerja DULU, baru
-segar lapisan resilience" membuka window campur-versi (~4 menit pada laporan)
-tanpa jaring pengaman runtime: crash di window itu → boot berikutnya
-merestore arsip lama → heal konvergen ke versi LAMA dan migrasi harus diulang
-manual. Urutan aman: (1) siapkan sumber versi baru (clone GitHub + verifikasi
-manifest), (2) segarkan vault kelas-A (`vault-sync.sh --apply` dari kanonik
-baru), (3) swap kanonik `download/stellar-trail/` ke versi baru, (4) BARU
-TERAKHIR swap instalasi kerja `skills/stellar-trail`. Dengan urutan ini, crash
-kapan pun justru mengkonvergikan boot berikutnya ke versi BARU (semua sumber
-repair sudah baru; swap kerja adalah langkah termurah untuk diulang).
+**Crash-safe migration order (R2/F5).** The order "swap the working directory FIRST, refresh
+the resilience layers after" opens a mixed-version window (~4 minutes in the report) with no
+runtime safety net: a crash inside that window → the next boot restores an old archive →
+recovery converges to the OLD version and the migration must be repeated manually. The safe
+order: (1) prepare the new-version source (verified clone), (2) swap the canonical
+`download/stellar-trail/` to the new version, (3) redeploy the watcher from the new canonical,
+(4) ONLY THEN swap the live working install `skills/stellar-trail` LAST. With this order a
+crash at any point converges the next boot to the NEW version (every restore source is already
+new; the live swap is the cheapest step to repeat).
 
-**Sumber forensik imun-restore untuk M0 (R4/F3).** Jejak boot di
-`.zscripts/boot.log` TERBUKTI bisa diputar balik pasca-hook: aktor root-level
-mengekstraksi ulang arsip workspace SETELAH dev.sh selesai (insiden
-2026-09-25: hook jalan 03:25:54–03:26:11, tapi boot.log hidup byte-identik
-dengan salinan arsip + 6 baris — seluruh jejak hook pagi itu hilang; pid/log
-kembali mtime lama; hook tampak "tidak pernah jalan"). Untuk forensik M0,
-pakai sumber yang DI LUAR pohon restore: `/tmp/boot-timeline.log` (ditulis
-/start.sh), `/home/sync/repo-state/*` (snapshot auto-apply), dan `ps` (proses
-hidup) — jangan mengandalkan boot.log saja.
+**Restore-immune forensic sources for M0 (R4/F3).** Boot traces in `.zscripts/boot.log` were
+PROVEN reversible after the hook: a root-level actor re-extracted the workspace archive AFTER
+dev.sh finished (2026-09-25 incident: the hook ran 03:25:54–03:26:11, but boot.log came back
+byte-identical to the archived copy + 6 lines — the entire morning's hook trace gone; pids/logs
+back to old mtimes; the hook "never ran" as far as the log showed). For M0 forensics, use
+sources OUTSIDE the restore tree: `/tmp/boot-timeline.log` (written by /start.sh),
+`/home/sync/repo-state/*` (auto-apply snapshots), and `ps` (live processes) — never boot.log
+alone.
 
-**Ritme audit (R6).** Jalankan `scripts/audit-compliance.sh` pada M0/M1 besar
-— audit eksternal ini satu-satunya alat yang menangkap drift versi-lock dan
-hook secara mekanis (insiden 3-session 2026-09-21 hanya terdeteksi audit
-manual; lihat juga SKILL.md seksi 3 M1).
+**Audit rhythm (R6).** Run `scripts/audit-compliance.sh` at major M0/M1 checkpoints — this
+external audit is the only tool that mechanically catches version-lock and hook drift (the
+3-session 2026-09-21 incident was only caught by a manual audit; see also SKILL.md section 3 M1).
 
-## 9. Auto-Update Pra-Fase — `update-skill.sh` (v3.6.6, Task 67)
+## 9. Pre-Phase Auto-Update — `update-skill.sh` (v3.6.6 Task 67 · module arming + single-flow wrapper v3.6.7 Task 68)
 
-Seksi 7 memasang lapisan pertahanan; seksi 8 memperbaiki kerusakan migrasi; seksi
-ini menutup celah yang tersisa: **instalasi yang sehat tapi TUA** — bukan rusak
-(heal menolaknya: D22, heal ≠ upgrade), bukan pula migrasi manual (§8) — hanya
-tertinggal rilis. Sebelum v3.6.6, menyusul versi baru menunggu inisiatif manual;
-sejak Task 67 (Activation rule 15), protokol memanggil `scripts/update-skill.sh
---ensure` di M0, setelah `bootstrap --ensure`, SEBELUM fase dimulai.
+Section 7 installs the defense layers; section 8 repairs migration damage; this section closes
+the remaining gap: **an installation that is healthy but OLD** — not broken, not a manual
+migration, just behind a release. Before v3.6.6, catching up waited for manual initiative;
+since Task 67 (Activation rule 15), the protocol calls `scripts/update-skill.sh --ensure` at
+M0, after `bootstrap --ensure`, BEFORE the phases begin.
 
-**Pemicu & debounce.** Dipanggil tiap M0, tapi cek jaringan penuh maksimal 1x per
-24 jam (state `.zscripts/.update-check.last`; `--force` menembus, `--check`
-dry-run, `--status` tanpa jaringan). Debounce menjaga M0 tetap murah: kebanyakan
-sesi hanya laporan satu baris tanpa menyentuh jaringan.
+**Trigger & debounce.** Invoked at every M0, but a full network check at most once per 24 hours
+(state in `.zscripts/.update-check.last`; `--force` bypasses, `--check` is a dry-run, `--status`
+is offline). The debounce keeps M0 cheap: most sessions get a one-line report without touching
+the network.
 
-**Semantik: oto-override TERVERIFIKASI, bukan blind-pull.** Origin = GitHub
-hoshiyomiX/stellar-trail (D24 — kanal tunggal, baca publik tanpa PAT; clawhub
-tidak pernah disentuh). Urutan apply: `git ls-remote` tag terbaru → clone staging
-`--depth 1 --branch` → verifikasi manifest SHA-256 PENUH → assert tag≡konten
-(anti-racun: tag berisi konten versi lain = abort keras exit 1) → assert
-anti-downgrade (origin lebih tua dari lokal = DITOLAK wajar) → swap. Menyalin
-kerusakan bukanlah penyembuhan — dan menyalin sumber tak terverifikasi bukanlah
-upgrade.
+**Semantics: a VERIFIED override, not a blind pull.** Origin = GitHub hoshiyomiX/stellar-trail
+(D24 — the sole channel, public read, no PAT). The check: `git ls-remote` latest tag → staging
+clone `--depth 1 --branch` → full SHA-256 manifest verification → tag≡content assert
+(anti-poisoning: a tag containing another version's content = hard abort exit 1) →
+anti-downgrade assert (an origin older than local = refused). Copying corruption is not
+healing — and copying an unverified source is not an upgrade.
 
-**Urutan swap = doktrin §8 persis:** kanonik DULU → vault kelas-A
-(`vault-sync.sh --apply`) → instalasi live TERAKHIR → deploy + restart watcher
-dari kanonik baru (`--stop` → cp → `--force-start`) → `bootstrap-sandbox.sh
---ensure`. Crash di titik mana pun mengkonvergikan boot berikutnya ke versi BARU
-(semua sumber repair sudah segar; live adalah swap termurah untuk diulang
-boot-heal). Swap per-target ber-rollback `.update-bak` — kegagalan tengah jalan
-mengembalikan target, tidak menyisakan setengah-pohon.
+**The install IS the single flow (v3.6.7).** When the origin is newer, the wrapper runs THE
+install command — `npx skills add hoshiyomiX/stellar-trail` — as step `[1/4]` of a verified
+override, then verifies the landed bytes against the manifest, swaps targets with per-target
+rollback backups (`.update-bak`), and finishes with canonical-first → live-last ordering per
+the section 8 doctrine (a crash anywhere converges the next boot to the NEW version). Install
+identity (`_meta.json`/`.clawhub/`) is never overwritten; the script copies itself to a temp
+file and re-execs from there before swapping (overwriting the directory a running script lives
+in is undefined behavior); file modes normalize to 0644 (the package-wide exec-bit doctrine).
 
-**Perlindungan identitas & diri.** `_meta.json` + `.clawhub/` dikecualikan dari
-`rsync --delete` (identitas instalasi tidak pernah ditimpa — doktrin heal-skill).
-Skrip menyalin dirinya ke temp file dan re-exec dari sana sebelum swap —
-menimpa direktori tempat file yang sedang dieksekusi hidup adalah kondisi
-undefined. Mode file dinormalkan 0644 (doktrin exec-bit seluruh paket).
+**Offline = a report, not a block.** Network/git failure → a one-line report, exit 0 — M0 never
+depends on the network (the boot chain stays offline-first; the boot cache replay and the
+watcher remain the offline safety nets). The whole installation process prints to stdout
+step by step (`[1/4]`…`[4/4]`) — the user stays informed and can follow up (the explicit Task 67
+mandate). After an update lands, response banners carry the new version; the skill body is
+reloaded next session (Activation rule 11).
 
-**Offline = laporan, bukan blokir.** Kegagalan jaringan/git → satu baris laporan,
-exit 0 — M0 tidak pernah tergantung jaringan (boot chain tetap offline-first;
-heal dan bootstrap tetap berjalan sebagai jaring pengaman offline). Seluruh
-proses instalasi dicetak ke stdout langkah-demi-langkah (`[1/7]`…`[7/7]`) —
-user well-informed dan bisa menindak lanjuti (mandat eksplisit Task 67).
-Pasca-update, banner respons memakai versi baru; body skill dimuat ulang di
-sesi berikutnya (Activation rule 11).
+**Post-install module arming (v3.6.7, Task 68).** Empirical basis: a consumer install +
+bootstrap-ensure report (zai-web sandbox, 2026-09-27) — the install succeeded and the canonical
+was fresh, BUT the post-update bootstrap ran core-only (`bootstrap.state m=-`, "explorer module:
+NOT enabled") — the persistence layer came up half-armed: explorer dead, snapshot not
+installed, until the user remembered to run `--with-*` manually. Since v3.6.7 the final step
+runs `--ensure --with-explorer --with-snapshot`: after an update, the layer comes up FULLY
+armed. Override: env `STELLAR_UPDATE_BOOTSTRAP_ARGS` (e.g. `"--ensure"` for the old core-only
+behavior). Consent posture note: the fresh-install path is UNCHANGED — Activation rule 14 still
+offers the modules explicitly (opt-in); automatic arming happens only on this package's own
+upgrade path, the repo owner's decision after the field report.
 
-## Appendix A: Evolusi Rantai Repair heal-skill.sh (dipindah dari body SKILL.md v3.6.0)
+## Appendix A: Evolution of the heal-skill.sh Repair Chain — RETIRED v3.6.7 (moved from the SKILL.md body in v3.6.0)
 
-> Riwayat lengkap dipertahankan di sini agar body tetap operasional (lensa audit Task 56: fokus,
-> terarah, tak lepas kendali — sejarah panjang hidup di referensi, bukan di protokol yang dibaca
-> setiap turn). Teks berikut verbatim dari SKILL.md v3.6.0 seksi 4c.
+> The full history is preserved here so the body stays operational (the Task 56 audit lens:
+> focused, directed, in control — long history lives in references, not in the protocol read
+> every turn). The text below describes the mechanism AS IT WAS, verbatim in structure from
+> SKILL.md v3.6.0 section 4c. **The script was deleted in v3.6.7** — see section 3b for the
+> succession map; the lessons that produced each stage remain true and are why the current
+> architecture verifies sources, refuses downgrades, and never repairs silently.
 
-`scripts/heal-skill.sh` (sejak v3.3.0; location-aware sejak v3.5.2) — self-heal instalasi skill INI
-pada KEDUA konvensi lokasi install clawhub: flat `skills/stellar-trail` (lock key `stellar-trail`) dan
-owner-scoped `skills/@owner/stellar-trail` (lock key `@owner/stellar-trail` — clawhub CLI ≥ 0.23.3
-memasang fresh install di sini). Verifikasi manifest SHA-256 (`assets/integrity.sha256`) + cross-check
-versi rilis; perbaikan multi-sumber dengan walk-up multi-level dari lokasi skill → vault kelas-A
-(v3.5.4) → arsip restore sesuai layout aktual → hint `clawhub update <lock-key> --force` yang membaca
-lock key AKTUAL dari `.clawhub/lock.json` (bukan hardcoded). Identitas install clawhub tidak pernah
-ditimpa; `_meta.json`/`origin.json` dibuat ulang bila instalasi ter-wipe total saat boot. Tanpa
-manifest DAN tanpa sumber = GAGAL KERAS exit 1. Sejak v3.5.3: laporan state pin SEMUA skill di
-`.clawhub/lock.json` (pinned = WARN — memblokir update/install skill itu dan membuat `update --all`
-melewatkannya SENYAP), info-line sehat-tapi-tua, sumber heal berlabel (env/walk-up-N/platform/arsip).
-Sejak v3.5.4: vault kelas-A (`/home/sync/skill-vault` + `upload/skill-vault`, diisi
-`scripts/vault-sync.sh`) masuk rantai — pemilihan sumber berbasis versi + version-assert
-anti-timpa-baru. Sejak v3.5.7: cross-check lock clawhub (versi skill di lock vs disk: lock > disk =
-verdict `DOWNGRADED` + hint update; pasca-heal masih < lock = GAGAL exit 1 — insiden konsumer
-2026-09-22), sumber saudara konvensi (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail` saling
-kandidat), hint self-arm vault. Sejak v3.5.8: source self-verify — kandidat sumber bermanifest wajib
-lolos verifikasi internal sebelum dipilih; sumber racun (insiden boot-heal pasca-reset 2026-09-22)
-DILEWATI; seluruh kandidat eligan racun = GAGAL keras; env override dihormati dengan peringatan keras.
+`scripts/heal-skill.sh` (since v3.3.0; location-aware since v3.5.2) — self-healed THIS skill's
+installation at BOTH clawhub install-location conventions: flat `skills/stellar-trail` (lock key
+`stellar-trail`) and owner-scoped `skills/@owner/stellar-trail` (lock key
+`@owner/stellar-trail` — clawhub CLI ≥ 0.23.3 installs fresh installs there). SHA-256 manifest
+verification (`assets/integrity.sha256`) + release-version cross-check; multi-source repair
+with a multi-level walk-up from the skill's location → class-A vault (v3.5.4) → the restore
+archive matching the actual layout → a `clawhub update <lock-key> --force` hint reading the
+ACTUAL lock key from `.clawhub/lock.json` (never hardcoded). clawhub install identity was never
+overwritten; `_meta.json`/`origin.json` were recreated when a boot wiped the install entirely.
+No manifest AND no source = hard FAIL exit 1. Since v3.5.3: pin-state reporting for ALL skills
+in `.clawhub/lock.json` (pinned = WARN — it blocks that skill's update/install and makes
+`update --all` skip it SILENTLY), a healthy-but-old info line, labeled heal sources
+(env/walk-up-N/platform/archive). Since v3.5.4: the class-A vault (`/home/sync/skill-vault` +
+`upload/skill-vault`, filled by `scripts/vault-sync.sh`) joined the chain — version-based
+source selection + an anti-overwrite-newer version assert. Since v3.5.7: the clawhub lock
+cross-check (skill version in lock vs disk: lock > disk = verdict `DOWNGRADED` + update hint;
+still < lock after healing = FAIL exit 1 — the 2026-09-22 consumer incident), the
+sibling-convention source (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail` as mutual
+candidates), the vault self-arm hint. Since v3.5.8: source self-verify — a source candidate
+carrying a manifest had to pass its own internal verification before selection; poisoned
+sources (the 2026-09-22 post-reset boot-heal incident) were SKIPPED; all-eligible-candidates-
+poisoned = hard FAIL; env overrides were honored with hard warnings.
 
-**Penjelasan (ID):** Mengapa ada seksi ini di skill memory? Karena protokol memory hanya sekuat
-lingkungannya: SESSION-STATE dan MEMORY tidak berarti bila direktorinya sendiri di-rollback ke masa
-lalu oleh platform. Pengalaman empiris menunjukkan rollback diam-diam adalah mode kegagalan nyata —
-dan solusinya tidak butuh alat canggih, cukup disiplin berlapis yang murah dan teruji: segarkan
-sumbernya, sembuhkan instalasinya, simpan aslinya untuk undo. Lapis shadow backup yang pernah ada
-justru membuktikan prinsipnya dari arah sebaliknya — backup yang restore-nya tidak pernah teruji
-menambah mode kegagalan alih-alih menguranginya, dan akhirnya dihapus. Semua intervensi infrastruktur
-harus eksplisit dan bisa di-undo; penjaga yang diam-diam mengubah platform adalah penjaga yang
-berubah jadi risiko.
+`scripts/vault-sync.sh` (v3.5.4, adopted Tasks 35/41) — refreshed the class-A skill vault:
+copied the canonical → `/home/sync/skill-vault` + `upload/skill-vault` with symmetric
+anti-overwrite-newer asserts + manifest verification; `--apply` at release time (the same write
+as the publish), `--check` for periodic drills, a version+date stamp in the vault's root
+`README.md`, and consumer-side self-arm (`--apply` runnable directly from the install tree).
+Its header named heal-skill.sh as its sole consumer — with heal gone, the vault had zero
+readers, and the script was deleted with it.
 
-## Appendix B: Doktrin Standalone-Helper — Duplikasi Kecil Lintas Skrip = By-Design (R6 audit T63, sejak v3.6.5)
+**Rationale:** Why did this section exist in a memory skill? Because a memory protocol is only
+as strong as its environment: SESSION-STATE and MEMORY mean nothing when their own directory is
+rolled back to the past by the platform. Empirical experience showed silent rollback is a real
+failure mode — and the solution did not need fancy tooling, just cheap, tested, layered
+discipline: refresh the source, restore the install, keep the original for undo. The shadow
+backup that once existed proved the principle from the opposite direction — a backup with a
+never-tested restore path ADDS failure modes instead of removing them, and was deleted. The
+repair chain that replaced it eventually proved the same principle again: a healer with six
+sources and silent repairs became a second installer — a poisonable one — and was retired in
+favor of one installer, one source of truth, and honest alarms. All infrastructure interventions
+must be explicit and undoable; a guardian that silently rewrites the platform is a guardian
+that has become a risk.
 
-> Direkam eksplisit agar audit masa depan tidak menandai ulang sebagai temuan redundansi
-> (F5 laporan audit T63; laporan forensik konsumer T46 menyinggung kelas yang sama).
+## Appendix B: Standalone-Helper Doctrine — Small Cross-Script Duplication = By-Design (R6 audit T63, since v3.6.5)
 
-Setiap skrip dalam paket ini (`heal-skill.sh`, `vault-sync.sh`, `update-skill.sh`,
-`snapshot-repo.sh`, `bootstrap-sandbox.sh`, `watcher.sh`, `explorer.sh`,
-`dev.sh.template`) membawa helper kecilnya sendiri — varian `log`/`say`/`ts`/`die`/
-`version_lt`. Refactor DRY klasik akan menyatukan ini ke satu pustaka bersama;
-doktrin resilience paket ini justru MELARANGNYA:
-**setiap skrip harus tetap berdiri sendiri ketika saudaranya rusak atau terhapus**.
-`heal-skill.sh` harus bisa memperbaiki `vault-sync.sh` justru ketika `vault-sync.sh` — dan
-pustaka bersama apa pun — ikut rusak; pelajaran empiris insiden 2026-09-22, saat seluruh
-rantai fallback mati bersamaan karena berbagi titik-kegagalan yang sama. Duplikasi 3–8
-baris per helper adalah harga yang dibayar sadar untuk **isolasi domain-kegagalan**;
-konsolidasi lintas file TIDAK direkomendasikan. Satu-satunya duplikat eksak di paket ini
-adalah `version_lt()` (8 baris; sejak v3.6.6 tiga lokasi — TRIO: `heal-skill.sh` +
-`vault-sync.sh` + `update-skill.sh`, Task 67) — dibiarkan dengan komentar
-salinan-terkendali di ketiga lokasi (R5): ubah ketiganya bersamaan, jangan satukan.
+> Recorded explicitly so future audits do not re-flag it as a redundancy finding (audit T63 F5;
+> the T46 consumer forensic report touched the same class).
+
+Every script in this package (`update-skill.sh`, `snapshot-repo.sh`, `bootstrap-sandbox.sh`,
+`watcher.sh`, `enforce-gates.sh`, `audit-compliance.sh`, plus the explorer assets
+`explorer.sh`/`explorer.py`/`dev.sh.template`) carries its own small helpers — `log`/`say`/`ts`/
+`die` variants. A classic DRY refactor would unify these into one shared library; this
+package's resilience doctrine FORBIDS it: **every script must keep standing alone when its
+siblings break or are deleted**. A repair script must be able to fix its sibling exactly when
+that sibling — and any shared library — is itself broken; the empirical lesson of the
+2026-09-22 incident, when an entire fallback chain died together from sharing one failure
+point. Duplicating 3–8 lines per helper is a consciously paid price for **failure-domain
+isolation**; cross-file consolidation is NOT recommended. The one exact duplicate in this
+package is `version_lt()` (8 lines; since v3.6.7 exactly TWO locations — a controlled pair:
+`update-skill.sh` + the `bootstrap-sandbox.sh` generated-hook version gate) — kept with
+controlled-copy comments at both locations (R5): change them together, never merge them.

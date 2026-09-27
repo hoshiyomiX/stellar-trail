@@ -127,7 +127,7 @@ Tooling status, known issues, anything the next session must know.
 
 All 7 sections are mandatory — write "none" explicitly rather than omitting a section. A section that is silently missing is indistinguishable from a section that was forgotten (the same doctrine as the phase N/A markers in Part I of the main protocol).
 
-## 5. Write Rules Summary / Ringkasan Aturan Penulisan
+## 5. Write Rules Summary
 
 | File | Mode | Who may write | When |
 |------|------|---------------|------|
@@ -136,7 +136,7 @@ All 7 sections are mandatory — write "none" explicitly rather than omitting a 
 | handoffs/*.md | write once | main session agent ONLY | M3 |
 | worklog.md | append only | main agent AND subagents | major milestones, with Task ID |
 
-**Penjelasan (ID):** Single-writer untuk memory/ mencegah race antar agent: subagent bisa menimpa snapshot milik main agent dan menghancurkan state. Subagent melapor lewat worklog (append-only, aman dari race) dan mengembalikan hasil ke main agent, yang kemudian melakukan checkpoint. Aturan sederhana: memory/ adalah milik satu penulis, worklog adalah milik bersama.
+**Rationale:** Single-writer for memory/ prevents races between agents: a subagent could overwrite the main agent's snapshot and destroy state. Subagents report through the worklog (append-only, race-safe) and return results to the main agent, which then checkpoints. Simple rule: memory/ has one owner-writer, the worklog is shared.
 
 ## 6. Recovery Matrix / Matriks Pemulihan
 
