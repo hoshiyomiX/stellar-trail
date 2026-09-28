@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # update-skill.sh — auto-update check + install wrapper for stellar-trail
-# stellar-trail v3.6.7 · 2026-09-27
+# stellar-trail v4.0.0 · always-check fix 2026-09-28
 #
 # THE SINGLE INSTALLATION FLOW (locked decision 2026-09-27):
 #     npx skills add hoshiyomiX/stellar-trail
@@ -9,7 +9,10 @@
 # over an existing installation in place. This script never installs by any
 # other means. It only:
 #   1. checks the GitHub origin for a newer release tag (public read, no
-#      credential needed; debounced to one network check per 24 hours), and
+#      credential needed; one check per invocation — since the 2026-09-28
+#      always-check fix there is NO debounce gate: the protocol runs this at
+#      every M0, before the phases begin, and the state file is a record for
+#      --status, never a gate), and
 #   2. when the origin is newer, runs that one install command, then
 #      verifies the result and re-arms the persistence modules.
 # There is NO fallback source and NO alternate repair path. If the install
@@ -19,8 +22,10 @@
 # Usage:
 #   bash scripts/update-skill.sh [--ensure|--force|--check|--status|--help]
 #   (no argument = --ensure — the protocol's cold-boot path)
-#     --ensure   debounced check; auto-update when the origin is newer
-#     --force    bypass the debounce; check now and update if newer
+#     --ensure   check the origin NOW (always — the M0 path) and auto-update
+#                when the origin is newer
+#     --force    compatibility alias of --ensure (kept after the debounce
+#                gate was removed — older docs and habits still name it)
 #     --check    network check without installing (dry-run report)
 #     --status   local state report, no network access
 #
@@ -32,9 +37,10 @@
 #                                 (default: hoshiyomiX/stellar-trail)
 #   STELLAR_INSTALL_ARGS          extra arguments for the install command
 #                                 (default: "--skill stellar-trail -a openclaw -y")
-#   STELLAR_UPDATE_STATE          debounce state file
+#   STELLAR_UPDATE_STATE          last-check record file (informational —
+#                                 feeds --status only; it no longer gates
+#                                 anything)
 #                                 (default: <project>/.zscripts/.update-check.last)
-#   STELLAR_UPDATE_DEBOUNCE       debounce window in seconds (default: 86400)
 #   STELLAR_UPDATE_BOOTSTRAP_ARGS post-install bootstrap arguments
 #                                 (default: "--ensure --with-explorer --with-snapshot")
 #
@@ -80,8 +86,7 @@ PROJECT="${PROJECT:-$(dirname "$(dirname "$SKILL_ROOT")")}"
 ZDIR="$PROJECT/.zscripts"
 ORIGIN="${STELLAR_UPDATE_ORIGIN:-https://github.com/hoshiyomiX/stellar-trail.git}"
 INSTALL_SOURCE="${STELLAR_INSTALL_SOURCE:-hoshiyomiX/stellar-trail}"
-STATE="${STELLAR_UPDATE_STATE:-$ZDIR/.update-check.last}"
-DEBOUNCE="${STELLAR_UPDATE_DEBOUNCE:-86400}"
+STATE="${STELLAR_UPDATE_STATE:-$ZDIR/.update-check.last}"   # record only — never a gate
 
 # version_lt <a> <b> — true when a < b on loose x.y.z version patterns
 version_lt() {
@@ -132,19 +137,17 @@ if [ "$MODE" = "--status" ]; then
     echo "installation : $SKILL_ROOT (v$LOCAL_VER)"
     echo "origin       : $ORIGIN"
     echo "install cmd  : npx skills add $INSTALL_SOURCE \${STELLAR_INSTALL_ARGS:---skill stellar-trail -a openclaw -y}"
-    echo "last check   : $ST_HUMAN (debounce ${DEBOUNCE}s)"
+    echo "last check   : $ST_HUMAN (record only — checks always run)"
     exit 0
 fi
 
-# --- DEBOUNCE (--ensure only; --force and --check bypass it) ------------------
-if [ "$MODE" = "--ensure" ]; then
-    ST="$(read_state)"; ST_EPOCH="${ST%% *}"; ST_VER="${ST#* }"
-    NOW="$(date +%s)"
-    if [ "$ST_EPOCH" -gt 0 ] 2>/dev/null && [ $((NOW - ST_EPOCH)) -lt "$DEBOUNCE" ]; then
-        say "check skipped (debounce ${DEBOUNCE}s): last check $(date -d "@$ST_EPOCH" '+%H:%M' 2>/dev/null) saw v$ST_VER — local v$LOCAL_VER · use --force to check now"
-        exit 0
-    fi
-fi
+# --- ALWAYS CHECK (since the 2026-09-28 always-check fix) --------------------
+# The former 24h debounce gate was removed: --ensure probes the origin on
+# EVERY invocation (the protocol runs it once per session at M0, before
+# Phase 1 — "auto check & update before entering phases", Activation rule 15).
+# The state file remains a RECORD for --status; it no longer gates anything.
+# The runtime watcher adds an independent ~24h background origin probe
+# (alarm-only, never installs) so a release landing mid-boot is caught too.
 
 # --- REMOTE CHECK ------------------------------------------------------------
 if ! command -v git >/dev/null 2>&1; then

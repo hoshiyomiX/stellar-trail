@@ -27,7 +27,7 @@ cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect
 npx skills list   # expect stellar-trail, source hoshiyomiX/stellar-trail
 ```
 
-To update later: `bash skills/stellar-trail/scripts/update-skill.sh --force` (the bundled single-flow updater — debounced origin check, then a four-step verified override that runs the same install command and re-arms the persistence layer), or simply re-run the install command.
+To update later: `bash skills/stellar-trail/scripts/update-skill.sh --ensure` (the bundled single-flow updater — always-check origin probe, then a four-step verified override that runs the same install command and re-arms the persistence layer; the runtime watcher also probes the origin every ~24h and alarms the worklog when a newer release lands), or simply re-run the install command.
 
 > **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 

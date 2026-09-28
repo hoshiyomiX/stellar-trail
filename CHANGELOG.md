@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-09-28 (on main; no version bump by owner decision)
+
+- **Always-check fix for the M0 auto-update check.** The 24h debounce gate in `update-skill.sh --ensure` is removed: the check now probes the origin at EVERY M0 — once per session, before the phases begin. Root cause of the fix: the gate skipped every probe inside a 24h window (state in `.zscripts/.update-check.last`), so during a same-day release burst (v3.6.8 → v4.0.0) no M0 ever hit the network, and the "check skipped (debounce 86400s)" line read as the feature being broken. The state file remains as a `--status` record only — never a gate; `--force` becomes a compatibility alias; `STELLAR_UPDATE_DEBOUNCE` is retired.
+- **watcher v2.1 — origin release probe (duty 7).** The runtime watchdog now probes the origin's latest release tag every ~24h (epoch-state-gated via `.zscripts/.origin-probe.last`, so container reboots do not reset the clock; offline-tolerant with a ~1h retry) and, when the origin is NEWER than the live installation, appends a one-line `ORIGIN-RELEASE-ALARM` to the worklog — once per unseen version, remediation = the single install command. ALARM-ONLY by design: the watcher never installs. New `--probe-origin` mode runs the probe on demand (also the daemon's single source of truth — the loop invokes the same mode).
+- Doc chain aligned (SKILL.md rule 15 + M0 lifecycle + §9 both script bullets + QRC, skill-card description + properties, README update instructions, environment-resilience §9); banner and `integrity.version` stay 4.0.0 (no bump); manifest regenerated over the same 25-file set.
+
 ## v4.0.0 — 2026-09-28
 
 The 4.x line opens with the static-copy recovery control (UI v3.4) and a squashed release history: this single commit carries everything from v3.6.10 through v4.0.0 (the four intermediate commits and their tags existed only locally; the per-release entries below keep the full lineage).

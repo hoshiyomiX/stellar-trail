@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # watcher.sh — runtime watchdog daemon for the stellar-trail persistence layer
-# stellar-trail v3.6.7 · watcher v2.0 · 2026-09-27
+# stellar-trail v4.0.0 · watcher v2.1 · 2026-09-28
 #
 # WHAT THIS DAEMON DOES (one loop every 30 seconds, WATCHER_INTERVAL to tune):
 #   1. download/ change trigger — when the top level of download/ changes,
@@ -29,6 +29,13 @@
 #      actively written but memory/SESSION-STATE.md has not been rewritten
 #      for over 30 minutes, append a one-line alarm to the worklog (debounced
 #      to one alarm per hour).
+#   7. Origin release probe (every ~24 hours, epoch-state-gated so container
+#      reboots do not reset the clock) — compare the origin's latest release
+#      tag with the live installation. A NEWER origin tag appends a one-line
+#      alarm to the worklog (once per unseen version, remediation = the
+#      install command). ALARM-ONLY: the watcher never installs — the single
+#      installation flow is the only installer, by design. Run it on demand
+#      with --probe-origin.
 #
 # SURVIVAL MECHANICS (verified empirically on this platform):
 #   every tool call spawns a fresh shell that the platform kills — including
@@ -41,6 +48,9 @@
 #   bash watcher.sh --status        show daemon status
 #   bash watcher.sh --stop          stop and set the stop-flag
 #   bash watcher.sh --force-start   start even when the stop-flag is present
+#   bash watcher.sh --probe-origin  one-shot origin release probe (duty 7 on
+#                                   demand — prints the verdict; alarms the
+#                                   worklog when a newer release is found)
 #
 # The daemon is started from three redundant paths: container boot via
 # dev.sh, the protocol's cold-boot step, and manual runs.
@@ -78,6 +88,10 @@ DEVSH="$ZDIR/dev.sh"
 INTERVAL="${WATCHER_INTERVAL:-30}"
 # Remediation message printed in every integrity alarm — the single flow.
 INSTALL_HINT="npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y"
+# Origin release probe (duty 7) — alarm-only; tunables for tests and forks
+ORIGIN_URL="${STELLAR_WATCHER_ORIGIN:-https://github.com/hoshiyomiX/stellar-trail.git}"
+ORIGIN_INTERVAL="${STELLAR_WATCHER_ORIGIN_INTERVAL:-86400}"
+ORIGIN_STATE="$ZDIR/.origin-probe.last"
 mkdir -p "$ZDIR" 2>/dev/null || true
 
 wlog() {
@@ -92,10 +106,75 @@ alive() {
     [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null
 }
 
+# version_lt <a> <b> — true when a < b on loose x.y.z version patterns.
+# Controlled copy (change both together; siblings: scripts/update-skill.sh and
+# the dev.sh boot hook) — the standalone-helper doctrine forbids a shared
+# library here.
+version_lt() {
+    local a1=0 a2=0 a3=0 b1=0 b2=0 b3=0
+    IFS=. read -r a1 a2 a3 <<< "${1:-0}"
+    IFS=. read -r b1 b2 b3 <<< "${2:-0}"
+    [ "${a1:-0}" -lt "${b1:-0}" ] && return 0
+    [ "${a1:-0}" -gt "${b1:-0}" ] && return 1
+    [ "${a2:-0}" -lt "${b2:-0}" ] && return 0
+    [ "${a2:-0}" -gt "${b2:-0}" ] && return 1
+    [ "${a3:-0}" -lt "${b3:-0}" ]
+}
+
 # ---------------------------------------------------------------------------
 # MODES --stop / --status
 # ---------------------------------------------------------------------------
 case "$1" in
+    --probe-origin)
+        # One-shot origin release probe (duty 7 on demand — the daemon loop
+        # invokes this same mode: single source of truth). Prints the verdict;
+        # appends a one-line worklog alarm when the origin carries a NEWER
+        # release tag (once per unseen version). NEVER installs anything.
+        LIVE_VER=""
+        for LV in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
+            if [ -f "$LV/assets/integrity.version" ]; then
+                LIVE_VER="$(tr -d '[:space:]' < "$LV/assets/integrity.version")"
+                break
+            fi
+        done
+        if [ -z "$LIVE_VER" ]; then
+            echo "[watcher] probe-origin: no live installation found — nothing to compare"
+            exit 0
+        fi
+        if ! command -v git >/dev/null 2>&1; then
+            echo "[watcher] probe-origin: git unavailable — skipped (alarm-only probe, never blocks)"
+            exit 0
+        fi
+        ORIGIN_VER="$(timeout 25 git ls-remote --tags --refs --sort=-v:refname "$ORIGIN_URL" 'v[0-9]*' 2>/dev/null \
+            | head -1 | awk -F/ '{print $NF}' | sed 's/^v//' | tr -d '[:space:]')"
+        O_NOW="$(date +%s)"
+        O_ALARMED="-"
+        [ -f "$ORIGIN_STATE" ] && O_ALARMED="$(awk '{print $2}' "$ORIGIN_STATE" 2>/dev/null)"
+        [ -z "$O_ALARMED" ] && O_ALARMED="-"
+        if [ -z "$ORIGIN_VER" ]; then
+            # offline-tolerant: retry in ~1h instead of the full interval so a
+            # network blip cannot blind the probe for 24h
+            echo "$((O_NOW - ORIGIN_INTERVAL + 3600)) $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
+            echo "[watcher] probe-origin: origin unreachable — will retry in ~1h (alarm-only probe, never blocks)"
+            exit 0
+        fi
+        if [ "$ORIGIN_VER" = "$LIVE_VER" ]; then
+            echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
+            echo "[watcher] probe-origin: origin v$ORIGIN_VER == live v$LIVE_VER — up to date"
+        elif version_lt "$ORIGIN_VER" "$LIVE_VER"; then
+            echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
+            echo "[watcher] probe-origin: origin v$ORIGIN_VER < live v$LIVE_VER (dev install ahead) — no action"
+        elif [ "$O_ALARMED" = "$ORIGIN_VER" ]; then
+            echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
+            echo "[watcher] probe-origin: origin v$ORIGIN_VER > live v$LIVE_VER — alarm already sent for this version, not repeating"
+        else
+            echo "$O_NOW $ORIGIN_VER" > "$ORIGIN_STATE" 2>/dev/null
+            printf "\n> ORIGIN-RELEASE-ALARM %s: the origin carries a NEWER release v%s (live installation: v%s). At the next session start run: bash skills/stellar-trail/scripts/update-skill.sh --ensure — or manually: %s. The watcher NEVER installs (alarm-only; the single install flow is the only installer).\n" \
+                "$(date '+%F %T')" "$ORIGIN_VER" "$LIVE_VER" "$INSTALL_HINT" >> "$PROJECT/worklog.md" 2>/dev/null
+            echo "[watcher] probe-origin: ALARM — newer release v$ORIGIN_VER at the origin (live v$LIVE_VER); one-line alarm appended to the worklog"
+        fi
+        exit 0
+        ;;
     --stop)
         if alive; then
             kill "$(cat "$PIDFILE")" 2>/dev/null
@@ -108,7 +187,7 @@ case "$1" in
         exit 0
         ;;
     --status)
-        echo "=== WATCHER STATUS (v2.0) ==="
+        echo "=== WATCHER STATUS (v2.1) ==="
         echo "project : $PROJECT"
         if alive; then
             echo "daemon  : RUNNING (pid $(cat "$PIDFILE"))"
@@ -118,6 +197,14 @@ case "$1" in
         fi
         [ -f "$STOPFLAG" ] && echo "stopflag: SET (auto-start blocked)" || echo "stopflag: clear"
         echo "interval: ${INTERVAL}s   log: $LOG"
+        echo "origin   : $ORIGIN_URL (probe every ${ORIGIN_INTERVAL}s, alarm-only)"
+        if [ -f "$ORIGIN_STATE" ]; then
+            O_EP="$(awk '{print $1}' "$ORIGIN_STATE" 2>/dev/null)"
+            O_AL="$(awk '{print $2}' "$ORIGIN_STATE" 2>/dev/null)"
+            echo "probe    : last $(date -d "@$O_EP" '+%F %T' 2>/dev/null || echo "@$O_EP") · last alarmed: ${O_AL:--}"
+        else
+            echo "probe    : never run (the first cycle after daemon start probes)"
+        fi
         echo "--- watcher.log (last 10 lines) ---"
         tail -10 "$LOG" 2>/dev/null || echo "(empty)"
         exit 0
@@ -151,6 +238,7 @@ fi
         DOWNLOAD="'"$DOWNLOAD"'"
         DEVSH="'"$DEVSH"'"
         INTERVAL="'"$INTERVAL"'"
+        ORIGIN_INTERVAL="'"$ORIGIN_INTERVAL"'"
         PIDFILE="$ZDIR/watcher.pid"
         STOPFLAG="$ZDIR/watcher.stop"
         LOG="$ZDIR/watcher.log"
@@ -162,7 +250,7 @@ fi
             fi
         }
         echo $$ > "$PIDFILE"
-        wlog "watcher START (pid $$, interval ${INTERVAL}s, project $PROJECT)"
+        wlog "watcher START (pid $$, interval ${INTERVAL}s, origin probe ${ORIGIN_INTERVAL}s, project $PROJECT)"
         CYCLES=0
         CANON_DIR="$DOWNLOAD/stellar-trail"
         GUARD_STATE="$ZDIR/.guard-release.state"
@@ -290,6 +378,28 @@ fi
                         fi
                     fi
                 fi
+            fi
+
+            # 7. Origin release probe (~every 24 hours; epoch-state-gated so
+            #    container reboots do not reset the clock — cycle counting
+            #    would). The probe runs as a one-shot child invocation of
+            #    this same script (--probe-origin): single source of truth.
+            #    ALARM-ONLY — the watcher never installs (single-flow
+            #    doctrine); a newer origin tag alarms the worklog once per
+            #    unseen version.
+            #    CONSTRAINT: this block lives inside a single-quoted bash -c
+            #    string — NO single quotes allowed here (no awk programs, no
+            #    empty-string case patterns written with quotes); use cat +
+            #    parameter expansion instead.
+            ORIGIN_STATE="$ZDIR/.origin-probe.last"
+            O_NOW=$(date +%s)
+            O_LINE=""
+            [ -f "$ORIGIN_STATE" ] && O_LINE="$(cat "$ORIGIN_STATE" 2>/dev/null)"
+            O_LAST="${O_LINE%% *}"
+            case "$O_LAST" in ""|*[!0-9]*) O_LAST=0;; esac
+            if [ $((O_NOW - O_LAST)) -ge "$ORIGIN_INTERVAL" ] && [ -f "$ZDIR/watcher.sh" ]; then
+                wlog "origin release probe due -> watcher.sh --probe-origin"
+                bash "$ZDIR/watcher.sh" --probe-origin >> "$LOG" 2>&1
             fi
         done
     ' >/dev/null 2>&1 &

@@ -325,10 +325,17 @@ migration, just behind a release. Before v3.6.6, catching up waited for manual i
 since Task 67 (Activation rule 15), the protocol calls `scripts/update-skill.sh --ensure` at
 M0, after `bootstrap --ensure`, BEFORE the phases begin.
 
-**Trigger & debounce.** Invoked at every M0, but a full network check at most once per 24 hours
-(state in `.zscripts/.update-check.last`; `--force` bypasses, `--check` is a dry-run, `--status`
-is offline). The debounce keeps M0 cheap: most sessions get a one-line report without touching
-the network.
+**Trigger — always check.** Invoked at every M0 and the network check ALWAYS runs (the 24h
+debounce gate was removed in the 2026-09-28 always-check fix after it hid same-day releases
+behind a stale window — every M0 inside the window skipped the probe entirely, and the skip
+line read as the feature being broken). M0 stays cheap and offline-first: one anonymous
+`git ls-remote` (~2 s, 25 s timeout), and an unreachable origin is a one-line report with
+exit 0. `.zscripts/.update-check.last` remains as a record for `--status` (never a gate);
+`--force` is a compatibility alias, `--check` a dry-run. The runtime watcher (v2.1, duty 7)
+adds an independent background probe every ~24h — epoch-state-gated so container reboots do
+not reset the clock, offline-tolerant with a ~1h retry — that raises a one-line worklog alarm
+when the origin carries a NEWER release tag (once per unseen version, remediation = the
+install command). ALARM-ONLY: the watcher never installs.
 
 **Semantics: a VERIFIED override, not a blind pull.** Origin = GitHub hoshiyomiX/stellar-trail
 (D24 — the sole channel, public read, no PAT). The check: `git ls-remote` latest tag → staging
