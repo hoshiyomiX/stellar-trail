@@ -32,6 +32,17 @@
 #   (Consumer report from another sandbox, Installation & Explorer Report
 #   v3.6.1.)
 #
+# v1.4 (stellar-trail v3.6.8): PROCESS-FRESHNESS RESTART — sync_fresh (v1.2)
+#   repairs FILE drift vs the canonical copy, but on the first-hop upgrade
+#   path bootstrap syncs the .zscripts files BEFORE --ensure ever runs, so
+#   no drift is visible and the RUNNING PROCESS keeps serving the previous
+#   release's code (observed live: the explorer survived the v3.6.7
+#   first-hop untouched, pid unchanged). --ensure now also restarts a live
+#   server that predates the current deployed code: explorer.py NEWER than
+#   the pidfile (written at server start) -> restart, so new endpoints (e.g.
+#   /api/tasks) go live on upgrade instead of 404-ing until a manual
+#   restart. --status reports the process/code freshness too.
+#
 # COMMANDS:
 #   bash explorer.sh --ensure   # idempotent: refresh + start when needed
 #   bash explorer.sh --status   # health + freshness check + log tail
@@ -139,6 +150,14 @@ case "$1" in
         echo "fresh    : server=$FR_PY ui=$FR_UI (vs canonical)"
     fi
     echo "pid file : $(cat "$PIDFILE" 2>/dev/null || echo '-')"
+    # v1.4: process/code freshness (restart happens on the next --ensure)
+    if [ -f "$PIDFILE" ] && [ -f "$PY" ]; then
+        if [ "$PY" -nt "$PIDFILE" ]; then
+            echo "process : pid $(cat "$PIDFILE" 2>/dev/null) runs PRE-UPDATE code — restart pending (bash explorer.sh --ensure)"
+        else
+            echo "process : pid $(cat "$PIDFILE" 2>/dev/null) code current"
+        fi
+    fi
     echo "--- explorer.log (last 10) ---"
     tail -10 "$LOG" 2>/dev/null || echo "(empty)"
     exit 0
@@ -154,6 +173,17 @@ case "$1" in
     ;;
 --ensure | *)
     sync_fresh   # v1.2: freshness first — alive-but-stale also gets repaired
+    # v1.4: process freshness — the pidfile is (re)written at server start,
+    # so a deployed explorer.py NEWER than it means the running process
+    # predates the current code (e.g. bootstrap synced the files during a
+    # first-hop upgrade before --ensure ever ran) -> restart so new
+    # endpoints go live. Alive-but-stale is now repaired at the PROCESS
+    # level too, not just the file level.
+    if [ -f "$PIDFILE" ] && [ "$PY" -nt "$PIDFILE" ] && pgrep -f "$PY" >/dev/null 2>&1; then
+        echo "[$(date '+%F %T')] process-fresh: explorer.py newer than the running server -> restart" >> "$LOG"
+        pkill -f "$PY" 2>/dev/null
+        sleep 1
+    fi
     if alive; then exit 0; fi
     if [ -f "$PROJECT/package.json" ]; then
         echo "[explorer] package.json present -> Next.js owns :$PORT, explorer stand-down" >&2

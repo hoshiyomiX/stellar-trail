@@ -40,7 +40,6 @@
 #   - Idempotent: safe to run repeatedly (--ensure); writes only when
 #     content differs; NEVER overwrites memory/, worklog.md, or a dev.sh
 #     that bootstrap does not own.
-#   - Never touches installation identity metadata (_meta.json, .clawhub/).
 #
 # Usage:
 #   bash scripts/bootstrap-sandbox.sh                     # install core + report
@@ -100,14 +99,14 @@ done
 
 # ---------------------------------------------------------------------------
 # 2. PROJECT-ROOT DETECTION — walk up at most 6 levels, or --project-dir
-#    markers: skills/ · download/ · .zscripts/ · .clawhub/ · worklog.md · package.json
+#    markers: skills/ · download/ · .zscripts/ · worklog.md · package.json
 # ---------------------------------------------------------------------------
 find_project_root() {
     local d="$SKILL_ROOT"
     for _ in 1 2 3 4 5 6; do
         d="$(dirname "$d")"
         if [ -d "$d/skills" ] || [ -d "$d/download" ] || [ -d "$d/.zscripts" ] \
-           || [ -d "$d/.clawhub" ] || [ -f "$d/worklog.md" ] || [ -f "$d/package.json" ]; then
+           || [ -f "$d/worklog.md" ] || [ -f "$d/package.json" ]; then
             echo "$d"; return 0
         fi
         [ "$d" = "/" ] && break

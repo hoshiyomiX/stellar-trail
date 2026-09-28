@@ -70,13 +70,13 @@ The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sa
 
 ### Task Files Explorer (opt-in)
 
-`--with-explorer` also installs a built-in file browser — a stdlib Python server plus a Material 3 web UI (search with debounce, dynamic filter chips, column sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
+`--with-explorer` also installs a built-in file browser — a stdlib Python server plus an MD3 Expressive bento web UI (stat tiles, a multi-column file card grid, a Session Task list from `/api/tasks`, search with debounce, filter chips, sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
 
 ```bash
 bash skills/stellar-trail/assets/explorer/explorer.sh --ensure
 ```
 
-The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-executes from there, leaving the install tree untouched; the boot hook then revives it after resets. Day-to-day control is idempotent: `bash .zscripts/explorer.sh --status | --stop | --ensure`. It serves on port 3000 by default and stands down automatically when a Next.js dev server owns that port; the boot chain health-checks it via `/healthz` and restores a stale copy from the canonical tree.
+The launcher (v1.4 — auto-deploy + process-freshness restart) deploys itself into `<project>/.zscripts/` and re-executes from there, leaving the install tree untouched; the boot hook then revives it after resets. Day-to-day control is idempotent: `bash .zscripts/explorer.sh --status | --stop | --ensure`. It serves on port 3000 by default and stands down automatically when a Next.js dev server owns that port; the boot chain health-checks it via `/healthz` and restores a stale copy from the canonical tree.
 
 ## What it does
 
@@ -88,7 +88,7 @@ The launcher (v1.3) auto-deploys itself into `<project>/.zscripts/` and re-execu
 
 ```
 skills/stellar-trail/     the skill (installable) — ~470 KB installed
-  SKILL.md                protocol body (English, v3.6.7)
+  SKILL.md                protocol body (English, v3.6.8)
   skill-card.md           canonical version + manifest card
   references/             13 deep references: one per phase & per memory mechanism
   scripts/                6 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
@@ -99,7 +99,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v3.6.7** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.8** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

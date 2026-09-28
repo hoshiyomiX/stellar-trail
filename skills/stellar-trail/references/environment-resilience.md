@@ -74,10 +74,9 @@ L1 remains valuable for intra-boot freshness (repo.tar never >15 min stale) and 
 channel.
 
 **Two clawhub install-location conventions (finding 2026-09-19):** clawhub CLI ≥ 0.23.3 installs
-fresh as **owner-scoped**: `skills/@owner/stellar-trail` with lock key `@owner/stellar-trail`;
-installations from older-CLI eras may be flat: `skills/stellar-trail` with lock key
-`stellar-trail`. Since v3.5.2 the entire chain and the boot hook are **location-aware**: they
-find and handle BOTH layouts.
+fresh as **owner-scoped**: `skills/@owner/stellar-trail`; installations from older-CLI eras may
+be flat: `skills/stellar-trail`. Since v3.5.2 the entire chain and the boot hook are
+**location-aware**: they find and handle BOTH layouts.
 
 **Why there is no shadow-backup layer anymore (empirical lesson, removed in v3.3.0):** an
 earlier architecture generation shipped a rolling shadow backup (periodic project snapshots to a
@@ -249,7 +248,7 @@ mechanism AS IT WAS; see Appendix A.
 | **Task 39 → product** | Findings 37–38 carried into the product: `pin_report()` for all skills + `age_info()` healthy-but-old + labeled sources — suite 32/32, five layers aligned | Receipts became features, not just notes |
 | **Task 40 → v3.5.4** | Boot-heal downgraded 3.5.4 on the live install at session restart WITHOUT a lock sync (the walk-up canonical source worked in the field); the registry's "suspicious" verdict (class 3.0.0 — disclosed-but-overbroad) did NOT block latest promotion nor `update --force` | The multi-source chain was production-validated (era); a Review-level verdict = honestly disclosed protocol character, not a defect |
 | **Incident 2026-09-21 → v3.5.5** | 3 sessions of another project ZERO-compliance — caught only by a manual user audit; roots: description in the system prompt ≠ body loaded (the 2nd production confirmation of Activation rule 11's failure mode) + the continuation summary carried no activation trigger (RC2) + violations were invisible (RC3) | R1 worklog hook + R2 sentinel + R3 audit script + R4 imperative description (v3.5.5) — layered defenses OUTSIDE model discipline |
-| **Consumer incident 2026-09-22 → v3.5.7** | A container recycle restored `skills/` from a stale archive: flat 3.5.5→3.5.4 SILENTLY, the `@owner` directory gone, both vaults empty (the consumer never filled them), `heal --check` reported CLEAN (manifest-vs-itself; lock 3.5.5 was never compared); `clawhub update --force` succeeded but ONLY refreshed the owner-scoped copy; continuation activation failed (3rd production confirmation of rule 11) — report: upload/stellar-trail-feedback-issue.md §6.1–6.8 | Lock cross-check → verdict DOWNGRADED + exit ≠ 0 (out-of-band anchor); sibling-convention as a heal source; vault self-arm hint + version stamp; one-line re-arm; packaging version-consistency gate — all era mechanisms, superseded in v3.6.7 by the single-flow doctrine |
+| **Consumer incident 2026-09-22 → v3.5.7** | A container recycle restored `skills/` from a stale archive: flat 3.5.5→3.5.4 SILENTLY, the `@owner` directory gone, both vaults empty (the consumer never filled them), `heal --check` reported CLEAN (manifest-vs-itself); `clawhub update --force` succeeded but ONLY refreshed the owner-scoped copy; continuation activation failed (3rd production confirmation of rule 11) — report: upload/stellar-trail-feedback-issue.md §6.1–6.8 | Verdict DOWNGRADED + exit ≠ 0 on version drift (out-of-band cross-check); sibling-convention as a heal source; vault self-arm hint + version stamp; one-line re-arm; packaging version-consistency gate — all era mechanisms, superseded in v3.6.7 by the single-flow doctrine |
 | **Controlled drill 2026-09-22 → v3.5.7 (Task 43)** | The incident replicated end-to-end via a drill script (project-scope, not shipped; isolated sandbox, hermetic env): **Drill A** killing `explorer.py` → watcher auto-heal recovered it in **20 seconds** (target <60 s); **Drill B** stale-archive restore + fresh lock + ALL sources dead → verdict `DOWNGRADED` + **hard FAIL exit 1** + zero false-CLEAN claims (the incident's false-CLEAN closed), then a fresh owner-scoped sibling → labeled sibling heal → CLEAN zero drift — **14/14 assertions PASS**; **Drill C** injected drift into the deployed `explorer.py` → `--ensure` restored md5 from canonical + restarted the server + healthz ok. Side finding: `pgrep -f watcher.sh` = **false negative** (the watcher runs as an orphan inline `bash -c`, not matched by the pattern) — watcher status MUST be checked via `watcher.sh --status` (PIDFILE), never pgrep | The v3.5.7 mechanisms were field-proven-under-control (not just suite-tested): lock tripwire + sibling source + process auto-heal + deployment freshness sync — each with a reproducible receipt |
 | **3.5.7 release-flow defects (found post-submit, fixed in canonical)** | 1) `vault-sync.sh`: markdown backticks inside a double-quoted `README_BODY` string were executed by bash (stderr noise + the `<install-dir>` placeholder eaten) — fixed by escaping; 2) order discipline: canonical edits MUST be followed by `--manifest` before `--apply`/packaging; 3) a sed version-bump did not touch escaped regex patterns in the suite — 18 FAILs were all fixture bugs; 4) suite assertions depending on real environment state must be hermetic from the start | Suite +2 regression assertions (109/109); verify after EVERY edit, not only after batches |
 | **Platform post-reset audit 2026-09-22 22:28 UTC (Task 43, session 26)** | Container dead ~16 hours (since ~06:29 UTC) → boot 22:27:57; the platform archive restore brought yesterday's final state INTACT (tar preserves mtimes). A 6-hour audit window: **ZERO version rollback** — 3.5.7 survived on live flat + canonical + both vaults; lock 3.5.5 (out-of-band; disk ≥ lock = healthy, not DOWNGRADED); watcher + explorer rose automatically (new pids, healthz ok, `fresh` vs canonical ok); repo.tar refreshed at boot (2773 entries). The single finding: force boot-heal reported **FAIL — 1 corrupt** (`environment-resilience.md` vs manifest) — **not reset damage**: yesterday's final receipt edit (05:50:06) landed AFTER the final manifest (05:47:12) + package (05:47:35) + vault-sync, leaving the canonical manifest-inconsistent; the reset merely exposed it | Two lessons: (1) verification is mandatory AFTER every edit **including the last one** — yesterday's "everything aligned" checkpoint came from a pre-final-edit verification; (2) force-mode verification proved itself in the field (unplanned) as a manifest-lag catcher — its hard FAIL was CORRECT detection, not a false alarm |
@@ -284,7 +283,7 @@ Activation rule 14 at M0) · `--with-explorer` / `--with-snapshot` · `--status`
 is never overwritten without this flag).
 
 Discipline held: idempotent (writes only when content differs); NEVER overwrites `memory/`,
-`worklog.md`, or a foreign dev.sh; does not touch `.clawhub/`; the memory scaffold carries
+`worklog.md`, or a foreign dev.sh; the memory scaffold carries
 consent-pending status (SKILL.md 4b) — the first session must ask the user for confirmation
 before writing substantive state. v3.6.7 hardening (lifecycle-validated 16/16): the generated
 hook's restore step carries the no-downgrade version gate, and the generated hook itself is
@@ -342,9 +341,8 @@ healing — and copying an unverified source is not an upgrade.
 install command — `npx skills add hoshiyomiX/stellar-trail` — as step `[1/4]` of a verified
 override, then verifies the landed bytes against the manifest, swaps targets with per-target
 rollback backups (`.update-bak`), and finishes with canonical-first → live-last ordering per
-the section 8 doctrine (a crash anywhere converges the next boot to the NEW version). Install
-identity (`_meta.json`/`.clawhub/`) is never overwritten; the script copies itself to a temp
-file and re-execs from there before swapping (overwriting the directory a running script lives
+the section 8 doctrine (a crash anywhere converges the next boot to the NEW version). The
+script copies itself to a temp file and re-execs from there before swapping (overwriting the directory a running script lives
 in is undefined behavior); file modes normalize to 0644 (the package-wide exec-bit doctrine).
 
 **Offline = a report, not a block.** Network/git failure → a one-line report, exit 0 — M0 never
@@ -375,23 +373,21 @@ upgrade path, the repo owner's decision after the field report.
 > architecture verifies sources, refuses downgrades, and never repairs silently.
 
 `scripts/heal-skill.sh` (since v3.3.0; location-aware since v3.5.2) — self-healed THIS skill's
-installation at BOTH clawhub install-location conventions: flat `skills/stellar-trail` (lock key
-`stellar-trail`) and owner-scoped `skills/@owner/stellar-trail` (lock key
-`@owner/stellar-trail` — clawhub CLI ≥ 0.23.3 installs fresh installs there). SHA-256 manifest
+installation at BOTH clawhub install-location conventions: flat `skills/stellar-trail` and
+owner-scoped `skills/@owner/stellar-trail` (clawhub CLI ≥ 0.23.3 installs fresh installs
+there). SHA-256 manifest
 verification (`assets/integrity.sha256`) + release-version cross-check; multi-source repair
 with a multi-level walk-up from the skill's location → class-A vault (v3.5.4) → the restore
-archive matching the actual layout → a `clawhub update <lock-key> --force` hint reading the
-ACTUAL lock key from `.clawhub/lock.json` (never hardcoded). clawhub install identity was never
-overwritten; `_meta.json`/`origin.json` were recreated when a boot wiped the install entirely.
-No manifest AND no source = hard FAIL exit 1. Since v3.5.3: pin-state reporting for ALL skills
-in `.clawhub/lock.json` (pinned = WARN — it blocks that skill's update/install and makes
-`update --all` skip it SILENTLY), a healthy-but-old info line, labeled heal sources
+archive matching the actual layout → a `clawhub update --force` reinstall hint. clawhub install
+identity was never overwritten; `_meta.json`/`origin.json` were recreated when a boot wiped the
+install entirely. No manifest AND no source = hard FAIL exit 1. Since v3.5.3: pin-state
+reporting for ALL installed skills (pinned = WARN — it blocks that skill's update/install and
+makes `update --all` skip it SILENTLY), a healthy-but-old info line, labeled heal sources
 (env/walk-up-N/platform/archive). Since v3.5.4: the class-A vault (`/home/sync/skill-vault` +
 `upload/skill-vault`, filled by `scripts/vault-sync.sh`) joined the chain — version-based
-source selection + an anti-overwrite-newer version assert. Since v3.5.7: the clawhub lock
-cross-check (skill version in lock vs disk: lock > disk = verdict `DOWNGRADED` + update hint;
-still < lock after healing = FAIL exit 1 — the 2026-09-22 consumer incident), the
-sibling-convention source (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail` as mutual
+source selection + an anti-overwrite-newer version assert. Since v3.5.7: an out-of-band version
+cross-check (recorded release newer than disk = verdict `DOWNGRADED` + update hint; still behind
+after healing = FAIL exit 1 — the 2026-09-22 consumer incident), the sibling-convention source (`skills/stellar-trail` ↔ `skills/@owner/stellar-trail` as mutual
 candidates), the vault self-arm hint. Since v3.5.8: source self-verify — a source candidate
 carrying a manifest had to pass its own internal verification before selection; poisoned
 sources (the 2026-09-22 post-reset boot-heal incident) were SKIPPED; all-eligible-candidates-

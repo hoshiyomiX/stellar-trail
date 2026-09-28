@@ -52,20 +52,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 ID response:
 
-## 🌠 stellar-trail v3.6.7 — protokol aktif
+## 🌠 stellar-trail v3.6.8 — protokol aktif
 ## 🌠 FASE n — LABEL
 phase content on the lines below the marker
 [MEMORY | LABEL] short content
 
 EN response (banner & phase labels in English):
 
-## 🌠 stellar-trail v3.6.7 — protocol active
+## 🌠 stellar-trail v3.6.8 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEMORY | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first phase marker, on every response that carries phase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.7) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/update-skill.sh --ensure` or re-run the single install command `npx skills add hoshiyomiX/stellar-trail` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first phase marker, on every response that carries phase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.8) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/update-skill.sh --ensure` or re-run the single install command `npx skills add hoshiyomiX/stellar-trail` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -430,7 +430,7 @@ Read the matching reference file when you need depth (English rules + rationale 
 
 **Bundled scripts (deterministic):**
 - `scripts/bootstrap-sandbox.sh` — ONE command to arm the persistence layer for reset-prone sandboxes (seeds the canonical `download/stellar-trail/` + installs the `.zscripts/dev.sh` boot hook + worklog R1 seed + memory/ scaffolding; modular `--with-explorer` / `--with-snapshot`; idempotent; self-locating; offline; invoked by Activation rule 14 at M0 — guide: `references/environment-resilience.md` section 7). v3.6.7 hardening: the generated hook's skill restore carries a no-downgrade version gate, and the hook itself is syntax-checked (`bash -n`) at generation time — a heredoc typo dies at generation, never inside `/start.sh` at next boot.
-- `scripts/update-skill.sh` — pre-phase auto-update + single-flow installer wrapper (invoked by Activation rule 15 at M0, after bootstrap): `--ensure` 24h debounce · `--force` bypass · `--check` dry-run · `--status` offline; source = the sole GitHub origin (D24, public read, no PAT); on a newer origin it force-updates by running THE single install command (`npx skills add hoshiyomiX/stellar-trail`) as a verified override: staging clone --depth 1 → full SHA-256 manifest verification → tag≡content assert (anti-poisoning) → anti-downgrade → canonical swap FIRST → live install LAST (section 8 order of environment-resilience.md) → watcher restart → bootstrap `--ensure --with-explorer --with-snapshot` (post-install module arming; env override `STELLAR_UPDATE_BOOTSTRAP_ARGS`); install identities (`_meta.json`/`.clawhub/`) are never overwritten; offline = report, exit 0 (M0 is never blocked by the network); every installation step is printed to stdout
+- `scripts/update-skill.sh` — pre-phase auto-update + single-flow installer wrapper (invoked by Activation rule 15 at M0, after bootstrap): `--ensure` 24h debounce · `--force` bypass · `--check` dry-run · `--status` offline; source = the sole GitHub origin (D24, public read, no PAT); on a newer origin it force-updates by running THE single install command (`npx skills add hoshiyomiX/stellar-trail`) as a verified override: staging clone --depth 1 → full SHA-256 manifest verification → tag≡content assert (anti-poisoning) → anti-downgrade → canonical swap FIRST → live install LAST (section 8 order of environment-resilience.md) → watcher restart → bootstrap `--ensure --with-explorer --with-snapshot` (post-install module arming; env override `STELLAR_UPDATE_BOOTSTRAP_ARGS`); offline = report, exit 0 (M0 is never blocked by the network); every installation step is printed to stdout
 - `scripts/watcher.sh` — runtime watchdog daemon v2.0 (deployed by bootstrap to `.zscripts/`, started by dev.sh at every boot + per-session M0): 30-second loop — download/ change trigger; explorer health + auto-restart; release-file guard (`skill-card.md` + `assets/integrity.sha256`: existence + version freshness vs `integrity.version`, LOCAL-ONLY restore from a healthy same-version install — no vault, no network); verify-only integrity check ~every 10 minutes (alarm + install-command hint, no silent repair); archive refresh ~every 15 minutes; compliance sentinel (alarm when the worklog grows without an M1 checkpoint); `--ensure/--status/--stop` contract + PIDFILE (read by the explorer guardian)
 - `scripts/enforce-gates.sh` — terminal-track enforcement (artifact, lint, check-skill, check-worklog); see section 8b for the full mapping
 - `scripts/audit-compliance.sh` — protocol compliance audit from OUTSIDE the model (R3, v3.5.5): Active-table hygiene (H2), SESSION-STATE vs worklog staleness, installed-vs-canonical version sanity, R1 hook at the worklog tail; PASS/WARN/FAIL verdict + exit code — the user's self-audit tool (incident report 2026-09-21: three sessions of silent non-compliance were only caught by a manual audit)
@@ -439,7 +439,7 @@ Read the matching reference file when you need depth (English rules + rationale 
 **Exec-bit note (since v3.2.0):** files delivered by the skills CLI come without the exec bit (0644) — platform security normalization, not a defect, and it resets on every update. That is why every protocol invocation takes the form `bash scripts/<name>.sh` / `python3 <name>.py` (exec-bit-independent by design); `chmod +x` is optional cosmetic parity only.
 
 **Bundled assets (built-in tools, opt-in — since v3.1.0):**
-- `assets/explorer/` — Task Files Explorer (explorer.py stdlib server + MD3-style dashboard UI: debounced search, dynamic filter chips, column sort, copy-path, adaptive theme, chunked lazy render; + launcher + legacy dev.sh template): the functional replacement for the "All files in task" popup, live on the preview URL via ingress; opt-in & consent-gated, Next.js guard; full guide: `references/task-files-explorer.md`
+- `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.3 + MD3 Expressive bento UI v5.0: stat tiles, multi-column file card grid, Session Task list from `/api/tasks`; debounced search, filter chips, sort, copy-path, adaptive theme, chunked lazy render; + launcher with process-freshness restart + legacy dev.sh template): the functional replacement for the "All files in task" popup, live on the preview URL via ingress; opt-in & consent-gated, Next.js guard; full guide: `references/task-files-explorer.md`
 
 **Part III — wiring:**
 - `references/integration.md` — interlock deep-dive, Task ID continuity, worklog ledger, edge cases
@@ -456,7 +456,7 @@ ACTIVATION (first turn of every session):
 
 EXECUTION (per turn — banner first, then markers as sub-headings,
 content on the lines below):
-## 🌠 stellar-trail v3.6.7 — protocol active
+## 🌠 stellar-trail v3.6.8 — protocol active
 ## 🌠 PHASE 1 — CLASSIFICATION
 Type __ · language __ · complexity __
 ## 🌠 PHASE 2 — CLARIFICATION

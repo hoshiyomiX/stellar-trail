@@ -1,7 +1,8 @@
 # Task Files Explorer (Built-in Asset) — Deploy & Operations Reference
 
-> A stellar-trail built-in asset since v3.1.0 (server v1.2; UI v2.2 since v3.3.0, UI v3.0
-> since v3.5.4, UI v4.0 Dashboard since v3.6.6, English UI since v3.6.7).
+> A stellar-trail built-in asset since v3.1.0 (server v1.3; UI v2.2 since v3.3.0, UI v3.0
+> since v3.5.4, UI v4.0 Dashboard since v3.6.6, English UI since v3.6.7, UI v5.0 Expressive
+> since v3.6.8).
 > The explorer is an **optional & opt-in tool** — not part of the protocol mandate.
 > It functionally replaces the platform's "All files in task" popup with a custom page
 > on the preview URL.
@@ -38,9 +39,9 @@ Key facts:
 
 | File | Role |
 |------|-------|
-| `explorer.py` | Python stdlib server v1.2 (ThreadingHTTPServer); /api/files walk depth-4, task parsing from worklog.md, **skill guardian block** (stellar-trail version + watcher status — the retired heal marker was dropped in v3.6.7), serves files with a realpath guard (only inside ROOTS) plus **`?dl=1`** for attachment mode (forced download); PIDFILE; env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
-| `explorer.sh` | Launcher --ensure/--status/--stop; Next.js guard (package.json wins); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — when run from the install tree (`skills/stellar-trail/assets/explorer/`), the launcher detects the layout, copies itself to `<root>/.zscripts/`, then re-execs from there (PID/log always in .zscripts/, the install tree stays drift-free; anti-loop via env guard + layout detection) |
-| `explorer-ui/index.html` | **Dashboard UI v4.0** (since v3.6.6: category sidebar + stat cards + file table; **adaptive** dark/light theme — follows `prefers-color-scheme` + persistent toggle; zero-dependency; `lang="en"` since v3.6.7; size budget <45 KB from the 69 KB v3.0) — core features: 200 ms debounced live search, dynamic category filter, per-row copy-path + toast; table-header sort (name/size/time) and chunked render kept simple; the Guardian card is integrated into the stat card row; details in section 5d |
+| `explorer.py` | Python stdlib server v1.3 (ThreadingHTTPServer); /api/files walk depth-4, task parsing from worklog.md, **skill guardian block** (stellar-trail version + watcher status; since v1.3 it reads `assets/integrity.version` directly — the registry `_meta.json` fallback was dropped with the lock-anchor purge), **GET /api/tasks — the Session Task list** parsed from `memory/SESSION-STATE.md` (Active + Sealed tables + the checkpoint line; missing file = empty structure, never an error); serves files with a realpath guard (only inside ROOTS) plus **`?dl=1`** for attachment mode (forced download); PIDFILE; env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
+| `explorer.sh` | Launcher --ensure/--status/--stop; Next.js guard (package.json wins); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — when run from the install tree (`skills/stellar-trail/assets/explorer/`), the launcher detects the layout, copies itself to `<root>/.zscripts/`, then re-execs from there (PID/log always in .zscripts/, the install tree stays drift-free; anti-loop via env guard + layout detection); **v1.4 (v3.6.8): PROCESS-FRESHNESS RESTART** — `--ensure` also restarts a live server that predates the current deployed code (explorer.py newer than the pidfile written at server start), so new endpoints go live on upgrade instead of 404-ing until a manual restart; `--status` reports the process/code freshness |
+| `explorer-ui/index.html` | **Expressive UI v5.0** (since v3.6.8: MD3 Expressive bento — stat-tile row, multi-column file card grid, Session Task list from `/api/tasks`; 20–28 dp shapes, springy motion, staggered entrances, reduced-motion opt-out; adaptive dark/light theme, zero-dependency, `lang="en"`) — v4.0 Dashboard since v3.6.6; core features: 200 ms debounced live search, dynamic category filter chips, segmented sort (name/size/time), per-card copy-path + toast, preview dialog with `?dl=1`, chunked render; details in sections 5d–5e |
 | `dev.sh.template` | Legacy v2 boot-hook template: tidy download/ -> archive/, fullstack guard, ensure watcher + explorer, periodic repo.tar refresh. Superseded by the bootstrap-generated dev.sh (which adds the cache-replay skill restore with the version gate); kept as reference — see the template header note |
 
 ## 3. Deploy Steps
@@ -178,6 +179,30 @@ at all; zero-dependency and the adaptive theme remain.
 - **Double size win**: visual (a calmer viewport — the table hierarchy replaces the dense
   card grid) and file size (<45 KB via the complexity trims above).
 
+## 5e. UI v5.0 Features — MD3 Expressive Bento (explorer-ui/index.html, since v3.6.8)
+
+A full visual refactor to Material Design 3 **Expressive**: the dashboard becomes a bento of
+expressive tiles, a multi-column card grid, and a Session Task column. Client-side features
+carry over from v4.0 (search debounce, filter, sort, copy-path, preview, chunked render,
+adaptive theme, 10 s polling, focus refresh); the API contract grows ONE endpoint
+(`/api/tasks` — explorer.py v1.3).
+
+- **Bento layout**: a stat-TILE row (Files, Aggregate size, Active tasks, Sealed tasks,
+  Guardian) with per-tile tonal color pairs and 34 px display numerals · the file inventory as
+  a responsive multi-column CARD grid (badge, task chip, name, breadcrumb, size · time;
+  copy-path + preview buttons revealed on hover/focus) · a sticky **Session Task column** fed
+  by `/api/tasks`: checkpoint line, ACTIVE task cards (ID, status chip, phase, description,
+  updated), SEALED history rows (outcome, date, artifact — one-click preview when the
+  artifact resolves to a served file).
+- **Expressive styling**: 20–28 dp corner radii with radius-morph tile hover, springy
+  hover/press motion (overshoot easing), staggered card entrances (capped), a bold display
+  type scale, and a `prefers-reduced-motion` opt-out.
+- **Adaptive theme kept**: follows `prefers-color-scheme` until a manual choice persists in
+  localStorage; both tonal palettes (light + dark) are MD3 Expressive tonal pairs.
+- **Data loop**: `/api/files` + `/api/tasks` fetched in parallel; re-render is hashed on the
+  data-bearing fields only (the volatile `generated`/`server` fields no longer force a
+  re-render every poll — a v4.0 inefficiency fixed here).
+
 ## 6. Control Commands
 
 ```
@@ -217,5 +242,12 @@ auto-heal recovered it in 20 seconds; (C) drift was injected into the deployed
 three copies (`.zscripts/`, canonical, live install) verified identical. The consumer
 pattern is unaffected: a consumer's explorer runs DIRECTLY from its install directory —
 file freshness follows the skill version, guarded by the watcher's verify-only integrity
-check and the M0 version sanity alarm (since v3.6.7; the era mechanism was the retired
-heal-skill lock cross-check).
+check and the M0 version sanity alarm (since v3.6.7; the era mechanism was retired with the
+repair chain).
+
+**v1.4 addition — process freshness (v3.6.8):** file freshness alone was not enough. On the
+first-hop upgrade path bootstrap syncs the `.zscripts` files BEFORE `--ensure` ever runs, so
+`sync_fresh` sees no drift while the RUNNING PROCESS still serves the previous release's code
+(observed live: the explorer survived the v3.6.7 first-hop untouched, pid unchanged). Since
+v1.4, `--ensure` also restarts a live server whose deployed `explorer.py` is newer than the
+pidfile written at server start — the process, not just the files, now follows the release.

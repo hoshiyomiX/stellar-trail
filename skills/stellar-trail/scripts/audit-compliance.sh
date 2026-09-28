@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # audit-compliance.sh — external protocol compliance audit for stellar-trail
-# stellar-trail v3.6.7 · 2026-09-27
+# stellar-trail v3.6.8 · 2026-09-28
 #
 # WHY THIS EXISTS: protocol violations stay silent because a response without
 #   phase markers raises no error anywhere. This script gives the user one
@@ -20,8 +20,8 @@
 #                            SESSION-STATE.md has not been rewritten for over
 #                            30 minutes — the signature of a missing checkpoint
 #   version-sanity           every installed copy reports the same version as
-#                            the canonical snapshot and the skills lock file —
-#                            drift means a stale or damaged installation
+#                            the canonical snapshot — drift means a stale or
+#                            damaged installation
 #   worklog-activation-hook  the activation hook line is present at the tail
 #                            of the worklog (keeps the activation chain alive
 #                            across resets)
@@ -98,25 +98,20 @@ if [ -f "$SS" ] && [ -f "$WL" ]; then
 fi
 
 # --- version-sanity ----------------------------------------------------------
-LOCK="$ROOT/.clawhub/lock.json"
-CANON_VER="$(cat "$ROOT/download/stellar-trail/assets/integrity.version" 2>/dev/null || echo '')"
-[ -n "$CANON_VER" ] || CANON_VER="(no canonical snapshot)"
+# v3.6.8: the registry lock anchor is fully retired — every installed copy is now compared against the canonical snapshot
+#   (download/stellar-trail), the one out-of-band reference the GitHub
+#   install path has always had. (The pre-v3.6.8 code read the lock file but
+#   never actually used CANON_VER — the canonical comparison the header
+#   always claimed became real in this version.)
+CANON_VER="$(cat "$ROOT/download/stellar-trail/assets/integrity.version" 2>/dev/null || true)"
 for CAND in "$ROOT/skills/stellar-trail" "$ROOT"/skills/@*/stellar-trail; do
     [ -d "$CAND" ] || continue
     IV="$(cat "$CAND/assets/integrity.version" 2>/dev/null || echo '?')"
     KEY="$(basename "$(dirname "$CAND")")/$(basename "$CAND")"; [ "$KEY" = "skills/stellar-trail" ] && KEY="stellar-trail"
-    LV="$(python3 -c "import json,sys
-try:
-    d=json.load(open('$LOCK'))
-    v=d.get('skills',{}).get('$KEY',{}).get('version','?')
-    if v=='?':
-        k=[x for x in d.get('skills',{}) if x.endswith('stellar-trail')]
-        v=d.get('skills',{}).get(k[0],{}).get('version','?') if k else '?'
-    print(v)
-except Exception: print('?')" 2>/dev/null || echo '?')"
     if [ "$IV" = "?" ]; then res WARN "version-sanity ($KEY)" "integrity.version unreadable in $CAND"
-    elif [ "$IV" != "$LV" ]; then res WARN "version-sanity ($KEY)" "installed $IV != lock $LV — re-run the install command: npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y"
-    else res PASS "version-sanity ($KEY)" "installed $IV = lock $LV"
+    elif [ -z "$CANON_VER" ]; then res WARN "version-sanity ($KEY)" "no canonical snapshot to compare against — run: bash scripts/bootstrap-sandbox.sh"
+    elif [ "$IV" != "$CANON_VER" ]; then res WARN "version-sanity ($KEY)" "installed $IV != canonical $CANON_VER — re-run the install command: npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y"
+    else res PASS "version-sanity ($KEY)" "installed $IV = canonical $CANON_VER"
     fi
 done
 

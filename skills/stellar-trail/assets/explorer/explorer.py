@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer v1.2 (final server, preview-popup replacement)
+explorer.py — Task Files Explorer v1.3 (final server, preview-popup replacement)
 =========================================================================
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
+
+v1.3 (stellar-trail v3.6.8): GET /api/tasks — the Session Task list parsed
+    from memory/SESSION-STATE.md (the protocol's single source of truth for
+    task state): Active + Sealed tables + the checkpoint line; a missing
+    file is an empty structure, never an error. The guardian block now
+    reads assets/integrity.version directly (the registry _meta.json
+    fallback was dropped together with the lock-anchor purge).
 
 v1.2 (stellar-trail v3.6.7): English strings + the guardian block now
     reflects the single-flow architecture (the retired heal marker is gone;
@@ -15,6 +22,10 @@ Endpoints:
   GET /api/files             JSON: download/ + archive/ inventory, stats,
                              the task list parsed from worklog.md, and the
                              skill block (stellar-trail version, watcher)
+  GET /api/tasks             JSON: the Session Task list parsed from
+                             memory/SESSION-STATE.md (Active + Sealed
+                             tables + checkpoint line; missing file =
+                             empty structure, never an error)
   GET /file/<label>/<rel>    raw file (path guard: only inside ROOTS);
                              add ?dl=1 to send it as an ATTACHMENT
                              (forced download via Content-Disposition: attachment)
@@ -36,6 +47,7 @@ ZDIR = os.path.join(PROJECT, ".zscripts")
 UI = os.path.join(ZDIR, "explorer-ui", "index.html")
 PIDFILE = os.path.join(ZDIR, "explorer.pid")
 WORKLOG = os.path.join(PROJECT, "worklog.md")
+SESSION_STATE = os.path.join(PROJECT, "memory", "SESSION-STATE.md")
 
 # label -> absolute path (the label is used in /file/<label>/... URLs)
 ROOTS = [
@@ -157,25 +169,18 @@ def parse_tasks(roots):
 
 def skill_info():
     """Guardian block: installed stellar-trail version + watcher status.
-    All reads are best-effort — a missing skill is not an explorer error."""
+    All reads are best-effort — a missing skill is not an explorer error.
+    v1.3: assets/integrity.version is the only version source (the registry
+    _meta.json fallback was dropped with the lock-anchor purge — the GitHub
+    single-flow install never creates that file anyway)."""
     info = {"installed": os.path.isdir(SKILL_DIR)}
     if not info["installed"]:
         return info
     try:
-        with open(os.path.join(SKILL_DIR, "_meta.json"), encoding="utf-8") as f:
-            info["version"] = json.load(f).get("version")
-    except (OSError, ValueError):
+        with open(os.path.join(SKILL_DIR, "assets", "integrity.version"), encoding="utf-8") as f:
+            info["version"] = f.read().strip() or None
+    except OSError:
         info["version"] = None
-    if info.get("version") is None:
-        # v1.2 (v3.6.3, Task 62): non-registry installs (npx/git) do not
-        # carry _meta.json — the guardian used to report version:null even
-        # though assets/integrity.version exists in the tree (consumer
-        # report T46 F6).
-        try:
-            with open(os.path.join(SKILL_DIR, "assets", "integrity.version"), encoding="utf-8") as f:
-                info["version"] = f.read().strip() or None
-        except OSError:
-            pass
     alive = False
     try:
         with open(WATCHER_PID, encoding="utf-8") as f:
@@ -185,6 +190,75 @@ def skill_info():
         pass
     info["watcher_alive"] = alive
     return info
+
+
+def _md_section(text, title):
+    """Body of the '## <title>' section (up to the next '## ' heading)."""
+    m = re.search(r"^##\s+" + re.escape(title) + r"\s*$", text, re.M)
+    if not m:
+        return ""
+    rest = text[m.end():]
+    nxt = re.search(r"^##\s+", rest, re.M)
+    return rest[:nxt.start()] if nxt else rest
+
+
+def _md_table_rows(section_text):
+    """Markdown table rows -> (headers, list of row dicts). Separator rows
+    are filtered; anything not starting with '|' is ignored."""
+    lines = [l.strip() for l in section_text.splitlines() if l.strip().startswith("|")]
+    if not lines:
+        return [], []
+    header = [c.strip() for c in lines[0].strip("|").split("|")]
+    rows = []
+    for l in lines[1:]:
+        if re.match(r"^\|[\s:|-]+\|$", l):
+            continue  # |---|---| separator
+        cells = [c.strip() for c in l.strip("|").split("|")]
+        rows.append({header[i]: (cells[i] if i < len(cells) else "") for i in range(len(header))})
+    return header, rows
+
+
+def session_tasks():
+    """Session Task list (v1.3): parse memory/SESSION-STATE.md — the
+    protocol's single source of truth for task state — into Active and
+    Sealed card structures plus the checkpoint line. A missing or
+    unreadable file yields an empty structure, never an error."""
+    out = {"source": "memory/SESSION-STATE.md", "present": False, "checkpoint": "",
+           "active": [], "sealed": [], "counts": {"active": 0, "sealed": 0}}
+    try:
+        with open(SESSION_STATE, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return out
+    out["present"] = True
+    cp = re.search(r"Checkpoint at:\s*([^\n]+)", text)  # tolerant: the marker
+    if cp:                                             # may sit inside a longer quote line
+        out["checkpoint"] = cp.group(1).strip()[:300]
+    _, arows = _md_table_rows(_md_section(text, "Active Tasks"))
+    for r in arows:
+        tid = r.get("Task ID", "")
+        if not tid or tid.startswith("("):  # placeholder rows like "(none — inbox empty)"
+            continue
+        out["active"].append({
+            "id": tid,
+            "desc": r.get("Description", "")[:400],
+            "phase": r.get("Phase", ""),
+            "status": r.get("Status", ""),
+            "updated": r.get("Updated", ""),
+        })
+    _, srows = _md_table_rows(_md_section(text, "Sealed Tasks"))
+    for r in srows:
+        tid = r.get("Task ID", "")
+        if not tid or tid.startswith("("):
+            continue
+        out["sealed"].append({
+            "id": tid,
+            "outcome": r.get("Outcome (one line)", "")[:300],
+            "artifact": r.get("Artifact", "")[:200],
+            "sealed": r.get("Sealed", ""),
+        })
+    out["counts"] = {"active": len(out["active"]), "sealed": len(out["sealed"])}
+    return out
 
 
 def build_api():
@@ -269,6 +343,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/files":
             self._send(200, json.dumps(build_api(), ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+        if path == "/api/tasks":
+            self._send(200, json.dumps(session_tasks(), ensure_ascii=False),
                        "application/json; charset=utf-8")
             return
         if path.startswith("/file/"):
