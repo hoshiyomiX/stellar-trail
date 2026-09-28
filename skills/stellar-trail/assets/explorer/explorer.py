@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer v1.3 (final server, preview-popup replacement)
+explorer.py — Task Files Explorer v1.4 (final server, preview-popup replacement)
 =========================================================================
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
+
+v1.4 (stellar-trail v3.6.9): CODE STAMP + GUARD/RESETS API — at startup the
+    server writes .zscripts/explorer.code-stamp (md5 of its own source);
+    /api/files gains a "guard" block (live vs canonical version, watcher
+    liveness, and THIS process's code freshness — stamp vs the deployed
+    source, the same content-exact check explorer.sh v1.5 uses) and a
+    "resets" block (session resets + restore counters parsed from
+    .zscripts/boot.log and .zscripts/explorer.log: dev.sh boots, skill
+    restores from the canonical snapshot, repo-snap auto-applies, explorer
+    restarts). Together they feed the UI v5.1 hero dual tiles (Guard
+    Status + Session Reset & Restore). Missing logs = empty counters,
+    never an error.
 
 v1.3 (stellar-trail v3.6.8): GET /api/tasks — the Session Task list parsed
     from memory/SESSION-STATE.md (the protocol's single source of truth for
@@ -34,6 +46,7 @@ Endpoints:
 Run as a double-fork orphan by explorer.sh (PPID=1, setsid) so it survives
 the per-tool-call process cleanup. Binds 127.0.0.1 only.
 """
+import hashlib
 import json
 import os
 import re
@@ -46,6 +59,7 @@ PROJECT = os.environ.get("STELLAR_PROJECT", "/home/z/my-project")
 ZDIR = os.path.join(PROJECT, ".zscripts")
 UI = os.path.join(ZDIR, "explorer-ui", "index.html")
 PIDFILE = os.path.join(ZDIR, "explorer.pid")
+STAMP = os.path.join(ZDIR, "explorer.code-stamp")  # v1.4: md5 of the RUNNING server's source
 WORKLOG = os.path.join(PROJECT, "worklog.md")
 SESSION_STATE = os.path.join(PROJECT, "memory", "SESSION-STATE.md")
 
@@ -192,6 +206,113 @@ def skill_info():
     return info
 
 
+def _code_md5():
+    """md5 of THIS server's source file (the deployed explorer.py)."""
+    try:
+        with open(__file__, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except OSError:
+        return ""
+
+
+def _stamp_current():
+    """v1.4: True when THIS process runs the deployed explorer.py —
+    md5(startup stamp) == md5(current source). False means the file changed
+    after this process started: a restart is pending (explorer.sh --ensure
+    performs it; the UI shows it on the Guard Status tile)."""
+    try:
+        with open(STAMP, encoding="utf-8") as f:
+            stamp = f.read().split()[0]
+        return bool(stamp) and stamp == _code_md5()
+    except (OSError, IndexError):
+        return False
+
+
+def guard_info():
+    """v1.4: 'Guard Status' tile data — live vs canonical skill version,
+    watcher liveness, this server's code freshness, port mode. All reads
+    best-effort; a partial environment yields partial status, never an
+    error."""
+    live_v = None
+    try:
+        with open(os.path.join(SKILL_DIR, "assets", "integrity.version"), encoding="utf-8") as f:
+            live_v = f.read().strip() or None
+    except OSError:
+        pass
+    canon_v = None
+    try:
+        with open(os.path.join(PROJECT, "download", "stellar-trail", "assets", "integrity.version"),
+                  encoding="utf-8") as f:
+            canon_v = f.read().strip() or None
+    except OSError:
+        pass
+    watcher_alive = False
+    watcher_pid = None
+    try:
+        with open(WATCHER_PID, encoding="utf-8") as f:
+            watcher_pid = int(f.read().strip())
+        os.kill(watcher_pid, 0)
+        watcher_alive = True
+    except (OSError, ValueError):
+        watcher_pid = None
+    return {
+        "installed": os.path.isdir(SKILL_DIR),
+        "live_version": live_v,
+        "canonical_version": canon_v,
+        "canonical_present": canon_v is not None,
+        "in_sync": live_v is not None and live_v == canon_v,
+        "watcher_alive": watcher_alive,
+        "watcher_pid": watcher_pid,
+        "explorer_code_current": _stamp_current(),
+        "standdown": os.path.isfile(os.path.join(PROJECT, "package.json")),
+    }
+
+
+def _scan_log(path, patterns):
+    """v1.4 helper: count regex matches per key + keep the LAST timestamp.
+    Log lines carry '[YYYY-MM-DD HH:MM:S]'; the capture group grabs it. The
+    last 1 MB is scanned — rare events (boots/restores) stay fully covered
+    for years while a pathological log cannot grow the parse cost."""
+    out = {k: {"count": 0, "last": None, "last_epoch": None} for k in patterns}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            text = f.read()[-1048576:]
+    except OSError:
+        return out
+    for key, pat in patterns.items():
+        hits = re.findall(pat, text)
+        if hits:
+            out[key]["count"] = len(hits)
+            out[key]["last"] = hits[-1]
+            try:
+                out[key]["last_epoch"] = time.mktime(
+                    time.strptime(hits[-1], "%Y-%m-%d %H:%M:%S"))
+            except ValueError:
+                pass
+    return out
+
+
+def reset_restore_info():
+    """v1.4: 'Session Reset & Restore' tile data — session resets (dev.sh
+    boots) + restore/restart counters, parsed from the persistence-layer
+    ledger logs. 'SKILL RESTORE: ... restored from the canonical snapshot'
+    counts real restores only — the version-gate 'skip (no downgrades)'
+    lines are NOT restores. Missing/unreadable logs = empty counters."""
+    ts = r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"
+    boot = _scan_log(os.path.join(ZDIR, "boot.log"), {
+        "boots": r"\[%s\] dev\.sh \(bootstrap\) start" % ts,
+        "skill_restores": r"\[%s\] SKILL RESTORE: [^\n]*restored from the canonical snapshot" % ts,
+        "archive_applies": r"\[%s\] \[repo-snap\] auto-apply #\d+ success" % ts,
+    })
+    exp = _scan_log(os.path.join(ZDIR, "explorer.log"), {
+        "explorer_restarts": r"\[%s\] explorer\.sh start" % ts,
+        "freshness_restarts": r"\[%s\] process-fresh: [^\n]*restart" % ts,
+        "heal_restarts": r"\[%s\] heal: [^\n]*restart" % ts,
+        "sync_refreshes": r"\[%s\] sync-fresh: [^\n]*refreshed" % ts,
+    })
+    return {"boot": boot, "explorer": exp}
+
+
 def _md_section(text, title):
     """Body of the '## <title>' section (up to the next '## ' heading)."""
     m = re.search(r"^##\s+" + re.escape(title) + r"\s*$", text, re.M)
@@ -288,7 +409,9 @@ def build_api():
         },
         "roots": roots,
         "tasks": tasks,
-        "skill": skill_info(),
+        "skill": skill_info(),   # v1.3 compat (kept); the UI tiles read "guard"
+        "guard": guard_info(),   # v1.4: Guard Status tile
+        "resets": reset_restore_info(),  # v1.4: Session Reset & Restore tile
     }
 
 
@@ -391,6 +514,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     with open(PIDFILE, "w") as f:
         f.write(str(os.getpid()))
+    with open(STAMP, "w") as f:  # v1.4: content-exact freshness anchor
+        f.write(_code_md5() + "\n")      # (explorer.sh --ensure compares this)
     print("[explorer] START pid %s bind %s:%d ui %s"
           % (os.getpid(), BIND, PORT, UI), flush=True)
     try:
@@ -398,7 +523,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            os.remove(PIDFILE)
-        except OSError:
-            pass
+        for _f in (PIDFILE, STAMP):
+            try:
+                os.remove(_f)
+            except OSError:
+                pass

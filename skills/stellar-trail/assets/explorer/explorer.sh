@@ -43,6 +43,25 @@
 #   /api/tasks) go live on upgrade instead of 404-ing until a manual
 #   restart. --status reports the process/code freshness too.
 #
+# v1.5 (stellar-trail v3.6.9): FRESHNESS DONE RIGHT — audit findings fixed:
+#   (1) CONTENT STAMP replaces the mtime heuristic: explorer.py writes
+#       .zscripts/explorer.code-stamp (md5 of its own source) at startup;
+#       --ensure compares md5(deployed explorer.py) vs the stamp — content-
+#       exact, no same-second ambiguity, no cp -p mtime semantics through
+#       the deploy chain. A missing stamp = a pre-v1.5 server = stale by
+#       definition (one-time migration restart).
+#   (2) kill_wait: TERM, poll <=5s for death, then KILL — a server that
+#       ignores TERM no longer passes the alive check on its own dying
+#       socket and silently skips the restart.
+#   (3) --stop pid-identity guard: a RECYCLED pid in the pidfile is never
+#       killed blindly (/proc/<pid>/cmdline must match explorer.py).
+#   (4) heal: alive but pidfile missing (externally deleted — the server
+#       writes pidfile+stamp BEFORE serving) -> restart restores the anchor.
+#   (5) start health verdict gets one +2s retry for slow cold starts.
+#   Deploy-time activation: bootstrap-sandbox.sh (v3.6.9) now calls
+#   --ensure after deploying the assets — dev.sh covers BOOT, the watcher
+#   covers DEATH, bootstrap covers DEPLOY-TIME. One path per moment.
+#
 # COMMANDS:
 #   bash explorer.sh --ensure   # idempotent: refresh + start when needed
 #   bash explorer.sh --status   # health + freshness check + log tail
@@ -62,6 +81,7 @@ PY="$ZDIR/explorer.py"
 UI="$ZDIR/explorer-ui/index.html"
 LOG="$ZDIR/explorer.log"
 PIDFILE="$ZDIR/explorer.pid"
+STAMP="$ZDIR/explorer.code-stamp"   # v1.5: md5 of the RUNNING server's source
 PORT=3000
 HEALTH="http://127.0.0.1:${PORT}/healthz"
 CANON_EXP="$PROJECT/download/stellar-trail/assets/explorer"
@@ -77,6 +97,28 @@ CANON_EXP="$PROJECT/download/stellar-trail/assets/explorer"
 # TREE STAYS PRISTINE (zero drift).
 # Anti-loop: only the assets layout triggers it (re-exec target = .zscripts,
 # a different layout) + env guard STELLAR_EXPLORER_AUTODEPLOYED.
+kill_wait() {  # v1.5: $1 = pgrep pattern — TERM, wait <=5s for death, then KILL
+    pkill -f "$1" 2>/dev/null
+    local i
+    for i in 1 2 3 4 5; do
+        pgrep -f "$1" >/dev/null 2>&1 || return 0
+        sleep 1
+    done
+    echo "[$(date '+%F %T')] kill_wait: SIGTERM not enough -> SIGKILL ($1)" >> "$LOG"
+    pkill -9 -f "$1" 2>/dev/null
+    sleep 1
+    return 0
+}
+
+process_fresh() {  # v1.5: 0 = fresh · 1 = stale · 2 = no process. Content-exact:
+    # the running server runs the deployed code IFF stamp md5 == md5 of the
+    # deployed explorer.py. No stamp = pre-v1.5 server (never wrote one) =
+    # stale -> one-time migration restart.
+    pgrep -f "$PY" >/dev/null 2>&1 || return 2
+    [ -f "$STAMP" ] || return 1
+    [ "$(md5sum "$PY" 2>/dev/null | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$STAMP" 2>/dev/null)" ]
+}
+
 auto_deploy() {
     case "$ZDIR" in */assets/explorer) ;; *) return 1 ;; esac
     if [ -n "${STELLAR_EXPLORER_AUTODEPLOYED:-}" ]; then
@@ -105,8 +147,7 @@ auto_deploy() {
     # (--status/--stop stay read-only toward the process)
     if [ "$changed" = 1 ] && [ "${1:---ensure}" = "--ensure" ] \
         && pgrep -f "$dep/explorer.py" >/dev/null 2>&1; then
-        pkill -f "$dep/explorer.py" 2>/dev/null
-        sleep 1
+        kill_wait "$dep/explorer.py"   # v1.5: TERM + wait + KILL fallback
     fi
     echo "[explorer] AUTO-DEPLOY: launched from the install tree -> deploy $dep ($([ "$changed" = 1 ] && echo refreshed || echo already-in-sync)), re-exec from there"
     export STELLAR_EXPLORER_AUTODEPLOYED=1
@@ -129,8 +170,7 @@ sync_fresh() {  # v1.2: deployment freshness vs canonical; restarts the server w
     done
     if [ "$changed_py" = "1" ] && pgrep -f "$PY" >/dev/null 2>&1; then
         echo "[$(date '+%F %T')] sync-fresh: explorer.py changed -> server restart" >> "$LOG"
-        pkill -f "$PY" 2>/dev/null
-        sleep 1
+        kill_wait "$PY"   # v1.5: TERM + wait + KILL fallback
     fi
     return 0
 }
@@ -150,13 +190,14 @@ case "$1" in
         echo "fresh    : server=$FR_PY ui=$FR_UI (vs canonical)"
     fi
     echo "pid file : $(cat "$PIDFILE" 2>/dev/null || echo '-')"
-    # v1.4: process/code freshness (restart happens on the next --ensure)
-    if [ -f "$PIDFILE" ] && [ -f "$PY" ]; then
-        if [ "$PY" -nt "$PIDFILE" ]; then
-            echo "process : pid $(cat "$PIDFILE" 2>/dev/null) runs PRE-UPDATE code — restart pending (bash explorer.sh --ensure)"
-        else
-            echo "process : pid $(cat "$PIDFILE" 2>/dev/null) code current"
-        fi
+    # v1.5: process/code freshness — content-exact via the code stamp
+    # (restart happens on the next --ensure)
+    if [ -f "$PY" ]; then
+        case "$(process_fresh; echo $?)" in
+            0) echo "process : pid $(cat "$PIDFILE" 2>/dev/null || echo '?') code current (stamp ok)" ;;
+            1) echo "process : pid $(cat "$PIDFILE" 2>/dev/null || echo '?') runs PRE-UPDATE code — restart pending (bash explorer.sh --ensure)" ;;
+            2) echo "process : (not running)" ;;
+        esac
     fi
     echo "--- explorer.log (last 10) ---"
     tail -10 "$LOG" 2>/dev/null || echo "(empty)"
@@ -164,8 +205,16 @@ case "$1" in
     ;;
 --stop)
     if [ -f "$PIDFILE" ]; then
-        kill "$(cat "$PIDFILE")" 2>/dev/null \
-            && echo "[explorer] stopped (pid $(cat "$PIDFILE"))"
+        pid="$(cat "$PIDFILE" 2>/dev/null)"
+        # v1.5 pid-identity guard: a RECYCLED pid is never killed blindly —
+        # only when /proc/<pid>/cmdline really is the explorer; the pattern
+        # pkill below catches the true server either way
+        if [ -n "$pid" ] && grep -aq "explorer.py" "/proc/$pid/cmdline" 2>/dev/null; then
+            kill "$pid" 2>/dev/null \
+                && echo "[explorer] stopped (pid $pid)"
+        elif [ -n "$pid" ]; then
+            echo "[explorer] pidfile pid $pid is not the explorer (recycled?) — not killed"
+        fi
         rm -f "$PIDFILE"
     fi
     pkill -f "$PY" 2>/dev/null
@@ -173,16 +222,20 @@ case "$1" in
     ;;
 --ensure | *)
     sync_fresh   # v1.2: freshness first — alive-but-stale also gets repaired
-    # v1.4: process freshness — the pidfile is (re)written at server start,
-    # so a deployed explorer.py NEWER than it means the running process
-    # predates the current code (e.g. bootstrap synced the files during a
-    # first-hop upgrade before --ensure ever ran) -> restart so new
-    # endpoints go live. Alive-but-stale is now repaired at the PROCESS
-    # level too, not just the file level.
-    if [ -f "$PIDFILE" ] && [ "$PY" -nt "$PIDFILE" ] && pgrep -f "$PY" >/dev/null 2>&1; then
-        echo "[$(date '+%F %T')] process-fresh: explorer.py newer than the running server -> restart" >> "$LOG"
-        pkill -f "$PY" 2>/dev/null
-        sleep 1
+    # v1.5: process freshness — content-exact (see process_fresh). A live
+    # server predating the deployed code restarts so new endpoints go live
+    # on EVERY deploy path (bootstrap activation, boot, watcher, manual).
+    case "$(process_fresh; echo $?)" in
+        0) ;;
+        1)  echo "[$(date '+%F %T')] process-fresh: running server predates the deployed code (stamp mismatch/missing) -> restart" >> "$LOG"
+            kill_wait "$PY" ;;
+    esac
+    # v1.5 heal: alive but pidfile missing = the freshness anchor was deleted
+    # externally (the server writes pidfile+stamp BEFORE serving) -> restart
+    # restores the invariant
+    if alive && [ ! -f "$PIDFILE" ]; then
+        echo "[$(date '+%F %T')] heal: server alive but pidfile missing -> restart" >> "$LOG"
+        kill_wait "$PY"
     fi
     if alive; then exit 0; fi
     if [ -f "$PROJECT/package.json" ]; then
@@ -205,7 +258,12 @@ case "$1" in
     if alive; then
         echo "[explorer] ALIVE on :$PORT (pid $(cat "$PIDFILE" 2>/dev/null))"
     else
-        echo "[explorer] WARN: not healthy after start — check $LOG" >&2
+        sleep 2   # v1.5: one retry — a cold FS can be slow to bind
+        if alive; then
+            echo "[explorer] ALIVE on :$PORT (pid $(cat "$PIDFILE" 2>/dev/null), slow start)"
+        else
+            echo "[explorer] WARN: not healthy after start — check $LOG" >&2
+        fi
     fi
     exit 0
     ;;

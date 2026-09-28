@@ -24,7 +24,12 @@
 #              installation integrity checks, archive refresh, compliance
 #              alarm; started by dev.sh and by the cold-boot step).
 #   explorer : --with-explorer  installs .zscripts/{explorer.sh,explorer.py,
-#              explorer-ui/} and an --ensure step in dev.sh.
+#              explorer-ui/} and an --ensure step in dev.sh — plus, since
+#              v3.6.9, a DEPLOY-TIME activation call at the end of every
+#              bootstrap run (the running server is checked against the
+#              just-deployed code; explorer.sh v1.5 does the content-stamp
+#              freshness restart — closes the upgrade-path gap where a
+#              first-hop left the old process serving).
 #   snapshot : --with-snapshot  installs .zscripts/repo-snapshot.sh and an
 #              --apply-auto step in dev.sh (platforms with /home/sync).
 #
@@ -598,7 +603,29 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 11. PERSIST STATE + FINAL REPORT
+# 11. EXPLORER ACTIVATION (v3.6.9 — closes the upgrade-path gap)
+#     dev.sh covers BOOT, the watcher covers DEATH; this covers DEPLOY-TIME:
+#     the module step above just (re)deployed the explorer assets, and the
+#     RUNNING server must be checked against the DEPLOYED code. explorer.sh
+#     --ensure (v1.5) performs the content-stamp freshness restart — without
+#     this call, a first-hop upgrade leaves the old process serving old code
+#     (observed live at v3.6.7: the explorer survived the swap untouched and
+#     /api/tasks 404-ed until a manual restart). One path per moment — this
+#     is not redundant with the watcher (which only fires on health FAIL:
+#     an old-but-healthy server never triggers it). Output goes to the
+#     boot.log ledger; a failure NEVER fails bootstrap (service issue, not
+#     persistence state).
+# ---------------------------------------------------------------------------
+if has_module explorer && [ -f "$ZDIR/explorer.sh" ]; then
+    if bash "$ZDIR/explorer.sh" --ensure >> "$ZDIR/boot.log" 2>&1; then
+        log "explorer   : activated — deployed code live on :3000 (freshness restart handled by explorer.sh v1.5)"
+    else
+        log "explorer   : WARN — activation --ensure failed (service issue; the persistence layer is unaffected)"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 12. PERSIST STATE + FINAL REPORT
 # ---------------------------------------------------------------------------
 mkdir -p "$ZDIR"
 printf 'v=%s\nm=%s\nd=%s\n' "$BOOT_VERSION" "${MODULE_LIST:-core}" "$NOW" > "$STATE_FILE"
@@ -611,5 +638,8 @@ log "dev.sh      : $([ -f "$ZDIR/dev.sh" ] && { head -n 2 "$ZDIR/dev.sh" | grep 
 log "memory      : $([ -f "$MEMORY_DIR/SESSION-STATE.md" ] && echo "scaffolded/active" || echo "FAILED")"
 log "worklog     : $([ -f "$WORKLOG" ] && { grep -q '⚡ACTIVATE' "$WORKLOG" && echo "present + activation hook" || echo "present without hook"; } || echo "FAILED")"
 log "cross-reset : download/ + .zscripts/ + memory/ + worklog.md survive (packer contract); skills/stellar-trail is restored by dev.sh from the canonical snapshot on every boot"
+if has_module explorer; then
+    log "explorer   : $([ -f "$ZDIR/explorer.sh" ] && echo "activated (.zscripts/explorer.sh present, deploy-time --ensure above)" || echo "deploy pending — .zscripts/explorer.sh missing")"
+fi
 [ "$ENSURE" = "1" ] || log "optional modules: --with-explorer (task files explorer) · --with-snapshot (platform archive refresh, /home/sync)"
 exit 0

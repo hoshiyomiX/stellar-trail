@@ -53,23 +53,55 @@ function filtered(){const q=S.q.toLowerCase();
   return out}
 const findFile=k=>FLAT.find(f=>f.key===k)||null;
 
-/* ================= render: stat tiles ================= */
-function renderTiles(){if(!DATA)return;const st=DATA.stats,sk=DATA.skill,
-  c=TASKS&&TASKS.counts?TASKS.counts:{};
-  const av=c.active!=null?c.active:"–",sv=c.sealed!=null?c.sealed:"–";
-  let h='<div class="tile tl1"><div class="tk">Files</div><div class="tv">'+st.total_files+
-    '</div><div class="ts">across '+st.roots+' watched roots</div></div>'+
-  '<div class="tile tl2"><div class="tk">Aggregate size</div><div class="tv">'+fmtSize(st.total_size)+
-    '</div><div class="ts">download/ + archive/</div></div>'+
-  '<div class="tile tl3"><div class="tk">Active tasks</div><div class="tv">'+av+
-    '</div><div class="ts">from memory/SESSION-STATE.md</div></div>'+
-  '<div class="tile tl4"><div class="tk">Sealed tasks</div><div class="tv">'+sv+
-    '</div><div class="ts">history · last 5</div></div>';
-  if(sk&&sk.installed){
-    h+='<div class="tile tl5"><div class="tk">Guardian</div><div class="tv vsm">v'+esc(sk.version||"?")+
-      '</div><div class="ts"><span class="dot'+(sk.watcher_alive?" on":"")+'"></span>watcher '+
-      (sk.watcher_alive?"alive":"down")+' · verify-only</div></div>'}
-  $("#tiles").innerHTML=h}
+/* ================= render: hero dual tiles (v5.1) =================
+   Tile A — Guard status: live version, watcher liveness, live vs canonical
+            sync, and THIS server's code freshness (content stamp).
+   Tile B — Session reset & restore: last session reset (dev.sh boot) +
+            counters parsed from the persistence-layer ledger logs. */
+function renderDuo(){if(!DATA)return;const g=DATA.guard,r=DATA.resets;
+  let h="";
+  if(g&&g.installed){
+    const sync=g.in_sync
+      ?'<span class="okline">'+svg("seal")+'canonical in sync</span>'
+      :'<span class="warnline">'+svg("warn")+(g.canonical_present
+          ?'drift: live v'+esc(g.live_version||"?")+' / canonical v'+esc(g.canonical_version||"?")
+          :'canonical snapshot missing')+'</span>';
+    const code=g.explorer_code_current
+      ?'<span class="okline">'+svg("seal")+'explorer code current</span>'
+      :'<span class="warnline">'+svg("refresh")+'explorer restart pending — bootstrap/update --ensure</span>';
+    h+='<div class="dtile dta"><div class="tk">Guard status</div>'+
+      '<div class="tv vsm">v'+esc(g.live_version||"?")+'</div>'+
+      '<div class="drows">'+
+      '<span><span class="dot'+(g.watcher_alive?" on":"")+'"></span>watcher '+(g.watcher_alive?"alive":"down")+' · verify-only</span>'+
+      sync+code+
+      (g.standdown?'<span class="warnline">'+svg("warn")+'stand-down: Next.js owns :3000</span>':'')+
+      '</div></div>'}
+  else if(g){
+    h+='<div class="dtile dta"><div class="tk">Guard status</div><div class="tv vsm">—</div>'+
+      '<div class="drows"><span>stellar-trail not installed in this project</span></div></div>'}
+  else{
+    h+='<div class="dtile dta"><div class="tk">Guard status</div><div class="tv vsm">—</div>'+
+      '<div class="drows"><span class="warnline">'+svg("warn")+'server predates v1.4 — <span class="hint">bash .zscripts/explorer.sh --ensure</span></span></div></div>'}
+  const b=(r&&r.boot)||{},e=(r&&r.explorer)||{};
+  const boots=(b.boots&&b.boots.count)||0,
+    lastB=(b.boots&&b.boots.last_epoch)?fmtRel(b.boots.last_epoch):"—",
+    sr=(b.skill_restores&&b.skill_restores.count)||0,
+    aa=(b.archive_applies&&b.archive_applies.count)||0,
+    er=(e.explorer_restarts&&e.explorer_restarts.count)||0;
+  h+='<div class="dtile dtb"><div class="tk">Session reset &amp; restore</div>'+
+    '<div class="tv vsm">'+esc(lastB)+'</div>'+
+    '<div class="drows">'+
+    '<span>'+boots+' dev.sh boots (session resets)</span>'+
+    '<span>'+sr+' skill restores from canonical</span>'+
+    '<span>'+er+' explorer restarts · '+aa+' archive refreshes</span>'+
+    '</div>'+
+    ((b.boots&&b.boots.last)?'<div class="dfoot">last reset '+esc(b.boots.last)+'</div>':'')+
+    '</div>';
+  $("#duo").innerHTML=h}
+
+/* ================= render: files section header stats ================= */
+function renderFstats(){if(!DATA)return;const st=DATA.stats;
+  $("#fstats").textContent=st.total_files+" files · "+fmtSize(st.total_size)+" · "+st.roots+" watched roots"}
 
 /* ================= render: filter chips + sort ================= */
 function renderChips(){const n={all:FLAT.length};
@@ -130,7 +162,11 @@ function renderError(){
   $("#moreWrap").hidden=true;
   $("#retry").addEventListener("click",load)}
 
-/* ================= render: session tasks (from /api/tasks) ================= */
+/* ================= render: session tasks (from /api/tasks) =================
+   v5.1: full-width section below the hero dual tiles. Active tasks render
+   as a responsive card grid with CONTENT SUMMARIES (description, clamped to
+   4 lines with a show-more toggle); sealed tasks keep their one-line outcome
+   + artifact preview. */
 function renderTasks(){
   const el=$("#taskList"),cp=$("#taskCp"),cnt=$("#tpCount");
   if(!TASKS){
@@ -145,14 +181,19 @@ function renderTasks(){
   cnt.textContent=a.length+" active · "+s.length+" sealed";
   let h="";
   if(!a.length)h+=stateHTML(svg("task")+"No active tasks — inbox clear.","small");
-  for(const t of a){
-    h+='<article class="tcard"><div class="tc-head"><span class="tid">Task '+esc(t.id)+'</span>'+
+  else{
+    h+='<div class="tgrid">';
+    for(const t of a){
+      const long=(t.desc||"").length>150;
+      h+='<article class="tcard"><div class="tc-head"><span class="tid">Task '+esc(t.id)+'</span>'+
       '<span class="tstat '+esc(String(t.status||"").toLowerCase())+'">'+esc(t.status||"?")+'</span></div>'+
       (t.phase?'<div class="tphase">'+esc(t.phase)+'</div>':"")+
-      '<p class="tdesc">'+esc(t.desc)+'</p>'+
+      '<p class="tdesc'+(long?" clamp":"")+'" id="td-'+esc(t.id)+'">'+esc(t.desc)+'</p>'+
+      (long?'<button class="morebtn" data-toggle="td-'+esc(t.id)+'" aria-expanded="false">show more</button>':"")+
       (t.updated?'<div class="tup">updated '+esc(t.updated)+'</div>':"")+'</article>'}
+    h+='</div>'}
   if(s.length){
-    h+='<div class="stitle2">Sealed</div>';
+    h+='<div class="stitle2">Sealed — history</div>';
     for(const t of s){
       const art=String(t.artifact||"").trim();
       const key=art.startsWith("download/")?"download/"+art.slice(9).trim():null;
@@ -236,9 +277,10 @@ async function load(){try{
     if(tr.ok){try{t=await tr.json()}catch(_){}}
     /* hash only the data-bearing parts (server/generated churn every poll) */
     const h=JSON.stringify(d.roots)+"|"+JSON.stringify(d.stats)+"|"+
-      JSON.stringify(d.skill)+"|"+JSON.stringify(t);
+      JSON.stringify(d.skill)+"|"+JSON.stringify(d.guard)+"|"+
+      JSON.stringify(d.resets)+"|"+JSON.stringify(t);
     if(h!==lastHash){lastHash=h;DATA=d;TASKS=t;prepare();
-      renderChips();renderTiles();renderCards();renderTasks()}
+      renderChips();renderDuo();renderFstats();renderCards();renderTasks()}
     $("#ft").textContent="PID "+d.server.pid+" · port "+d.server.port+
       " · 10s polling · updated "+d.generated;
   }catch(e){
@@ -278,7 +320,20 @@ function init(){
 
   /* category filter chips */
   $("#chips").addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(!b)return;
-    S.cat=b.dataset.cat;shown=CHUNK;renderChips();renderTiles();renderCards()});
+    S.cat=b.dataset.cat;shown=CHUNK;renderChips();renderCards()});
+
+  /* v5.1: session task list delegation — show-more toggles (content
+     summaries) + sealed artifact preview buttons (dead in v5.0 — the
+     aside had no click wiring; regression fixed) */
+  const tl=$("#taskList");
+  tl.addEventListener("click",e=>{
+    const tb=e.target.closest("[data-toggle]");
+    if(tb){const p=document.getElementById(tb.dataset.toggle);
+      if(p){const open=p.classList.toggle("exp");
+        tb.textContent=open?"show less":"show more";
+        tb.setAttribute("aria-expanded",open)}return}
+    const pv=e.target.closest("[data-prev]");
+    if(pv)openPreview(findFile(pv.dataset.prev))});
 
   /* card grid event delegation: copy-path / preview / card activation */
   const cg=$("#cards");
@@ -394,23 +449,29 @@ a{color:var(--acctx)}
 html[data-theme=dark] .btn.acc{color:#160f3a}
 .btn.acc:hover{filter:brightness(1.08)}
 
-/* ================= stat tiles (expressive bento) ================= */
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-.tile{border-radius:var(--r-xl);padding:16px 18px 14px;box-shadow:var(--shadow);
+/* ================= hero dual tiles (v5.1) ================= */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:880px){.duo{grid-template-columns:1fr}}
+.dtile{border-radius:var(--r-xl);padding:20px 22px 18px;box-shadow:var(--shadow);
   transition:transform var(--dur) var(--spring),border-radius var(--dur) var(--spring),
-  box-shadow var(--dur) ease;cursor:default}
-.tile:hover{transform:translateY(-3px) scale(1.015);border-radius:19px;box-shadow:var(--shadow-hi)}
-.tile:active{transform:scale(.97);border-radius:var(--r-xl)}
-.tl1{background:var(--t1c);color:var(--t1o)}
-.tl2{background:var(--t2c);color:var(--t2o)}
-.tl3{background:var(--t3c);color:var(--t3o)}
-.tl4{background:var(--t4c);color:var(--t4o)}
-.tl5{background:var(--t5c);color:var(--t5o)}
+  box-shadow var(--dur) ease;cursor:default;min-width:0}
+.dtile:hover{transform:translateY(-3px) scale(1.01);border-radius:22px;box-shadow:var(--shadow-hi)}
+.dtile:active{transform:scale(.99)}
+.dta{background:var(--t5c);color:var(--t5o)}
+.dtb{background:var(--t2c);color:var(--t2o)}
+.dtile .tv{font-size:30px;margin-top:6px}
+.dtile .tv.vsm{font-size:26px}
 .tk{font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;opacity:.72}
 .tv{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.12;
   font-variant-numeric:tabular-nums;margin-top:4px}
 .tv.vsm{font-size:26px;letter-spacing:-.02em}
 .ts{font-size:12px;opacity:.82;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.drows{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:12px;
+  font-size:12.5px;font-weight:600;line-height:1.4}
+.drows>span{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap}
+.okline .ic,.warnline .ic{width:14px;height:14px;flex:none}
+.warnline{opacity:.95}
+.dfoot{margin-top:10px;font-size:11px;opacity:.72;font-variant-numeric:tabular-nums}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
 .dot.on{background:var(--ok)}
 
@@ -437,13 +498,60 @@ html[data-theme=dark] .btn.acc{color:#160f3a}
 .sbtn.on{background:var(--surface);color:var(--acctx);box-shadow:var(--shadow)}
 .sbtn .arr{font-size:9px}
 
-/* ================= bento: files column + task column ================= */
-.bento{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start;
-  padding-bottom:24px}
-@media(max-width:1080px){.bento{grid-template-columns:1fr}.tasks{position:static}}
+/* ================= session tasks section (v5.1, full width) ============ */
+.sess{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-lg);
+  padding:18px;box-shadow:var(--shadow);margin:16px 0 4px}
+.tp-head{font-size:15px;font-weight:800;letter-spacing:-.01em;display:flex;
+  align-items:center;gap:9px;flex-wrap:wrap}
+.tp-count{font-size:11px;font-weight:650;color:var(--tx2);background:var(--surface2);
+  padding:2.5px 10px;border-radius:999px}
+.cp{display:flex;gap:7px;font-size:11px;color:var(--tx2);background:var(--surface2);
+  border-left:3px solid var(--acc);border-radius:10px;padding:8px 10px;margin:12px 0 2px;
+  line-height:1.5}
+.cp .ic{width:13px;height:13px;flex:none;margin-top:2px}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;
+  margin-top:10px}
+.tcard{background:var(--surface2);border:1px solid var(--outline2);border-radius:var(--r-md);
+  padding:13px 14px;margin:0;
+  transition:transform var(--dur) var(--spring),box-shadow var(--dur) ease}
+.tcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-hi)}
+.tc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tid{font-weight:800;font-size:13px;letter-spacing:-.01em}
+.tstat{font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;
+  padding:2.5px 9px;border-radius:999px}
+.tstat.active{background:color-mix(in srgb,var(--ok) 17%,transparent);color:var(--ok)}
+.tstat.blocked{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.tstat.stale{background:color-mix(in srgb,var(--tx3) 16%,transparent);color:var(--tx3)}
+.tphase{font-size:11px;font-weight:650;color:var(--acctx);margin-top:3px}
+.tdesc{margin:6px 0 0;font-size:12.5px;line-height:1.55;color:var(--tx2);word-break:break-word}
+.tdesc.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-line-orient:vertical}
+.tdesc.clamp.exp{display:block;overflow:visible}
+.morebtn{border:0;background:none;color:var(--acctx);font:inherit;font-size:11px;
+  font-weight:650;cursor:pointer;padding:5px 0 0;text-decoration:underline}
+.tup{font-size:10.5px;color:var(--tx3);margin-top:7px}
+.stitle2{font-size:10.5px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tx3);margin:18px 0 6px}
+.scard{display:flex;gap:9px;background:var(--surface2);border:1px solid var(--outline2);
+  border-radius:14px;padding:10px 12px;margin:8px 0}
+.scard>.ic{color:var(--ok);flex:none;margin-top:1px}
+.sc-body{min-width:0}
+.sc-line{font-size:12px;line-height:1.45;color:var(--tx);overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-line-orient:vertical}
+.sc-meta{font-size:10.5px;color:var(--tx3);margin-top:3px;word-break:break-word}
+.linkbtn{border:0;background:none;color:var(--acctx);font:inherit;font-size:10.5px;
+  cursor:pointer;text-decoration:underline;padding:0;display:inline-flex;gap:4px;
+  align-items:center}
+.linkbtn .ic{width:12px;height:12px}
+.sc-art{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px}
 
-/* ---- file card grid ---- */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:14px}
+/* ================= files section (v5.1) ================= */
+.fhead{display:flex;align-items:baseline;gap:12px;margin:20px 0 12px;flex-wrap:wrap}
+.fhead h2{font-size:16px;font-weight:800;letter-spacing:-.01em;margin:0}
+#fstats{font-size:12px;color:var(--tx2);font-variant-numeric:tabular-nums}
+
+/* ---- file card grid (full width since v5.1 — the task column moved to
+   its own section; the grid gets more columns at wide viewports) ---- */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
 @keyframes pop{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
 .fcard{background:var(--surface);border:1px solid var(--outline2);border-radius:var(--r-lg);
   padding:14px 14px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;
@@ -481,47 +589,6 @@ html[data-theme=dark] .t-other{--b:#9aa9b5}
   padding:2px 8px;border-radius:999px;color:var(--acctx);
   background:color-mix(in srgb,var(--acc) 13%,transparent)}
 .tchip .ic{width:12px;height:12px}
-
-/* ---- session task column ---- */
-.tasks{position:sticky;top:14px;background:var(--surface);border:1px solid var(--outline);
-  border-radius:var(--r-lg);padding:16px;box-shadow:var(--shadow);max-height:calc(100vh - 28px);
-  overflow:auto}
-.tp-head{font-size:15px;font-weight:800;letter-spacing:-.01em;display:flex;
-  align-items:center;gap:9px;flex-wrap:wrap}
-.tp-count{font-size:11px;font-weight:650;color:var(--tx2);background:var(--surface2);
-  padding:2.5px 10px;border-radius:999px}
-.cp{display:flex;gap:7px;font-size:11px;color:var(--tx2);background:var(--surface2);
-  border-left:3px solid var(--acc);border-radius:10px;padding:8px 10px;margin:12px 0 2px;
-  line-height:1.5}
-.cp .ic{width:13px;height:13px;flex:none;margin-top:2px}
-.tcard{background:var(--surface2);border:1px solid var(--outline2);border-radius:var(--r-md);
-  padding:12px 13px;margin:10px 0;
-  transition:transform var(--dur) var(--spring),box-shadow var(--dur) ease}
-.tcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-hi)}
-.tc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.tid{font-weight:800;font-size:13px;letter-spacing:-.01em}
-.tstat{font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;
-  padding:2.5px 9px;border-radius:999px}
-.tstat.active{background:color-mix(in srgb,var(--ok) 17%,transparent);color:var(--ok)}
-.tstat.blocked{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
-.tstat.stale{background:color-mix(in srgb,var(--tx3) 16%,transparent);color:var(--tx3)}
-.tphase{font-size:11px;font-weight:650;color:var(--acctx);margin-top:3px}
-.tdesc{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--tx2);
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.tup{font-size:10.5px;color:var(--tx3);margin-top:7px}
-.stitle2{font-size:10.5px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--tx3);margin:16px 0 4px}
-.scard{display:flex;gap:9px;background:var(--surface2);border:1px solid var(--outline2);
-  border-radius:14px;padding:10px 12px;margin:8px 0}
-.scard>.ic{color:var(--ok);flex:none;margin-top:1px}
-.sc-line{font-size:12px;line-height:1.45;color:var(--tx);overflow:hidden;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.sc-meta{font-size:10.5px;color:var(--tx3);margin-top:3px;word-break:break-word}
-.linkbtn{border:0;background:none;color:var(--acctx);font:inherit;font-size:10.5px;
-  cursor:pointer;text-decoration:underline;padding:0;display:inline-flex;gap:4px;
-  align-items:center}
-.linkbtn .ic{width:12px;height:12px}
-.sc-art{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px}
 
 /* loading / empty / error states */
 .st{grid-column:1/-1;padding:46px 18px;display:flex;flex-direction:column;align-items:center;
@@ -604,7 +671,7 @@ html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
   <header class="top">
     <div class="brand">
       <span class="bic"><svg class="ic"><use href="#i-logo"/></svg></span>
-      <div><h1>Task Files Explorer</h1><p>expressive bento · download/ · archive/ · session tasks</p></div>
+      <div><h1>Task Files Explorer</h1><p>guard duo · session tasks · download/ + archive/ inventory</p></div>
     </div>
     <div class="search" role="search">
       <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
@@ -614,35 +681,36 @@ html[data-theme=dark] .modal{background:rgba(0,0,0,.62)}
     <button class="ibtn" id="themeBtn" aria-label="Toggle theme"></button>
   </header>
 
-  <section class="tiles" id="tiles" aria-label="Statistics summary"></section>
+  <!-- v5.1: hero dual tiles — Guard status + Session reset & restore -->
+  <section class="duo" id="duo" aria-label="Guardian and session status"></section>
 
-  <div class="ctrlrow">
-    <div id="chips" role="group" aria-label="Category filter"></div>
-    <div class="sortbar" id="sortbar" role="group" aria-label="Sort files">
-      <button class="sbtn" data-sort="name" aria-pressed="false">Name <span class="arr" aria-hidden="true"></span></button>
-      <button class="sbtn" data-sort="size" aria-pressed="false">Size <span class="arr" aria-hidden="true"></span></button>
-      <button class="sbtn on" data-sort="mtime" aria-pressed="true">Time <span class="arr" aria-hidden="true">▼</span></button>
+  <!-- v5.1: session tasks — full width, with content summaries -->
+  <section class="sess" aria-label="Session task list">
+    <div class="tp-head">Session Tasks <span class="tp-count" id="tpCount">loading…</span></div>
+    <div class="cp" id="taskCp" hidden></div>
+    <div id="taskList">
+      <div class="st small"><div class="spin"></div>loading session tasks…</div>
     </div>
-  </div>
+  </section>
 
-  <div class="bento">
-    <main class="files" aria-label="File list">
-      <section class="cards" id="cards">
-        <div class="st"><div class="spin"></div>loading file inventory…</div>
-      </section>
-      <div class="morewrap" id="moreWrap" hidden><button class="btn" id="moreBtn">Load more</button></div>
-    </main>
-
-    <aside class="tasks" aria-label="Session task list">
-      <div class="tp-head">Session Tasks <span class="tp-count" id="tpCount">loading…</span></div>
-      <div class="cp" id="taskCp" hidden></div>
-      <div id="taskList">
-        <div class="st small"><div class="spin"></div>loading session tasks…</div>
+  <!-- file inventory: stats header + controls + grid (full width since v5.1) -->
+  <section class="files-sec" aria-label="File inventory">
+    <div class="fhead"><h2>Files</h2><span id="fstats">loading…</span></div>
+    <div class="ctrlrow">
+      <div id="chips" role="group" aria-label="Category filter"></div>
+      <div class="sortbar" id="sortbar" role="group" aria-label="Sort files">
+        <button class="sbtn" data-sort="name" aria-pressed="false">Name <span class="arr" aria-hidden="true"></span></button>
+        <button class="sbtn" data-sort="size" aria-pressed="false">Size <span class="arr" aria-hidden="true"></span></button>
+        <button class="sbtn on" data-sort="mtime" aria-pressed="true">Time <span class="arr" aria-hidden="true">▼</span></button>
       </div>
-    </aside>
-  </div>
+    </div>
+    <section class="cards" id="cards">
+      <div class="st"><div class="spin"></div>loading file inventory…</div>
+    </section>
+    <div class="morewrap" id="moreWrap" hidden><button class="btn" id="moreBtn">Load more</button></div>
+  </section>
 
-  <footer>Served by <b>explorer.py</b> · Expressive UI v5.0 · zero-dependency · adaptive theme · <span id="ft">connecting to server…</span></footer>
+  <footer>Served by <b>explorer.py</b> · Expressive UI v5.1 · zero-dependency · adaptive theme · <span id="ft">connecting to server…</span></footer>
 </div>
 
 <!-- File preview dialog -->

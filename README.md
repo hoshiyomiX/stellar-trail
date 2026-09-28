@@ -70,7 +70,7 @@ The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sa
 
 ### Task Files Explorer (opt-in)
 
-`--with-explorer` also installs a built-in file browser — a stdlib Python server plus an MD3 Expressive bento web UI (stat tiles, a multi-column file card grid, a Session Task list from `/api/tasks`, search with debounce, filter chips, sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
+`--with-explorer` also installs a built-in file browser — a stdlib Python server plus an MD3 Expressive web UI (a hero of two status tiles — Guard Status and Session Reset & Restore — a full-width Session Task list with expandable content summaries, a multi-column file card grid, search with debounce, filter chips, sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
 
 ```bash
 bash skills/stellar-trail/assets/explorer/explorer.sh --ensure
@@ -88,7 +88,7 @@ The launcher (v1.4 — auto-deploy + process-freshness restart) deploys itself i
 
 ```
 skills/stellar-trail/     the skill (installable) — ~470 KB installed
-  SKILL.md                protocol body (English, v3.6.8)
+  SKILL.md                protocol body (English, v3.6.9)
   skill-card.md           canonical version + manifest card
   references/             13 deep references: one per phase & per memory mechanism
   scripts/                6 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
@@ -99,7 +99,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v3.6.8** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v3.6.9** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

@@ -1,8 +1,8 @@
 # Task Files Explorer (Built-in Asset) — Deploy & Operations Reference
 
-> A stellar-trail built-in asset since v3.1.0 (server v1.3; UI v2.2 since v3.3.0, UI v3.0
+> A stellar-trail built-in asset since v3.1.0 (server v1.4; UI v2.2 since v3.3.0, UI v3.0
 > since v3.5.4, UI v4.0 Dashboard since v3.6.6, English UI since v3.6.7, UI v5.0 Expressive
-> since v3.6.8).
+> since v3.6.8, UI v5.1 guard duo since v3.6.9; launcher v1.5).
 > The explorer is an **optional & opt-in tool** — not part of the protocol mandate.
 > It functionally replaces the platform's "All files in task" popup with a custom page
 > on the preview URL.
@@ -39,9 +39,9 @@ Key facts:
 
 | File | Role |
 |------|-------|
-| `explorer.py` | Python stdlib server v1.3 (ThreadingHTTPServer); /api/files walk depth-4, task parsing from worklog.md, **skill guardian block** (stellar-trail version + watcher status; since v1.3 it reads `assets/integrity.version` directly — the registry `_meta.json` fallback was dropped with the lock-anchor purge), **GET /api/tasks — the Session Task list** parsed from `memory/SESSION-STATE.md` (Active + Sealed tables + the checkpoint line; missing file = empty structure, never an error); serves files with a realpath guard (only inside ROOTS) plus **`?dl=1`** for attachment mode (forced download); PIDFILE; env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
-| `explorer.sh` | Launcher --ensure/--status/--stop; Next.js guard (package.json wins); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — when run from the install tree (`skills/stellar-trail/assets/explorer/`), the launcher detects the layout, copies itself to `<root>/.zscripts/`, then re-execs from there (PID/log always in .zscripts/, the install tree stays drift-free; anti-loop via env guard + layout detection); **v1.4 (v3.6.8): PROCESS-FRESHNESS RESTART** — `--ensure` also restarts a live server that predates the current deployed code (explorer.py newer than the pidfile written at server start), so new endpoints go live on upgrade instead of 404-ing until a manual restart; `--status` reports the process/code freshness |
-| `explorer-ui/index.html` | **Expressive UI v5.0** (since v3.6.8: MD3 Expressive bento — stat-tile row, multi-column file card grid, Session Task list from `/api/tasks`; 20–28 dp shapes, springy motion, staggered entrances, reduced-motion opt-out; adaptive dark/light theme, zero-dependency, `lang="en"`) — v4.0 Dashboard since v3.6.6; core features: 200 ms debounced live search, dynamic category filter chips, segmented sort (name/size/time), per-card copy-path + toast, preview dialog with `?dl=1`, chunked render; details in sections 5d–5e |
+| `explorer.py` | Python stdlib server v1.4 (ThreadingHTTPServer); /api/files walk depth-4, task parsing from worklog.md, skill guardian block (kept for v1.3 compat), **`guard` block (v1.4)** — live vs canonical version + in-sync flag, watcher liveness/pid, THIS process's code freshness (content stamp vs the deployed source), Next.js stand-down flag — and **`resets` block (v1.4)** — session resets + restore counters parsed from `.zscripts/boot.log` + `.zscripts/explorer.log` (dev.sh boots, SKILL RESTORE events, repo-snap auto-applies, explorer restarts, freshness/heal restarts, sync-fresh refreshes; count + last timestamp each; missing logs = empty counters); **GET /api/tasks — the Session Task list** parsed from `memory/SESSION-STATE.md` (Active + Sealed tables + the checkpoint line; missing file = empty structure, never an error); serves files with a realpath guard (only inside ROOTS) plus **`?dl=1`** for attachment mode (forced download); PIDFILE + **CODE STAMP** (`.zscripts/explorer.code-stamp`, md5 of the server's own source written at startup — the content-exact freshness anchor explorer.sh v1.5 compares); env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
+| `explorer.sh` | Launcher --ensure/--status/--stop; Next.js guard (package.json wins); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — when run from the install tree (`skills/stellar-trail/assets/explorer/`), the launcher detects the layout, copies itself to `<root>/.zscripts/`, then re-execs from there (PID/log always in .zscripts/, the install tree stays drift-free; anti-loop via env guard + layout detection); **v1.4 (v3.6.8): PROCESS-FRESHNESS RESTART** — `--ensure` also restarts a live server that predates the current deployed code, so new endpoints go live on upgrade instead of 404-ing until a manual restart; **v1.5 (v3.6.9): FRESHNESS DONE RIGHT** — the check is CONTENT-EXACT (md5 of the deployed explorer.py vs the code stamp the server wrote at startup; a missing stamp = a pre-v1.5 server = one migration restart), the restart path is hardened (`kill_wait`: TERM → poll ≤5 s → KILL), `--stop` carries a pid-identity guard (a recycled pid in the pidfile is never killed — `/proc/<pid>/cmdline` must match), a live server with a missing pidfile is healed by restart, and the start health verdict retries once at +2 s; `--status` reports the stamp-based process/code freshness; activated deploy-time by bootstrap-sandbox.sh (§7) |
+| `explorer-ui/index.html` | **Expressive UI v5.1** (since v3.6.9: hero dual tiles — Guard Status + Session Reset & Restore — then the Session Task list as a full-width section with expandable content summaries, then the file inventory with a compact stats header; 20–28 dp shapes, springy motion, staggered entrances, reduced-motion opt-out; adaptive dark/light theme, zero-dependency, `lang="en"`) — v5.0 bento since v3.6.8, v4.0 Dashboard since v3.6.6; core features: 200 ms debounced live search, dynamic category filter chips, segmented sort (name/size/time), per-card copy-path + toast, preview dialog with `?dl=1`, chunked render; details in sections 5d–5f |
 | `dev.sh.template` | Legacy v2 boot-hook template: tidy download/ -> archive/, fullstack guard, ensure watcher + explorer, periodic repo.tar refresh. Superseded by the bootstrap-generated dev.sh (which adds the cache-replay skill restore with the version gate); kept as reference — see the template header note |
 
 ## 3. Deploy Steps
@@ -203,6 +203,36 @@ adaptive theme, 10 s polling, focus refresh); the API contract grows ONE endpoin
   data-bearing fields only (the volatile `generated`/`server` fields no longer force a
   re-render every poll — a v4.0 inefficiency fixed here).
 
+## 5f. UI v5.1 Features — Guard Duo + Content-Summary Task List (since v3.6.9)
+
+The page opens with a HERO of two large tonal tiles instead of the v5.0 stat-tile row, the
+Session Task list moves from a sticky side column to a full-width section with content
+summaries, and the file inventory gains a compact stats header. Everything else carries
+over from v5.0 (search debounce, filter chips, sort, copy-path, preview dialog, chunked
+render, adaptive theme, 10 s polling, focus refresh, reduced-motion opt-out).
+
+- **Guard Status tile (blue tonal)**: the live stellar-trail version as the display value,
+  a watcher liveness dot (alive/down · verify-only), a canonical in-sync line (drift names
+  both versions), and the explorer's own CODE FRESHNESS — `code current` vs
+  `restart pending — bootstrap/update --ensure` (from the v1.4 content stamp). A Next.js
+  stand-down notice appears when `package.json` owns the port. A missing `guard` block
+  (server predates v1.4) renders a one-line hint instead of wrong data.
+- **Session Reset & Restore tile (teal tonal)**: the LAST session reset (the most recent
+  dev.sh boot) as a relative display value, with counters beneath — dev.sh boots (session
+  resets), skill restores from the canonical snapshot, explorer restarts · archive
+  refreshes — and the absolute last-reset timestamp as a footer. All parsed by explorer.py
+  v1.4 from `.zscripts/boot.log` + `.zscripts/explorer.log` (the `resets` block).
+- **Session Task list, full width**: active tasks render as a responsive card grid
+  (min 310 px) with CONTENT SUMMARIES — the description clamped to 4 lines with a
+  show more / show less toggle (`aria-expanded` wired), phase, status pill, updated date.
+  Sealed rows keep their one-line outcome + artifact preview button. This also fixes a
+  v5.0 regression: those preview buttons had no click delegation and did nothing.
+- **Files section**: a compact header (Files · N files · size · roots) replaces the four
+  retired stat tiles; the card grid widens (min 240 px) now that the sticky task column
+  is gone; the checkpoint banner stays on the task section.
+- **Data loop**: the hash adds the `guard` + `resets` blocks — a version bump, a watcher
+  death, a drift, or a new boot/restart re-renders the hero within one poll.
+
 ## 6. Control Commands
 
 ```
@@ -251,3 +281,19 @@ first-hop upgrade path bootstrap syncs the `.zscripts` files BEFORE `--ensure` e
 (observed live: the explorer survived the v3.6.7 first-hop untouched, pid unchanged). Since
 v1.4, `--ensure` also restarts a live server whose deployed `explorer.py` is newer than the
 pidfile written at server start — the process, not just the files, now follows the release.
+
+**v1.5 addition — freshness done right + deploy-time activation (v3.6.9):** the v1.4 check
+was an mtime heuristic (`explorer.py` newer than the pidfile) — ambiguous at same-second
+writes and dependent on `cp -p` semantics through the deploy chain. v1.5 is content-exact:
+the server writes the md5 of its own source to `.zscripts/explorer.code-stamp` at startup,
+and `--ensure` restarts any live server whose stamp no longer matches the deployed file
+(no stamp = pre-v1.5 server = one migration restart). The restart is hardened
+(`kill_wait`: TERM → poll ≤ 5 s → KILL — a TERM-ignoring process can no longer answer
+healthz on its dying socket and silently skip the restart), `--stop` guards against pid
+recycling (`/proc/<pid>/cmdline` must match), and a live server with a missing pidfile is
+healed by restart. THE TRIGGER MAP is now complete — dev.sh covers BOOT, the watcher covers
+DEATH (health-fail only), and bootstrap-sandbox.sh covers DEPLOY-TIME: it runs
+`explorer.sh --ensure` at the end of every invocation (output to boot.log; failure never
+fails bootstrap), so update-skill's step [4/4] — which deploys the files via bootstrap — now
+activates them in the same run. The upgrade-path gap (a healthy old server surviving a
+first-hop untouched) is closed on every path that can deploy explorer assets.
