@@ -88,7 +88,7 @@ The launcher (v1.4 — auto-deploy + process-freshness restart) deploys itself i
 
 ```
 skills/stellar-trail/     the skill (installable) — ~470 KB installed
-  SKILL.md                protocol body (English, v3.6.9)
+  SKILL.md                protocol body (English, v4.0.0)
   skill-card.md           canonical version + manifest card
   references/             13 deep references: one per phase & per memory mechanism
   scripts/                6 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
@@ -99,7 +99,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v3.6.9** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v4.0.0** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 

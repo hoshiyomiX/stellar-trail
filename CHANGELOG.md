@@ -1,5 +1,58 @@
 # Changelog
 
+## v4.0.0 — 2026-09-28
+
+The 4.x line opens with the static-copy recovery control (UI v3.4) and a squashed release history: this single commit carries everything from v3.6.10 through v4.0.0 (the four intermediate commits and their tags existed only locally; the per-release entries below keep the full lineage).
+
+- **Manual live-recovery for the static-copy banner (UI v3.4).** After the user reported the platform file preview no longer interferes (cause unknown — platform-side), the defensive path ships anyway: 1000 ms after static-copy detection the page probes the same origin's `/api/files` once (then rides the existing 10 s loop); an explorer.py JSON answer upgrades the informational banner to "Static copy — live explorer reachable" with an **Open live view** button — official `open_in_new` glyph (classic filled 24 px, fetched verbatim from google/material-design-icons, Apache 2.0).
+- **Never auto-navigates** (explicit user choice): coverage of the top window happens only on click — `top.location.replace()` with the absolute live root (correct even when the viewer chrome is another origin), falling back to the frame when sandboxed; `replace()` keeps the Back button out of the recovery loop. A later probe failure removes the button so it can never go dead.
+- **Behavior change while static:** a JSON answer from the origin no longer renders live data in-place — the banner is the interface and the button is the recovery (prevents the banner being overwritten before the button could ever appear).
+- **History squash:** v3.6.10–v3.6.13 (UI v3.0 verbatim revert → v3.1 English + tiles → v3.2 refinements → v3.3 static-copy) fold into this single v4.0.0 commit; the local tags v3.6.10–v3.6.13 are deleted (they never existed on origin; the CHANGELOG keeps every entry).
+- No protocol, script, or server changes. Version alignment four-way 4.0.0; manifest regenerated (same 25 files).
+- Verification: html parse, `node --check` on the extracted UI JS, recovery-wiring greps, v3.2/v3.3 regression guards, browser smoke (live / static-no-button / static-with-button / click-navigates), live deployment check on :3000.
+
+## v3.6.13 — 2026-09-28
+
+Explorer UI resilience: the static-copy mode (UI v3.3). When the platform file preview (or a downloaded copy) renders index.html without explorer.py, the page no longer freezes at a misleading error state. Server and launcher untouched.
+
+- **Static-context detection at load** — `file:` protocol or any pathname other than `/` and `/index.html` (the only paths explorer.py serves the UI at, same origin) marks the page as a static copy before the first fetch.
+- **Non-JSON API answers promoted to static** — an origin that answers `/api/files` with HTML (a JSON `SyntaxError` — a platform file host, not explorer.py) is classified static on the first failure; a live server that dies after a successful load keeps the original error card + snackbar behavior (the two failure modes stay distinguishable).
+- **Informational banner instead of an error** — "Static copy — live data unavailable" with the reason (no explorer.py on this origin, the /api/files feed does not exist there) and where the live explorer is served (the preview URL root while a session runs); primary-container info tone, official `info` glyph.
+- **Retry-snackbar loop suppressed in static mode** — the 10 s auto-refresh keeps checking silently; the every-10 s "Connection to explorer.py lost" toast no longer spams a static preview.
+- Context: diagnosed from the user report "the platform file preview took over the index.html on top window" — the platform's idle-state file preview renders the UI file statically, and the public preview URL separately returns a platform-edge 500 (both behaviors outside the container; probe evidence in the session worklog Task 10).
+- No protocol, script, or server changes. Version alignment four-way 3.6.13; manifest regenerated (same 25 files).
+- Verification: html parse, `node --check` on the extracted UI JS, static-wiring greps, v3.2 regression guard, live deployment check on :3000.
+
+## v3.6.12 — 2026-09-28
+
+Explorer UI refinement pass — five user-directed adjustments to the v3.1 tile row, typography, and search (UI v3.2). Server and launcher untouched.
+
+- **Explorer Restarts tile removed.** The tile row is now Skill Version + three reset counters; the `resets.explorer.explorer_restarts` data stays served by explorer.py v1.4 — the UI simply no longer renders a tile for it.
+- **"Archive Applies" renamed to "Snapshot Restores"** — matching the snapshot-repo.sh feature the counter actually tallies (repo.tar applies). Same data field (`resets.boot.archive_applies`), label-only change.
+- **Task-card type scale restored.** The v3.6.11 enlargement keeps the 310–400 px card footprint but returns to the compact scale the user preferred: 14 px titles (was 16), 12 px body (was 14), 11 px task id (was 12), 16 px check icon (was 18).
+- **Search bar compacted.** 40 px pill (was 48), 12 px input text (was 14), 18 px leading icon (was 20), 32 px clear button (was 44, scoped to fit the pill); the compact-width iOS 16 px anti-zoom rule is kept.
+- **Tile icons are now official Google Material Icons** (classic filled 24 px): new_releases (Skill Version), restart_alt (Boot Resets), restore (Skill Restores), backup (Snapshot Restores) — fetched verbatim from google/material-design-icons (Apache 2.0) and embedded as inline SVG symbols with a provenance comment; the upstream `fill="none"` bounding-box filler paths are dropped on embed. No hand-drawn glyphs on the tile row.
+- No protocol, script, or server changes. Version alignment four-way 3.6.12; manifest regenerated (same 25 files).
+- Verification: html parse, `node --check` on the extracted UI JS, icon-provenance byte-match against the fetched official SVGs (4/4), label/tile wiring greps, live deployment check on :3000.
+
+## v3.6.11 — 2026-09-28
+
+Explorer UI English + release-health tiles — the v3.0-formatting UI (restored in v3.6.10) is translated into English, its stat tiles are rebuilt around skill version and reset counters, and the task cards are enlarged. Server and launcher untouched.
+
+- **UI v3.1 — English everywhere.** Every user-facing label, aria string, title, toast, empty state, and code comment is translated from Indonesian to English (`lang="en"`, `en-US` locales for dates and the clock); the LARGE-layout CSS selector contract (`section[aria-label]`) is updated in step with the translated aria-label so the list-detail grid keeps working.
+- **Stat tiles rebuilt: skill version + reset counters with timestamps.** The old inventory tiles (Total File, Total Ukuran, Task Tercatat, Perubahan Terakhir, Guardian card) are removed. New tile row: a Skill Version hero (live version, canonical in-sync/drift verdict, watcher liveness dot) plus Boot Resets, Skill Restores, Explorer Restarts, and Archive Applies — each showing its count and last-occurrence timestamp, read from the `/api/files` `guard` + `resets` blocks that explorer.py v1.4 already serves (the pre-v3.1 UI ignored them; no server change needed, null-safe when absent).
+- **Task cards enlarged.** Task rail cards grow from 225–280 px to 310–400 px wide with larger type (16 px titles, 3-line clamp — 4 on the large sidebar), more padding, and a bigger check indicator; the mobile rail minimum rises to 260 px.
+- No protocol, script, or server changes. Version alignment four-way 3.6.11; manifest regenerated (same 25 files).
+- Verification: html parse + `node --check` on the extracted UI JS, Indonesian-leftover census (zero hits), tile-wiring and enlargement greps, live deployment check on :3000.
+
+## v3.6.10 — 2026-09-28
+
+Explorer UI preference release — the deployed explorer UI reverts to the v3.6.3 formatting (UI v3.0) by explicit user preference; server and launcher untouched.
+
+- **UI reverted to the v3.0 formatting (v3.6.3 baseline, byte-identical).** `explorer-ui/index.html` is restored verbatim from the `v3.6.3` tag (md5-verified identical): MD3 Expressive UI v3.0 — left sidebar navigation, stat cards, compact "Riwayat Task" list, Indonesian labels as shipped in that era. The v5.x line (v5.0 bento stat tiles, v5.1 guard-duo hero, session reset & restore counters, content-summary task list) is retired from the deployed asset. Compatibility preserved: the old UI consumes `/api/files` only, and explorer.py v1.4 kept that payload shape (the v1.4 `guard`/`resets` additions are ignored by the old UI); explorer.sh v1.5's content-stamp freshness covers the server, and the UI file is read per request — the swap deploys via bootstrap's freshness sync with no restart required.
+- No protocol, script, or server changes. Version alignment four-way 3.6.10; manifest regenerated (same 25 files).
+- Verification: byte-identity vs the v3.6.3 tag (md5), html parse + `node --check` on the restored UI, manifest verify, four-way alignment, live deployment check on :3000.
+
 ## v3.6.9 — 2026-09-28
 
 Explorer correctness release — `explorer.sh --ensure` audited end-to-end and made content-exact, the upgrade-path activation gap closed in bootstrap, and the UI restyled around a guard-status hero with a content-summary Session Task list.

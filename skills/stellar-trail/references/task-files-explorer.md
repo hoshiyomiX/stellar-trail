@@ -2,7 +2,11 @@
 
 > A stellar-trail built-in asset since v3.1.0 (server v1.4; UI v2.2 since v3.3.0, UI v3.0
 > since v3.5.4, UI v4.0 Dashboard since v3.6.6, English UI since v3.6.7, UI v5.0 Expressive
-> since v3.6.8, UI v5.1 guard duo since v3.6.9; launcher v1.5).
+> since v3.6.8, UI v5.1 guard duo since v3.6.9, UI v3.0 formatting restored since
+> v3.6.10, UI v3.1 English + release-health tiles since v3.6.11, UI v3.2 refined
+> tiles/typography/icons since v3.6.12, UI v3.3 static-copy mode since v3.6.13,
+> UI v3.4 manual live-recovery since 4.0.0;
+> launcher v1.5).
 > The explorer is an **optional & opt-in tool** — not part of the protocol mandate.
 > It functionally replaces the platform's "All files in task" popup with a custom page
 > on the preview URL.
@@ -41,7 +45,7 @@ Key facts:
 |------|-------|
 | `explorer.py` | Python stdlib server v1.4 (ThreadingHTTPServer); /api/files walk depth-4, task parsing from worklog.md, skill guardian block (kept for v1.3 compat), **`guard` block (v1.4)** — live vs canonical version + in-sync flag, watcher liveness/pid, THIS process's code freshness (content stamp vs the deployed source), Next.js stand-down flag — and **`resets` block (v1.4)** — session resets + restore counters parsed from `.zscripts/boot.log` + `.zscripts/explorer.log` (dev.sh boots, SKILL RESTORE events, repo-snap auto-applies, explorer restarts, freshness/heal restarts, sync-fresh refreshes; count + last timestamp each; missing logs = empty counters); **GET /api/tasks — the Session Task list** parsed from `memory/SESSION-STATE.md` (Active + Sealed tables + the checkpoint line; missing file = empty structure, never an error); serves files with a realpath guard (only inside ROOTS) plus **`?dl=1`** for attachment mode (forced download); PIDFILE + **CODE STAMP** (`.zscripts/explorer.code-stamp`, md5 of the server's own source written at startup — the content-exact freshness anchor explorer.sh v1.5 compares); env `STELLAR_PROJECT` (default /home/z/my-project), port via argv[1] (default 3000) |
 | `explorer.sh` | Launcher --ensure/--status/--stop; Next.js guard (package.json wins); double-fork orphan; env `STELLAR_PROJECT`; **v1.3 (v3.6.2): AUTO-DEPLOY** — when run from the install tree (`skills/stellar-trail/assets/explorer/`), the launcher detects the layout, copies itself to `<root>/.zscripts/`, then re-execs from there (PID/log always in .zscripts/, the install tree stays drift-free; anti-loop via env guard + layout detection); **v1.4 (v3.6.8): PROCESS-FRESHNESS RESTART** — `--ensure` also restarts a live server that predates the current deployed code, so new endpoints go live on upgrade instead of 404-ing until a manual restart; **v1.5 (v3.6.9): FRESHNESS DONE RIGHT** — the check is CONTENT-EXACT (md5 of the deployed explorer.py vs the code stamp the server wrote at startup; a missing stamp = a pre-v1.5 server = one migration restart), the restart path is hardened (`kill_wait`: TERM → poll ≤5 s → KILL), `--stop` carries a pid-identity guard (a recycled pid in the pidfile is never killed — `/proc/<pid>/cmdline` must match), a live server with a missing pidfile is healed by restart, and the start health verdict retries once at +2 s; `--status` reports the stamp-based process/code freshness; activated deploy-time by bootstrap-sandbox.sh (§7) |
-| `explorer-ui/index.html` | **Expressive UI v5.1** (since v3.6.9: hero dual tiles — Guard Status + Session Reset & Restore — then the Session Task list as a full-width section with expandable content summaries, then the file inventory with a compact stats header; 20–28 dp shapes, springy motion, staggered entrances, reduced-motion opt-out; adaptive dark/light theme, zero-dependency, `lang="en"`) — v5.0 bento since v3.6.8, v4.0 Dashboard since v3.6.6; core features: 200 ms debounced live search, dynamic category filter chips, segmented sort (name/size/time), per-card copy-path + toast, preview dialog with `?dl=1`, chunked render; details in sections 5d–5f |
+| `explorer-ui/index.html` | **Expressive UI v3.4** (since 4.0.0: manual live-recovery — 1000 ms after static detection the page probes the origin's /api/files once; an explorer.py JSON answer upgrades the banner with an "Open live view" button that replaces the top window with the absolute live root — never auto-navigates, frame fallback when sandboxed, a later failed probe removes the button; while static a JSON answer never renders data in-place; since v3.6.13: static-copy graceful mode — opened without its server the UI shows an informational "static copy — live data unavailable" banner instead of an error and suppresses the retry-snackbar loop; since v3.6.12: tile row = Skill Version hero + Boot Resets / Skill Restores / Snapshot Restores counters with timestamps — Explorer Restarts tile removed, "Archive Applies" renamed "Snapshot Restores"; tile icons = official Google Material Icons (classic filled 24 px) embedded verbatim; task cards enlarged 310–400 px on the compact type scale 14/12/11 px; compact 40 px search bar; fully English since v3.6.11 — labels, aria strings, toasts, comments, `en-US` locales; fed by the /api/files `guard`/`resets` blocks; built on the v3.6.3-era formatting restored in v3.6.10 — sidebar navigation, stat cards, task rail; the v5.x line — v5.1 guard duo since v3.6.9, v5.0 bento since v3.6.8, v4.0 Dashboard since v3.6.6 — stays retired, preserved in git history); core features: 200 ms debounced live search, dynamic category filter chips, segmented sort (name/size/time), per-card copy-path + toast, preview dialog with `?dl=1`, chunked render; details in sections 5d–5j |
 | `dev.sh.template` | Legacy v2 boot-hook template: tidy download/ -> archive/, fullstack guard, ensure watcher + explorer, periodic repo.tar refresh. Superseded by the bootstrap-generated dev.sh (which adds the cache-replay skill restore with the version gate); kept as reference — see the template header note |
 
 ## 3. Deploy Steps
@@ -203,7 +207,7 @@ adaptive theme, 10 s polling, focus refresh); the API contract grows ONE endpoin
   data-bearing fields only (the volatile `generated`/`server` fields no longer force a
   re-render every poll — a v4.0 inefficiency fixed here).
 
-## 5f. UI v5.1 Features — Guard Duo + Content-Summary Task List (since v3.6.9)
+## 5f. UI v5.1 Features — Guard Duo + Content-Summary Task List (v3.6.9 — RETIRED from the deployed asset in v3.6.10; kept here as the historical record of the v5.x line)
 
 The page opens with a HERO of two large tonal tiles instead of the v5.0 stat-tile row, the
 Session Task list moves from a sticky side column to a full-width section with content
@@ -232,6 +236,102 @@ render, adaptive theme, 10 s polling, focus refresh, reduced-motion opt-out).
   is gone; the checkpoint banner stays on the task section.
 - **Data loop**: the hash adds the `guard` + `resets` blocks — a version bump, a watcher
   death, a drift, or a new boot/restart re-renders the hero within one poll.
+
+## 5g. UI v3.1 Features — English UI + Release-Health Tiles + Larger Task Cards (since v3.6.11)
+
+The v3.0-formatting layout restored in v3.6.10 stays; this release translates and
+re-targets it. Three changes, all in `explorer-ui/index.html` (server and launcher
+untouched):
+
+- **English everywhere**: every user-facing label, aria string, title, toast, empty
+  state, and code comment is translated (lang="en"; en-US locales for dates, relative
+  times, durations, and the clock). The LARGE-layout CSS selector
+  (`section[aria-label="Filter and search"]`) is updated in step with the translated
+  aria-label so the list-detail grid assignment keeps working.
+- **Stat tiles rebuilt around release health** (all five old inventory tiles removed):
+  a **Skill Version** hero tile — live version as the display value, canonical
+  in-sync/drift verdict + watcher liveness dot as the sub-line — plus four reset
+  counters, each showing count and last-occurrence timestamp: **Boot Resets**, **Skill
+  Restores**, **Explorer Restarts**, **Archive Applies**. Data source: the `/api/files`
+  `guard` and `resets` blocks explorer.py v1.4 already serves; the reads are null-safe
+  (missing blocks render zero/never, an old server cannot break the page).
+- **Task cards enlarged**: rail cards grow from 225–280 px to 310–400 px wide, titles
+  from 14 px/2-line to 16 px/3-line (4-line on the ≥1240 px sticky sidebar), body text
+  12→14 px, padding 14×16→18×22 px, check indicator 16→18 px; the mobile rail minimum
+  rises to 260 px.
+
+## 5h. UI v3.2 Refinements — Tile Row, Type Scale, Search, Official Icons (since v3.6.12)
+
+Five user-directed adjustments on the v3.1 UI, all in `explorer-ui/index.html`
+(server and launcher untouched):
+
+- **Explorer Restarts tile removed** — the row is now Skill Version + Boot Resets,
+  Skill Restores, Snapshot Restores; the `resets.explorer` block stays served by
+  explorer.py v1.4, the UI simply no longer renders a tile for it.
+- **"Archive Applies" → "Snapshot Restores"** — label-only rename matching the
+  snapshot-repo feature the counter tallies (`resets.boot.archive_applies` unchanged).
+- **Task-card type scale restored to compact** — the 310–400 px enlarged footprint
+  stays, typography returns to 14 px titles / 12 px body / 11 px task id / 16 px check
+  (the v3.6.11 16/14/12/18 px scale read too large on screen).
+- **Search bar compacted** — 40 px pill (was 48), 12 px input (was 14), 18 px leading
+  icon (was 20), 32 px clear button scoped to fit; the compact-width iOS anti-zoom
+  16 px rule stays.
+- **Tile icons = official Google Material Icons** (classic filled 24 px): new_releases
+  (Skill Version), restart_alt (Boot Resets), restore (Skill Restores), backup
+  (Snapshot Restores) — fetched verbatim from google/material-design-icons (Apache 2.0)
+  and embedded as inline SVG symbols with a provenance comment; the upstream
+  `fill="none"` bounding-box filler paths are dropped on embed so the CSS
+  `fill:currentColor` cannot paint them.
+
+## 5i. UI v3.3 — Static-Copy Mode (since v3.6.13)
+
+The UI detects when it is opened WITHOUT its server and degrades gracefully
+instead of freezing at a misleading error (platform file preview of index.html,
+a downloaded copy, any static host):
+
+- **Detection at load** — `file:` protocol, or a pathname other than `/` and
+  `/index.html` (the only paths explorer.py serves the UI at, same origin),
+  marks the page static before the first fetch.
+- **Promotion on first failure** — an origin that answers `/api/files` with a
+  non-JSON body (a JSON `SyntaxError` — e.g. a platform 404/500 HTML page) is
+  not explorer.py: the page is promoted to static mode. A live server that
+  dies after a successful load throws a network error instead and keeps the
+  original error card — the two failure modes stay distinguishable.
+- **Static banner** — an informational state (primary-container tone, official
+  `info` glyph): "Static copy — live data unavailable", why the feed is
+  unreachable, and where the live explorer is served (the preview URL root
+  while a session runs). No retry button — the 10 s auto-refresh loop keeps
+  checking silently.
+- **Snackbar suppressed** — the periodic "Connection to explorer.py lost —
+  retrying…" toast no longer fires in static mode (it was pure noise in a
+  file preview); a genuine outage at the live path keeps it.
+
+## 5j. UI v3.4 — Manual Live-Recovery Button (since 4.0.0)
+
+Built after the user confirmed the platform file preview no longer interferes
+(cause unknown, platform-side) — the defensive path ships anyway, as a MANUAL
+control (never auto-navigation, per explicit user choice):
+
+- **Late probe** — 1000 ms (`RECOVER_MS`) after static-copy detection the page
+  fetches `/api/files` on the same origin once; the existing 10 s loop keeps
+  probing afterwards. The `file:` protocol never probes (no origin to recover
+  to — a downloaded copy keeps the informational banner only).
+- **Probe-gated button** — an explorer.py-shaped JSON answer (`d.server.pid`)
+  upgrades the banner to "Static copy — live explorer reachable" with an
+  **Open live view** button (official `open_in_new` glyph, classic filled
+  24 px, embedded verbatim from google/material-design-icons, Apache 2.0).
+  The probe gate means the button is never offered when the origin answers
+  404/500 HTML — no dead button, no bounce into a platform error page.
+- **Click = cover the top window** — `top.location.replace(<absolute live
+  root>)` recovers the whole window (the platform file preview at top level);
+  cross-origin or sandboxed frames fall back to replacing the frame itself.
+  `replace()` keeps the browser Back button out of the recovery loop.
+- **Never dead** — if a later probe fails after the button appeared, the
+  banner reverts to the informational state and the button is removed.
+- **Behavior change while static** — a JSON answer no longer renders live
+  data in-place (v3.3 did); the banner is the interface, the button is the
+  recovery. The live path ("/" and "/index.html" served by explorer.py) is
+  untouched.
 
 ## 6. Control Commands
 

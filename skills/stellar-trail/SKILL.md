@@ -52,20 +52,20 @@ One banner + two marker families, all **protocol constants** — greppable, audi
 ```
 ID response:
 
-## 🌠 stellar-trail v3.6.9 — protokol aktif
+## 🌠 stellar-trail v4.0.0 — protokol aktif
 ## 🌠 FASE n — LABEL
 phase content on the lines below the marker
 [MEMORY | LABEL] short content
 
 EN response (banner & phase labels in English):
 
-## 🌠 stellar-trail v3.6.9 — protocol active
+## 🌠 stellar-trail v4.0.0 — protocol active
 ## 🌠 PHASE n — LABEL
 short content
 [MEMORY | LABEL] short content
 ```
 
-**Banner rules:** the banner is emitted ONCE per response, BEFORE the first phase marker, on every response that carries phase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v3.6.9) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/update-skill.sh --ensure` or re-run the single install command `npx skills add hoshiyomiX/stellar-trail` (section 4c).
+**Banner rules:** the banner is emitted ONCE per response, BEFORE the first phase marker, on every response that carries phase markers (Type 0 included — it stays one line). The version string is a release constant of this body (v4.0.0) and must match `assets/integrity.version`; a banner showing an older-than-expected version (expected = the release recorded in memory files — the M0 sanity alarm, section 4c) is the visible signature of a degraded installation — run `bash scripts/update-skill.sh --ensure` or re-run the single install command `npx skills add hoshiyomiX/stellar-trail` (section 4c).
 
 The banner and markers are required from the FIRST response of a session. A session that has already produced unmarked responses is not grandfathered in — see Activation rule 12.
 
@@ -439,7 +439,7 @@ Read the matching reference file when you need depth (English rules + rationale 
 **Exec-bit note (since v3.2.0):** files delivered by the skills CLI come without the exec bit (0644) — platform security normalization, not a defect, and it resets on every update. That is why every protocol invocation takes the form `bash scripts/<name>.sh` / `python3 <name>.py` (exec-bit-independent by design); `chmod +x` is optional cosmetic parity only.
 
 **Bundled assets (built-in tools, opt-in — since v3.1.0):**
-- `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.4 + MD3 Expressive UI v5.1: hero dual tiles — Guard Status (live/canonical version, watcher, code freshness) + Session Reset & Restore (dev.sh boots, skill restores, explorer restarts from the ledger logs) — with the Session Task list as a full-width section with expandable content summaries, then the multi-column file card grid; debounced search, filter chips, sort, copy-path, adaptive theme, chunked lazy render; + launcher v1.5 with content-stamp process-freshness restart (kill_wait, pid-identity guard, pidfile heal) activated deploy-time by bootstrap + legacy dev.sh template): the functional replacement for the "All files in task" popup, live on the preview URL via ingress; opt-in & consent-gated, Next.js guard; full guide: `references/task-files-explorer.md`
+- `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.4 + MD3 Expressive UI v3.4 — the v3.6.3-era formatting, made fully English in v3.6.11 and refined in v3.6.12/v3.6.13/4.0.0: sidebar navigation, enlarged task cards on the compact type scale, stat tiles = Skill Version (live version, canonical sync, watcher liveness) + reset counters with timestamps (boot resets, skill restores, snapshot restores) fed by the /api/files guard+resets blocks, tile icons = official Google Material Icons (classic filled, embedded verbatim); compact 40 px debounced search, filter chips, sort, copy-path, preview dialog, chunked lazy render; static-copy graceful banner since UI v3.3 — opened without its server (file: protocol, non-root pathname, or a non-JSON /api/files answer) the UI shows an informational "static copy" state instead of an error and suppresses the retry-snackbar loop; manual live-recovery since UI v3.4 — 1000 ms after static detection the page probes the same origin's /api/files once, and an explorer.py JSON answer upgrades the banner with an "Open live view" button that covers the top window on click (never auto-navigates — explicit user choice; absolute-root top.location.replace with a frame fallback, and a later failed probe removes the button so it never goes dead); the v5.x hero/bento line stays retired; + launcher v1.5 with content-stamp process-freshness restart (kill_wait, pid-identity guard, pidfile heal) activated deploy-time by bootstrap + legacy dev.sh template): the functional replacement for the "All files in task" popup, live on the preview URL via ingress; opt-in & consent-gated, Next.js guard; full guide: `references/task-files-explorer.md`
 
 **Part III — wiring:**
 - `references/integration.md` — interlock deep-dive, Task ID continuity, worklog ledger, edge cases
@@ -456,7 +456,7 @@ ACTIVATION (first turn of every session):
 
 EXECUTION (per turn — banner first, then markers as sub-headings,
 content on the lines below):
-## 🌠 stellar-trail v3.6.9 — protocol active
+## 🌠 stellar-trail v4.0.0 — protocol active
 ## 🌠 PHASE 1 — CLASSIFICATION
 Type __ · language __ · complexity __
 ## 🌠 PHASE 2 — CLARIFICATION
