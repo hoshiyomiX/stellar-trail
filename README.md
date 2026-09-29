@@ -4,7 +4,7 @@
 
 Unified execution discipline + persistent cross-session memory protocol for AI agents.
 
-stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs. Checkpoints follow a fixed write order — the snapshot is rewritten before the audit ledger is appended, and long stretches take one checkpoint per artifact — so a session dying mid-write never orphans its ledger (incident-hardened 2026-09-29).
+stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs. Checkpoints follow a fixed write order — the snapshot is rewritten before the audit ledger is appended, and long stretches take one checkpoint per artifact — so a session dying mid-write never orphans its ledger (incident-hardened 2026-09-29). Since 4.1.0 the body is a slim read (~240 lines — the owner's field-proven diagnosis: big read paths → overthinking → compliance violations), deep procedures live in four on-demand references, every completed task deterministically refreshes the restore archive, and the M0 read path is hard-budgeted.
 
 ## Install
 
@@ -23,7 +23,7 @@ The installer is the open-source [vercel-labs/skills](https://github.com/vercel-
 Since v3.6.7 this is deliberately the ONLY install flow — installing, re-installing, and repairing all run the same command; the package itself has no parallel installer and no fallback route, and every alarm it can raise prints this command as the remediation. After installing, verify the tree (the SHA-256 manifest turns "trust the publisher" into a deterministic check you can audit yourself):
 
 ```bash
-cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 25/25 OK
+cd <skills-dir>/stellar-trail && sha256sum -c assets/integrity.sha256   # expect: 16/16 OK
 npx skills list   # expect stellar-trail, source hoshiyomiX/stellar-trail
 ```
 
@@ -87,10 +87,13 @@ The launcher (v1.4 — auto-deploy + process-freshness restart) deploys itself i
 ## Repository layout
 
 ```
-skills/stellar-trail/     the skill (installable) — ~470 KB installed
-  SKILL.md                protocol body (English, v4.0.0)
+skills/stellar-trail/     the skill (installable)
+  SKILL.md                protocol body — slim read, ~240 lines (English, v4.1.0)
   skill-card.md           canonical version + manifest card
-  references/             13 deep references: one per phase & per memory mechanism
+  references/             4 deep references: ground-base-knowledge (classification),
+                          memory-hygiene (full memory procedures + templates),
+                          environment-resilience + task-files-explorer (deploy docs,
+                          outside the M0 read path)
   scripts/                6 deterministic scripts: bootstrap-sandbox.sh, watcher.sh,
                           enforce-gates.sh, audit-compliance.sh, snapshot-repo.sh,
                           update-skill.sh
@@ -99,7 +102,7 @@ skills/stellar-trail/     the skill (installable) — ~470 KB installed
 
 ## Version
 
-Current release: **v4.0.0** — see [CHANGELOG.md](CHANGELOG.md).
+Current release: **v4.1.0** — see [CHANGELOG.md](CHANGELOG.md).
 
 Verify the installation tree (run from `skills/stellar-trail/`):
 
