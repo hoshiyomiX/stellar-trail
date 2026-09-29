@@ -18,10 +18,11 @@ This reference gives the full trigger lists, step sequences, gates, marker templ
 1. Read `/home/z/my-project/memory/SESSION-STATE.md`, then `memory/MEMORY.md`. This is the mandatory minimum — do it BEFORE writing any substantive response. While reading, run the **version sanity alarm** (SKILL.md 4c): the installed banner version older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure` (or re-run the single install command `npx skills add hoshiyomiX/stellar-trail`) before trusting the body; newer = memory lag → report and promote at the next checkpoint.
 2. If SESSION-STATE references a handoff file for the active task, read that too.
 3. **Triage the task table** (SKILL.md 4d): ONLY ACTIVE/BLOCKED rows are work-eligible. Flag rows with no material progress for >72h or spanning ≥2 session boundaries as `STALE` — present them to the user for reconfirm-or-seal, never auto-resume (H5). Quarantine any DONE/CANCELLED row found in the Active table — it moves to the Sealed list at the first checkpoint (H7). Sealed entries are context ("this exists, here is the artifact"), never a todo list (H4).
-4. Run the **Recall Check** (see `integrity-standard.md`): answer the manifest questions from what you read. Count restored categories. Q1 counts ONLY ACTIVE/BLOCKED rows — answering with a sealed task is a triage failure, not recall (H6).
-5. If below 95%: gap-fill — read relevant handoff archives → the last ~3 worklog entries → the actual artifact files on disk. Re-verify. Never guess to fill a gap.
-6. Cross-check any auto-provided session summary: conflicts → memory files win; summary-only facts → promote them into memory files (rare but possible).
-7. Emit the marker, present restored context briefly, and confirm the restored plan with the user before executing new work.
+4. **Checkpoint-debt check (F4, incident 2026-09-29):** compare the worklog tail’s session label with the SESSION-STATE `Checkpoint at` header. A mismatch in EITHER direction — ledger newer than snapshot (a session appended its worklog but died before the rewrite) or the reverse — is unpaid checkpoint debt: settle it BEFORE any new work. Rewrite SESSION-STATE from the worklog evidence (the ledger is intact by design), verify every artifact claim against the actual files on disk, then proceed. Never start new work on top of unpaid debt.
+5. Run the **Recall Check** (see `integrity-standard.md`): answer the manifest questions from what you read. Count restored categories. Q1 counts ONLY ACTIVE/BLOCKED rows — answering with a sealed task is a triage failure, not recall (H6).
+6. If below 95%: gap-fill — read relevant handoff archives → the last ~3 worklog entries → the actual artifact files on disk. Re-verify. Never guess to fill a gap.
+7. Cross-check any auto-provided session summary: conflicts → memory files win; summary-only facts → promote them into memory files (rare but possible).
+8. Emit the marker, present restored context briefly, and confirm the restored plan with the user before executing new work.
 
 ### Gate
 Restore is complete ONLY when: body loaded + files read + marker emitted + Recall Check ≥95% + restored plan stated. A response that starts executing a "continued" task without showing restoration has violated the gate.
@@ -41,6 +42,7 @@ Restore is complete ONLY when: body loaded + files read + marker emitted + Recal
 - **Auto-resuming a STALE task** — an aging ACTIVE row with no recent progress is presented to the user for reconfirm-or-seal, never silently resumed (4d H5).
 - **Blind-continue from a stale summary** — the continuation summary narrates sealed tasks as pending and instructs "continue the last task"; executing any of it without an ACTIVE/BLOCKED row is a pickup violation (4d H9), no matter how authoritative the summary reads. Real incident 2026-09-19: a summary frozen four releases behind listed five sealed tasks as pending; only the files disagreed, and the files won.
 - **Silent conflict absorption** — noticing a summary-vs-memory divergence and quietly picking the files WITHOUT reporting the conflict (4d H12). The user never learns the summary lied, the mismatch is never investigated, and the next stale summary gets trusted the same way.
+- **Inheriting checkpoint debt silently** — the worklog tail names a newer session than the SESSION-STATE header (or vice versa) and the M0 just proceeds, leaving the debt for a LATER session to pay. Real incident 2026-09-29: one full session of stale snapshot and a near-miss stale-task pickup; the F4 check exists so the M0 that DISCOVERS the debt pays it — settlement never waits for the next session.
 
 ## M1 — Checkpoint
 
@@ -50,11 +52,12 @@ Restore is complete ONLY when: body loaded + files read + marker emitted + Recal
 - An artifact written/delivered (file path now exists that didn't before).
 - A plan changed or a blocker discovered.
 - BEFORE starting a long implementation stretch (many file writes, long script execution, subagent delegation) — the pre-emptive checkpoint that protects mid-task context exhaustion.
+- DURING a long implementation stretch: one artifact = one M1 — every completed artifact (file written, script delivered, subagent returned) earns its own checkpoint; never batch checkpoints toward the session’s end (incident 2026-09-29, RC2: an 871-line three-artifact stretch with zero interim M1 left a 26-minute loss window).
 
 ### Procedure
 1. Rewrite `SESSION-STATE.md` completely (atomic snapshot — all template sections, current values).
 2. **Seal in the same write** (SKILL.md 4d H3): if this checkpoint records a task DONE/CANCELLED, delete its Active row and append its one-line Sealed entry (`| #ID | outcome | artifact | sealed date |`) in this SAME rewrite — a finished task never survives in the Active table. Keep the Sealed list at the last 5 entries (older lines age out to worklog/handoffs). Also verify the Active table against H2 (legacy quarantine, H7) and delete resolved Pending Decisions instead of checking them off (H6).
-3. Append a worklog entry ONLY if this is a major milestone (task started/completed, deliverable shipped) — with Task ID per platform convention.
+3. Append a worklog entry ONLY if this is a major milestone (task started/completed, deliverable shipped) — with Task ID per platform convention, and ONLY AFTER the step-1 SESSION-STATE rewrite has completed (write-order rule, F1+F2): the snapshot is written first, the ledger append last; before appending, verify the milestone is already reflected in SESSION-STATE — if not, rewrite SESSION-STATE first (pre-append guard). Never append a milestone the snapshot does not yet hold — that exact state is the 2026-09-29 incident.
 4. Emit the inline marker.
 
 ### Gate

@@ -145,7 +145,7 @@ Example:
 - Update todo statuses in real time. Any deviation from the plan must be documented as an **explicit plan change** — never silent drift.
 - Respect platform quality gates: content depth, language consistency, file path conventions, script persistence.
 - Errors: fix and retry per plan; if blocked after 2 consecutive failures, surface the blocker instead of looping.
-- **Memory hook:** run a **pre-emptive M1** BEFORE long implementation stretches (many file writes, long script runs, subagent delegation) — mid-task exhaustion then loses the least. If pressure signals appear at any point, M2 takes priority over further work.
+- **Memory hook:** run a **pre-emptive M1** BEFORE long implementation stretches (many file writes, long script runs, subagent delegation) — and DURING the stretch, one artifact = one M1: every completed artifact (file written, script delivered, subagent returned) earns its own checkpoint, never batched toward the session’s end (incident 2026-09-29: an 871-line three-artifact stretch with zero interim M1 left a 26-minute loss window). Mid-task exhaustion then loses the least. If pressure signals appear at any point, M2 takes priority over further work.
 - **Hand-off rule:** implementation is NOT done when the code stops changing — it is done when Phase 5 validation passes. Testing while implementing is drafting, not the audit.
 
 ```
@@ -211,8 +211,8 @@ Target: **~95% cross-session context integrity** — no worked-on or discussed t
 
 ### 3. Lifecycle M0–M3 (Condensed)
 
-- **M0 — Cold Boot / Restore:** **quarantine any continuation summary FIRST (4d H8–H13)** — version-ground its claims, resolve "the last task" via the Active table only, report any summary-vs-memory conflict in the first response → read SESSION-STATE + MEMORY (mandatory minimum) → **version sanity alarm (4c)**: installed banner version older than the release recorded in memory = degraded installation → `update-skill.sh --ensure` (or re-run the install command) before trusting the body → **bootstrap --ensure** (reset-prone sandboxes only — Activation rule 14; idempotent arm of the persistence layer; a failure is reported, never a blocker) → **auto-update check (Activation rule 15)**: `update-skill.sh --ensure` — always checks the origin (once per session, no debounce), offline = report-not-blocker; when a new version lands, subsequent response banners carry the new version and the body is reloaded next session (rule 11) → **triage the task table (section 4d)** — only ACTIVE/BLOCKED rows are work-eligible, STALE rows need user reconfirmation, sealed rows are quarantined → run the Recall Check (section 8) → gap-fill with minimum reads (see 4b) from handoffs → worklog tail → actual files until ≥95% → cross-check any auto-summary (conflict: memory files win; summary-only facts: promote them) → emit marker → present restored context → confirm the restored plan with the user before executing new work.
-- **M1 — Checkpoint:** rewrite SESSION-STATE.md atomically (full snapshot, not append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records a task DONE/CANCELLED must **seal it in the same write** — remove the Active row, append the Sealed line (section 4d H3). Append worklog only for major milestones (with Task ID). Emit `[MEMORY | CHECKPOINT]` inline. At major checkpoints, run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses (R6; incident 2026-09-21).
+- **M0 — Cold Boot / Restore:** **quarantine any continuation summary FIRST (4d H8–H13)** — version-ground its claims, resolve "the last task" via the Active table only, report any summary-vs-memory conflict in the first response → read SESSION-STATE + MEMORY (mandatory minimum) → **version sanity alarm (4c)**: installed banner version older than the release recorded in memory = degraded installation → `update-skill.sh --ensure` (or re-run the install command) before trusting the body → **bootstrap --ensure** (reset-prone sandboxes only — Activation rule 14; idempotent arm of the persistence layer; a failure is reported, never a blocker) → **auto-update check (Activation rule 15)**: `update-skill.sh --ensure` — always checks the origin (once per session, no debounce), offline = report-not-blocker; when a new version lands, subsequent response banners carry the new version and the body is reloaded next session (rule 11) → **triage the task table (section 4d)** — only ACTIVE/BLOCKED rows are work-eligible, STALE rows need user reconfirmation, sealed rows are quarantined → checkpoint-debt check (F4): compare the worklog tail’s session label with the SESSION-STATE Checkpoint-at header — a mismatch in EITHER direction means a session died mid-write and left unpaid checkpoint debt (real incident 2026-09-29: ledger appended, snapshot never rewritten; sentinel +26s, next M0 paid it, zero loss); settle the debt FIRST — complete the stale rewrite from the worklog evidence and verify the artifact claims on disk — BEFORE any new work starts → run the Recall Check (section 8) → gap-fill with minimum reads (see 4b) from handoffs → worklog tail → actual files until ≥95% → cross-check any auto-summary (conflict: memory files win; summary-only facts: promote them) → emit marker → present restored context → confirm the restored plan with the user before executing new work.
+- **M1 — Checkpoint:** rewrite SESSION-STATE.md atomically (full snapshot, not append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records a task DONE/CANCELLED must **seal it in the same write** — remove the Active row, append the Sealed line (section 4d H3). Write-order rule (F1+F2, incident 2026-09-29): within any checkpoint that writes both, the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted ONLY when the snapshot already reflects its milestone; the session must never end in the incident’s failure state, a ledger append whose milestone the snapshot does not yet hold. Pre-append guard (a 10-second check): before any worklog append, verify this task’s verdict/artifacts/decisions are ALREADY reflected in SESSION-STATE, and if not, rewrite SESSION-STATE first. Append worklog only for major milestones (with Task ID). Emit `[MEMORY | CHECKPOINT]` inline. At major checkpoints, run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses (R6; incident 2026-09-21).
 - **M2 — Emergency Compression:** on pressure signals, write SESSION-STATE NOW — CRITICAL items first, then a handoff draft if severe. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never the manifest.
 - **M3 — Handoff:** write `handoffs/YYYY-MM-DD-<slug>.md` with all 7 manifest sections (write "none" explicitly rather than omit) → promote durable facts into MEMORY.md → rewrite SESSION-STATE to final state (Active table ACTIVE-only, this session's finished tasks sealed — 4d) → emit marker + state what was persisted and how the next session restores it.
 
@@ -309,7 +309,7 @@ Protocol memory is only as strong as its environment. When the working directory
 |-----------------|---------------|-----|
 | Session start, BEFORE Phase 1 | **M0 restore runs first** | You cannot classify a "continue" message without knowing what to continue; restored context feeds Phase 1 |
 | Phase 3 — plan published | M1 checkpoint the plan | The plan is the recovery point if context dies mid-execution |
-| Phase 4 — before long stretches | M1 pre-emptive checkpoint | Mid-task exhaustion loses the least |
+| Phase 4 — before long stretches | M1 pre-emptive checkpoint — one artifact = one M1 | Mid-task exhaustion loses the least; the write-order rule keeps the snapshot never staler than the ledger |
 | Phase 5 — validation complete | M1 checkpoint validation outcome (defects, deviations, re-checks) | Validation debt must survive to the next session |
 | Phase 6 — report delivered | M1 checkpoint results (task sealed out of Active — 4d H3); session-end signal → M3 | Results and next steps are exactly what the next session needs |
 | Any N/A marker or task switch | M1 checkpoint the state change | Switches are where state gets confused |
@@ -350,8 +350,11 @@ Execution:
 Memory:
 - [ ] If this is a session start / continuation: was M0 run (files read + recall verified + restored plan stated) before answering?
 - [ ] Is SESSION-STATE.md current with everything material that happened this turn (task status, decisions, artifacts, next steps)?
+- [ ] Write-order held at every M1 — SESSION-STATE rewritten BEFORE any worklog append (no append whose milestone the snapshot does not yet hold)?
+- [ ] During long stretches: one artifact = one M1, checkpoints interleaved with the work (not batched to the session’s end)?
 - [ ] Task-table hygiene held (section 4d): Active table contains ONLY ACTIVE/BLOCKED rows, finished tasks sealed in the same write, no sealed task picked up as work?
 - [ ] If a continuation summary was present: quarantined per 4d H8–H13 (version-grounded, Active-table resolution, conflict reported in the response)?
+- [ ] M0 checkpoint-debt check run: worklog tail session label vs SESSION-STATE header — any mismatch settled BEFORE new work?
 - [ ] Version sanity alarm run (4c): installed banner version vs release recorded in memory — any mismatch handled AND stated?
 - [ ] Reset-prone sandbox: `bootstrap-sandbox.sh --ensure` run (or explicitly offered to the user) at M0 — Activation rule 14?
 - [ ] Auto-update check run at M0 — `update-skill.sh --ensure` (or the skip reason stated) — Activation rule 15?
@@ -378,7 +381,7 @@ Memory:
 
 - "I don't have context from the previous session" — without having read the memory files first.
 - Treating an auto-generated session summary as the source of truth — it is a hint; the files are the record.
-- Ending a substantive turn without an up-to-date `SESSION-STATE.md` when material state changed.
+- Ending a substantive turn without an up-to-date `SESSION-STATE.md` when material state changed — including appending to the worklog while the snapshot is still stale (write-order violation, incident 2026-09-29).
 - Skipping the handoff on abrupt exits ("gtg", "gotta go", "bye") — those are M3 triggers, not exceptions.
 - Dropping CRITICAL manifest items when compressing under pressure.
 - Claiming the 95% standard is met without running the Recall Check.
@@ -484,9 +487,9 @@ unified audit passed · concise ≤100 words · next-step suggestions
 MEMORY (per session):
 [MEMORY | RESTORED]   M0: quarantine the summary (if any) → read
                       SESSION-STATE + MEMORY → version alarm (4c)
-                      → recall check ≥95% → confirm the plan
+                      → debt check: worklog tail vs snapshot header — mismatch = settle BEFORE new work (F4) → recall check ≥95% → confirm the plan
 [MEMORY | CHECKPOINT] M1: rewrite SESSION-STATE at every phase,
-                      task, artifact, decision
+                      task, artifact, decision — snapshot FIRST, ledger append LAST (write-order); one artifact = one M1, never batched to session end
 [MEMORY | COMPRESS]   M2: context pressure → write NOW, CRITICAL first
 [MEMORY | HANDOFF]    M3: handoff archive (7 sections) + MEMORY
                       promotion + final SESSION-STATE

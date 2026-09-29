@@ -93,7 +93,7 @@ worklog/MEMORY, not here; idle >7 days = zombie → propose sealing once — H6)
 - low / normal / elevated — one line why
 ```
 
-**Atomic rewrite semantics:** write the COMPLETE file each time, never append. Rationale: the file must always be small, current, and self-contained — the next session's M0 reads ONLY this + MEMORY.md as its mandatory minimum. A stale entry left behind by lazy appending is worse than a missing entry: it misleads. And a sealed entry left in the Active table is the worst case of all — it gets PICKED UP as work by a later session (the exact failure SKILL.md 4d exists to kill): H2 keeps the table ACTIVE-only, H3 seals in the same write, and H7 quarantines legacy pollution at the first checkpoint of every session. A continuation summary sits OUTSIDE the restore read order entirely — quarantined input whose claims are version-grounded against these files before any part is believed (H8–H13).
+**Atomic rewrite semantics:** write the COMPLETE file each time, never append. Rationale: the file must always be small, current, and self-contained — the next session's M0 reads ONLY this + MEMORY.md as its mandatory minimum. A stale entry left behind by lazy appending is worse than a missing entry: it misleads. And a sealed entry left in the Active table is the worst case of all — it gets PICKED UP as work by a later session (the exact failure SKILL.md 4d exists to kill): H2 keeps the table ACTIVE-only, H3 seals in the same write, and H7 quarantines legacy pollution at the first checkpoint of every session. A continuation summary sits OUTSIDE the restore read order entirely — quarantined input whose claims are version-grounded against these files before any part is believed (H8–H13). During long stretches, one artifact = one M1 — checkpoints interleaved with the work, never batched to the session’s end (F3a; incident 2026-09-29).
 
 ## 4. Handoff Archive Template
 
@@ -136,7 +136,7 @@ All 7 sections are mandatory — write "none" explicitly rather than omitting a 
 | handoffs/*.md | write once | main session agent ONLY | M3 |
 | worklog.md | append only | main agent AND subagents | major milestones, with Task ID |
 
-**Rationale:** Single-writer for memory/ prevents races between agents: a subagent could overwrite the main agent's snapshot and destroy state. Subagents report through the worklog (append-only, race-safe) and return results to the main agent, which then checkpoints. Simple rule: memory/ has one owner-writer, the worklog is shared.
+**Rationale:** Single-writer for memory/ prevents races between agents: a subagent could overwrite the main agent's snapshot and destroy state. Subagents report through the worklog (append-only, race-safe) and return results to the main agent, which then checkpoints. Simple rule: memory/ has one owner-writer, the worklog is shared. Write-order (F1+F2, incident 2026-09-29): when a checkpoint writes both, the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted only when the snapshot already reflects its milestone (the incident’s failure state — a ledger append the snapshot does not yet hold — must never occur); before appending, confirm the milestone is already reflected in the snapshot.
 
 ## 6. Recovery Matrix / Matriks Pemulihan
 
@@ -144,6 +144,7 @@ All 7 sections are mandatory — write "none" explicitly rather than omitting a 
 |-----------|-------------------|
 | `memory/` missing entirely | Initialize structure; rebuild MEMORY.md + SESSION-STATE.md from worklog.md entries; confirm reconstruction with the user before trusting it. If worklog.md is also absent (total cold start, e.g. a brand-new container), initialize an empty structure and treat it as session 1 — still confirm with the user |
 | SESSION-STATE.md stale/contradictory | Newest write wins for state; cross-check worklog tail; if still ambiguous, ask the user ONE clarifying question |
+| Worklog tail newer than the SESSION-STATE header (checkpoint debt — a session died between ledger append and snapshot rewrite; incident 2026-09-29) | Settle BEFORE new work (F4): rewrite SESSION-STATE from the worklog evidence, verify the artifact claims against the files on disk, then proceed |
 | Active table contains DONE/CANCELLED rows (legacy write by an older protocol version) | Quarantine, do not execute: the first M1 moves them to the Sealed list (SKILL.md 4d H7); if the user explicitly wants that work again, open a NEW Task ID with `ref: #oldID` |
 | MEMORY.md conflicts with newer SESSION-STATE | SESSION-STATE wins for current state; MEMORY wins for durable facts; if genuinely contradictory, worklog arbitrates history |
 | Handoff archive contains an error | Never edit it — write a correcting note in the NEXT handoff |

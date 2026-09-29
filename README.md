@@ -4,7 +4,7 @@
 
 Unified execution discipline + persistent cross-session memory protocol for AI agents.
 
-stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs.
+stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs. Checkpoints follow a fixed write order — the snapshot is rewritten before the audit ledger is appended, and long stretches take one checkpoint per artifact — so a session dying mid-write never orphans its ledger (incident-hardened 2026-09-29).
 
 ## Install
 
