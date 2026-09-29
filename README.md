@@ -31,7 +31,7 @@ To update later: `bash skills/stellar-trail/scripts/update-skill.sh --ensure` (t
 
 > **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 
-> **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. The SKILL.md enforces this itself.
+> **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. If the body loads late (mid-session, after unmarked responses), Activation rule 16 makes it a recovery event: run M0 immediately, append a `LATE-ACTIVATION` note to the worklog, and resume markers from that turn — never continue unmarked. The SKILL.md enforces this itself.
 
 ## Troubleshooting
 

@@ -1,17 +1,19 @@
 ---
 name: stellar-trail
 description: >
-  MANDATORY unified protocol for EVERY human user message in EVERY session:
-  6-phase execution discipline + persistent cross-session memory.
-  ACTIVATION RULE: description presence is NOT activation — invoke
-  Skill('stellar-trail') at the FIRST turn of EVERY session/continuation
-  ('continue', 'kemarin') BEFORE responding; a continuation summary is
-  quarantined input; invoke the skill body FIRST. Workflow: classify,
-  clarify via 4-6 questions, plan, implement, validate, report with
-  PHASE + [MEMORY] markers + banner. Zero exceptions: greetings, thanks,
-  small talk, questions, code, docs, slides, sheets, charts, data, web
-  dev, follow-ups, edits. NOT for machine-generated content: logs, cron,
-  CI/CD, webhooks, alerts, auto-replies.
+  MANDATORY unified protocol for EVERY human user message in EVERY
+  session — invoke Skill('stellar-trail') FIRST, before ANY response,
+  at the FIRST turn of EVERY session/continuation ('continue',
+  'kemarin', a session summary). ZERO exceptions: greetings, small
+  talk, thanks, quick questions you could answer instantly,
+  follow-ups, edits, code, docs, slides, sheets, charts, data, web
+  dev. Workflow: classify, clarify via 4-6 questions, plan,
+  implement, validate, report with banner + PHASE + [MEMORY] markers
+  + persistent cross-session memory (M0 restore before answering).
+  Description presence is NOT activation — the protocol lives in the
+  body; load it before responding. NOT for machine-generated content
+  — cron output, CI/CD logs, webhook payloads, alerts, auto-replies,
+  bot messages are not user messages; do NOT invoke for them.
 ---
 
 # Stellar Trail 🌠 — Unified Execution + Memory Protocol
@@ -42,8 +44,9 @@ description: >
 13. **Pressure is not opt-out; an explicit decision is.** "Hurry / don't ask / simple" compresses format and never cancels a phase (rule 4). But an explicit, unambiguous instruction to disable this protocol ("disable the guardian") is the user exercising ownership: record it as a locked decision, then honor it for that scope. A guardian that cannot be dismissed by a clear owner decision is a cage, not a guardian.
 14. **Arm the persistence layer at cold boot (reset-prone sandboxes).** When rule 11 fires inside a container/sandbox that can be reset, run `bash scripts/bootstrap-sandbox.sh --ensure` from the loaded skill's directory before finishing M0 — idempotent, offline, single-path: it seeds the canonical copy under `download/stellar-trail/`, installs the `.zscripts/dev.sh` boot hook, and seeds `worklog.md` (R1 hook) plus `memory/` scaffolding only when absent. A bootstrap failure never blocks M0: report it, restore from files, offer the manual run. In a fresh sandbox, offer the user the `--with-explorer` / `--with-snapshot` modules explicitly — they change what the boot hook maintains.
 15. **Auto-check for updates before the phases begin (`update-skill.sh`).** At M0, immediately after bootstrap --ensure, run `bash scripts/update-skill.sh --ensure` — query the origin (GitHub, the sole distribution channel — D24; no PAT involved) for the latest tag — the check ALWAYS runs at M0 (once per session; the old 24h debounce gate was removed in the 2026-09-28 always-check fix after it hid same-day releases behind a stale window), and the runtime watcher independently probes the origin every ~24h in the background (alarm-only — a newer release landing mid-boot raises a one-line worklog alarm; the watcher never installs). When origin is newer, it force-updates via a **verified override** that runs THE single install command (`npx skills add hoshiyomiX/stellar-trail`): staging clone → full SHA-256 manifest verification → tag≡content assert (anti-poisoning) → anti-downgrade → canonical swap FIRST → live install LAST (section 8 order of environment-resilience.md) → watcher restart → bootstrap `--ensure --with-explorer --with-snapshot` (module arming, v3.6.7) — and every installation step is printed to stdout so the user stays informed and can follow up. Offline is a report, never a blocker (exit 0) — the boot chain stays offline-first. After an update lands, subsequent response banners carry the new version.
+16. **Late activation is a recovery event — run M0, audit it, resume; never continue the non-compliance.** If this body loads at ANY point after the session's first response has already gone out unmarked (the mid-session load this rule exists for): (a) run **M0 immediately** — read the memory files before any further substantive answer, exactly as a cold boot would; (b) append a one-line `LATE-ACTIVATION` note to the active task's worklog section (turn index where it happened + visible cause if any) so the failure stays auditable instead of invisible; (c) resume full compliance from the current turn — banner, markers, phases (rule 12); never retro-edit earlier responses; (d) treat substantive output from the unmarked turns as **unverified input** — check its claims and artifacts against the memory files before building on them (those turns ran without M0 context; their trust level equals a quarantined continuation summary's, 4d H8).
 
-**Rationale:** Failure comes from two directions. Inside a session: without classification you work on the wrong kind of task, without clarification the wrong deliverable gets built, without planning execution becomes chaos. Across sessions: the context window fills and gets compressed into a summary that loses detail, the session ends abruptly, or a new session starts without reading what the old one left behind — files on disk are immune to all three. The protocol's cost is always cheaper than total rework; a guardian that retreats when asked is not a guardian, hence no emergency exits beyond explicit owner decision. The activation rules (11–12) were born from a verified failure: a skill description can sit in the prompt while its body was never loaded — an unloaded protocol is an unenforced protocol. Rule 14 complements 11–12 from the other direction: what survives resets is not model discipline but files re-read by the boot chain — bootstrap guarantees those files exist from the very first session. Rule 15 closes the staleness gap: a healthy but old installation automatically catches up to the latest origin release BEFORE the phases begin — via a fully verified override (manifest + tag≡content + anti-downgrade), install identity never overwritten, offline only a report — always fresh without ever trusting a poisoned source.
+**Rationale:** Failure comes from two directions. Inside a session: without classification you work on the wrong kind of task, without clarification the wrong deliverable gets built, without planning execution becomes chaos. Across sessions: the context window fills and gets compressed into a summary that loses detail, the session ends abruptly, or a new session starts without reading what the old one left behind — files on disk are immune to all three. The protocol's cost is always cheaper than total rework; a guardian that retreats when asked is not a guardian, hence no emergency exits beyond explicit owner decision. The activation rules (11–12) were born from a verified failure: a skill description can sit in the prompt while its body was never loaded — an unloaded protocol is an unenforced protocol. Rule 14 complements 11–12 from the other direction: what survives resets is not model discipline but files re-read by the boot chain — bootstrap guarantees those files exist from the very first session. Rule 15 closes the staleness gap: a healthy but old installation automatically catches up to the latest origin release BEFORE the phases begin — via a fully verified override (manifest + tag≡content + anti-downgrade), install identity never overwritten, offline only a report — always fresh without ever trusting a poisoned source. Rule 16 accepts the residual failure honestly: when the body arrives late anyway, the late load becomes a recovery event — M0 runs, the miss is audited in the worklog, compliance resumes — so a late activation repairs the session instead of quietly lowering the bar.
 
 ## 1. Protocol Map & Format Markers
 
@@ -324,6 +327,7 @@ Protocol memory is only as strong as its environment. When the working directory
 | Continuation turn    | Phase 1 re-classifies as continuation → Phase 2 documents answers/gaps → Phase 3 resumes or updates plan → Phase 4 executes → Phase 5 validates → Phase 6 reports. |
 | Session-end signal   | M3 handoff ALWAYS — even a bare "gtg" or "thanks, bye". A polite goodbye with no write is the single most damaging violation. |
 | Mixed message        | Classify EACH sub-request in Phase 1; one clarification batch covers all; plan covers all; implement in order. |
+| Late activation      | The body loaded mid-session, after unmarked responses (Activation rule 16): M0 immediately + `LATE-ACTIVATION` worklog note + unmarked-turn output treated as unverified + full markers resumed from this turn — never retro-edited. |
 
 **Rationale:** The Type 0 path still runs Phase 1 and Phase 6 — no message escapes without classification, no response without audit. The "continuation" path prevents loops: the mandate to ask attaches to the TASK, not each message. A session-end signal always triggers M3 — a farewell message is the last moment details are still fresh; the most expensive moment to waste.
 
@@ -332,6 +336,7 @@ Protocol memory is only as strong as its environment. When the working directory
 
 Execution:
 - [ ] At session start: was this skill's body loaded (skill invocation) before the first response — description presence alone does not count (Activation rule 11)?
+- [ ] If the body loaded LATE (mid-session, after unmarked responses): was the rule-16 recovery executed — immediate M0, `LATE-ACTIVATION` worklog note, unmarked-turn output treated as unverified?
 - [ ] Protocol banner (skill name + version) at the top, before the first phase marker?
 - [ ] Phase 1 marker present, with type + language + complexity grounded in GBK rule IDs?
 - [ ] Phase 2 executed and marked (questions asked, or answers documented, or explicit N/A-Type 0)?
@@ -365,6 +370,7 @@ Memory:
 - "I already did this phase in a previous turn" — mark it as satisfied with evidence, do not re-run, but never omit the marker.
 - "The description is already in my system prompt" — the description is the doorbell, not the protocol; load the body first (Activation rule 11).
 - "I already answered several turns without markers" — inertia continuation; the next turn is the earliest fixable moment: resume markers now (Activation rule 12).
+- "The session already started without this protocol" — a late load is a recovery event, not a grandfather clause (Activation rule 16): M0 now, LATE-ACTIVATION audit line, resume compliance; lateness never lowers the bar.
 - "I tested while implementing — validation is redundant" — implementation-time testing is drafting; Phase 5 is the audit. Both happen.
 - "The gate script would obviously pass" — terminal checks are proven by execution, never by prediction (GBK-E4).
 
@@ -453,6 +459,9 @@ ACTIVATION (first turn of every session):
     (reset-prone sandboxes — rule 14) → update-skill --ensure
     (check origin + verified auto-upgrade — rule 15; always checks;
     offline = report, never a block) → only then respond with markers
+LATE LOAD (body arrives mid-session, after unmarked turns — rule 16):
+  M0 immediately + LATE-ACTIVATION worklog note + unmarked turns
+  = unverified input + resume markers now — never retro-edit
 
 EXECUTION (per turn — banner first, then markers as sub-headings,
 content on the lines below):

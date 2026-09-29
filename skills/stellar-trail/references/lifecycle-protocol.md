@@ -10,6 +10,7 @@ This reference gives the full trigger lists, step sequences, gates, marker templ
 - A continuation message: "lanjut", "lanjutkan", "continue", "kerjakan yang kemarin", "session sebelumnya".
 - A recall question: "masih ingat?", "kemarin kita ngapain?", "apa yang kita kerjakan?", "kamu masih paham konteksnya?"
 - An edit/refinement request that assumes prior context ("ubah bagian yang tadi", "revisi deck yang kemarin").
+- A late activation: the protocol body loads mid-session, after responses have already gone out unmarked (SKILL.md Activation rule 16) — M0 runs immediately, a one-line `LATE-ACTIVATION` note is appended to the active task's worklog section, and the unmarked turns' output is treated as unverified input before anything builds on it.
 
 ### Procedure
 **Prerequisite:** the protocol body must already be loaded via the skill invocation — description presence in the prompt is not activation (SKILL.md Activation rule 11). M0 cannot run from a description alone.
@@ -35,6 +36,7 @@ Restore is complete ONLY when: body loaded + files read + marker emitted + Recal
 - **Reading but not confirming** — restoring silently then barreling into execution. The gate requires presenting the restored plan and confirming.
 - **Trusting the summary over the files** — summaries compress and drop facts; the files are the record.
 - **Running M0 from the description alone** — the description is a trigger label; without the body loaded, the markers, gates and manifest are unknown. Verified in production: an entire session ran description-only with zero compliance.
+- **Grandfathering a late load** — the body arriving mid-session is a recovery event (Activation rule 16), not a license to keep responding unmarked: M0 now, LATE-ACTIVATION audit line in the worklog, resume markers. Lateness never lowers the bar.
 - **Resurrecting a sealed task** — reading a DONE/CANCELLED row as pending work and "continuing" it. Sealed rows are history, never todos (SKILL.md 4d H4); if the user genuinely wants that work again, open a NEW Task ID carrying `ref: #oldID`.
 - **Auto-resuming a STALE task** — an aging ACTIVE row with no recent progress is presented to the user for reconfirm-or-seal, never silently resumed (4d H5).
 - **Blind-continue from a stale summary** — the continuation summary narrates sealed tasks as pending and instructs "continue the last task"; executing any of it without an ACTIVE/BLOCKED row is a pickup violation (4d H9), no matter how authoritative the summary reads. Real incident 2026-09-19: a summary frozen four releases behind listed five sealed tasks as pending; only the files disagreed, and the files won.
