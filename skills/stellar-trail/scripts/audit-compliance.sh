@@ -25,6 +25,9 @@
 #   worklog-activation-hook  the activation hook line is present at the tail
 #                            of the worklog (keeps the activation chain alive
 #                            across resets)
+#   memory-activation-hooks  the activation hook line is present at the head
+#                            of BOTH always-read memory files (SESSION-STATE
+#                            + MEMORY — R1 scope extension, 2026-09-30)
 #
 # FRESH-INSTALL NOTE: on a CLI-only installation without the persistence
 #   layer, memory-foundation FAIL and worklog-activation-hook WARN are the
@@ -123,6 +126,18 @@ if [ -f "$WL" ]; then
         res WARN "worklog-activation-hook" "no ⚡ACTIVATE line within the last 50 worklog lines — the activation hook has not been appended yet — fresh install? run: bash scripts/bootstrap-sandbox.sh"
     fi
 fi
+
+# --- memory-activation-hooks (R1 scope extension, 2026-09-30) -----------------
+for MF in "$ROOT/memory/SESSION-STATE.md" "$ROOT/memory/MEMORY.md"; do
+    MFB="$(basename "$MF")"
+    if [ ! -f "$MF" ]; then
+        res WARN "memory-activation-hook ($MFB)" "memory file missing — fresh install? run: bash scripts/bootstrap-sandbox.sh (memory is consent-gated by the first session)"
+    elif head -3 "$MF" | grep -q '⚡ACTIVATE'; then
+        res PASS "memory-activation-hook ($MFB)" "activation trigger present in the header (first 3 lines)"
+    else
+        res WARN "memory-activation-hook ($MFB)" "no ⚡ACTIVATE line in the first 3 lines — restore the hook at the next M1 (SKILL.md R1: the trigger rides BOTH always-read memory headers)"
+    fi
+done
 
 # --- verdict -------------------------------------------------------------------
 say "[audit-compliance] VERDICT: PASS=$PASS WARN=$WARN FAIL=$FAIL"

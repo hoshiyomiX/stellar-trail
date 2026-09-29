@@ -533,6 +533,7 @@ NOW="$(date '+%Y-%m-%d %H:%M')"
 if [ ! -f "$MEMORY_DIR/SESSION-STATE.md" ]; then
     mkdir -p "$MEMORY_DIR"
     cat > "$MEMORY_DIR/SESSION-STATE.md" <<SEED_SS
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # SESSION-STATE — Working Snapshot
 > Atomic snapshot — rewritten at every checkpoint. Latest write wins.
 > Checkpoint at: $NOW — COLD START — scaffolded by scripts/bootstrap-sandbox.sh (stellar-trail v$BOOT_VERSION)
@@ -561,6 +562,7 @@ fi
 
 if [ ! -f "$MEMORY_DIR/MEMORY.md" ]; then
     cat > "$MEMORY_DIR/MEMORY.md" <<SEED_MEM
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # MEMORY — Long-Term Memory
 > Durable facts only. Promoted from session work at handoff. Maintained by the stellar-trail protocol.
 > Last updated: $NOW — COLD START — scaffolded by bootstrap-sandbox.sh v$BOOT_VERSION; awaiting user confirmation (SKILL.md privacy section)
@@ -582,7 +584,7 @@ if [ ! -f "$WORKLOG" ]; then
 > Append-only (platform convention). Every section starts with a --- line and the activation hook line. Managed by stellar-trail.
 
 ---
-⚡ACTIVATE: load Skill('stellar-trail') before the first response — its description alone is not activation
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 Task ID: 0
 Agent: bootstrap-sandbox.sh
 Task: Sandbox bootstrap — arming the persistence layer

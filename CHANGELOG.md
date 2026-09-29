@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-09-30 · R1 scope extension: the activation trigger rides the memory headers (Task 17)
+
+- **Why:** R1 put the `⚡ACTIVATE` trigger on the worklog — the LAST file in M0's read order (SESSION-STATE → MEMORY → handoff → worklog tail) and one a compliant-but-thrifty session may legally skip when recall is already ≥95%. The header hooks move the trigger to files #1 and #2 of the mandatory read path: any session that restores context at all now reads a trigger line BEFORE the body of either memory file. Cost: +2 lines on disk, zero read-path growth; the description, the eval-hardened rules, and all six scripts' behavior are untouched.
+- **What:** the trigger line is now the first line of `memory/SESSION-STATE.md` and `memory/MEMORY.md` (and of every handoff archive, via the template) — SKILL.md R1 extended to name both memory headers; `references/memory-hygiene.md` templates carry the line so every atomic rewrite preserves it; `bootstrap-sandbox.sh` seeds it into fresh memory scaffolds (and its worklog seed is normalized to the canonical trigger wording); `audit-compliance.sh` asserts the hook in both headers (WARN-level, self-healing at the next M1). Untagged per owner decision (Task 13/14/15 precedent); tag installs receive it at the next bump.
+
 ## v4.1.0 — 2026-09-29 · the slim-body release (Task 16; folds the three untagged main fixes — Tasks 13, 14, 15)
 
 **Why — the owner's diagnosis, field-proven:** big skill body → LLM reads too much → overthinking → compliance violation. The 2026-09-29 cross-sandbox incident proved a LOADED protocol still gets violated when the body is large enough to demand effortful reconciliation; a protocol text that gets skimmed under pressure is a protocol that fails. The cure is deleting READING, not function.

@@ -37,6 +37,7 @@ Single-writer for `memory/` prevents races: a subagent could overwrite the main 
 ### 2.1 SESSION-STATE.md
 
 ```markdown
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # SESSION-STATE — Working Snapshot
 > Atomic snapshot — rewritten at every checkpoint. Latest write wins.
 > Checkpoint at: YYYY-MM-DD HH:mm (session N, tz) — M1/M2/M3
@@ -83,6 +84,7 @@ propose sealing once — H6)
 ### 2.2 MEMORY.md
 
 ```markdown
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # MEMORY — Long-Term Memory
 > Durable facts only. Promoted from session work via M3. Last updated: YYYY-MM-DD (session N)
 
@@ -109,6 +111,7 @@ propose sealing once — H6)
 Filename: `handoffs/YYYY-MM-DD-<short-slug>.md` — date = when written, slug = session topic.
 
 ```markdown
+⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # Handoff — <topic> (YYYY-MM-DD, session N)
 > Written at session end via M3. Immutable record.
 
@@ -139,7 +142,7 @@ Stage Summary:
 - <key results / decisions / artifacts>
 ```
 
-The `⚡ACTIVATE` line (R1) is the first line of EVERY appended section — the newest section is the first thing the next session reads, so it always carries the activation trigger. M0 verifies the hook exists in the worklog tail; if missing, re-append at the next M1 (self-healing).
+The `⚡ACTIVATE` line (R1) rides every file the next session reads early: the first line of EVERY appended worklog section, and — per the templates above — the first line of SESSION-STATE.md, MEMORY.md, and every handoff archive. The trigger now meets the next session at every position of the M0 read order, not just the ledger; a session that restores context at all reads a trigger line before the body of either memory file. M0 verifies the hook in the worklog tail AND both memory headers; if missing anywhere, restore at the next M1 (self-healing).
 
 ## 3. Lifecycle Procedures M0–M3
 

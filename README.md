@@ -58,7 +58,7 @@ What it installs — one proven path per module, no redundant fallbacks:
 
 | Module | Installs | Closes |
 |---|---|---|
-| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook (skill restore with the no-downgrade version gate, v3.6.7) + `.zscripts/watcher.sh` runtime watchdog v2.0 (explorer health + auto-restart, verify-only integrity checks, release-file guard, archive refresh, compliance sentinel) + `worklog.md` (activation hook) + `memory/` scaffold | skill files wiped on reset · activation chain broken · services dead between boots |
+| core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook (skill restore with the no-downgrade version gate, v3.6.7) + `.zscripts/watcher.sh` runtime watchdog v2.0 (explorer health + auto-restart, verify-only integrity checks, release-file guard, archive refresh, compliance sentinel) + `worklog.md` (R1 activation hook) + `memory/` scaffold (R1-seeded headers) | skill files wiped on reset · activation chain broken · services dead between boots |
 | `--with-explorer` | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
 | `--with-snapshot` | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
 

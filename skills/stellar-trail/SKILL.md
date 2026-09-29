@@ -119,7 +119,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 - **Worklog rotation:** `worklog.md` keeps the sections of the **last 3 Task IDs**; at any M1 where older sections remain, move them verbatim to `worklog-archive.md` and append a one-line rotation record (date + archived range). The worklog stays append-only in form; the archive rides repo.tar and git; M0 never reads it by default. The R1 activation hook (below) always stays in the newest kept section.
 - **MEMORY cap:** ~80 lines. When exceeded: merge redundant environment lessons, one-line ledger-style entries, prune oldest resolved items first — NEVER prune profile, locked decisions, or inventory rows.
 
-**Worklog activation hook (R1):** the trigger line `⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation` must be the first line of EVERY appended worklog section (directly under the `---` rule), so the newest section always carries the activation trigger. M0 verifies it exists in the worklog tail; if missing, re-append at the next M1 (self-healing). This closes the activation gap from OUTSIDE the model.
+**Activation hook (R1):** the trigger line `⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation` rides every file a next session reads early: (a) the first line of EVERY appended worklog section (directly under the `---` rule), (b) the first line of `memory/SESSION-STATE.md`, and (c) the first line of `memory/MEMORY.md` — the two always-read memory files (the memory-hygiene templates carry the line, so every atomic rewrite preserves it). M0 verifies the hook in the worklog tail AND both memory headers; if missing anywhere, restore at the next M1 (self-healing). This closes the activation gap from OUTSIDE the model at every mandatory-read position, not just the ledger.
 
 **Shared Task IDs:** number the WORK, not the session — Task 3 started in session 3 remains Task 3 in session 4; `worklog.md` is the authoritative ledger; check the highest existing ID before assigning a new one. **Single-writer rule:** `memory/` is written by the main session agent ONLY; subagents report via the append-only worklog and return results to the main agent.
 
@@ -151,11 +151,11 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 
 | Script (all invoked as `bash scripts/<name>.sh`) | Duty |
 |---|---|
-| `bootstrap-sandbox.sh` | Arm the persistence layer: canonical copy + boot hook + worklog R1 seed + memory scaffold; modular `--with-explorer` / `--with-snapshot`; idempotent, offline |
+| `bootstrap-sandbox.sh` | Arm the persistence layer: canonical copy + boot hook + worklog R1 seed + R1-seeded memory scaffold; modular `--with-explorer` / `--with-snapshot`; idempotent, offline |
 | `update-skill.sh` | Single-flow installer wrapper — `--ensure` always checks the origin (once per session; offline = report, exit 0); newer origin → verified override that runs THE install command (staging clone → SHA-256 manifest → tag≡content → anti-downgrade → canonical swap first → live install last) |
 | `watcher.sh` | Runtime watchdog daemon v2.1: explorer health + auto-restart · verify-only integrity checks ~every 10 min · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · `--ensure/--status/--stop/--probe-origin` |
 | `enforce-gates.sh` | Terminal-track enforcement: `--artifact` (exists, size) · `--lint` (bash/py/js/json/html/md) · `--check-skill` (frontmatter, description ≤1024, referenced files exist) · `--check-worklog --task-id` |
-| `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, installed-vs-canonical version, R1 hook at tail |
+| `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, installed-vs-canonical version, R1 hooks (worklog tail + memory headers) |
 | `snapshot-repo.sh` | Refresh the platform restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`, backup-first, verify-before-swap; includes the skill tree |
 
 **Bundled asset (opt-in):** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server + MD3 Expressive UI v3.4 — manual live-recovery since UI v3.4, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deploy via bootstrap `--with-explorer`; guide: `references/task-files-explorer.md`.
