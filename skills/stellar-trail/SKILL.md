@@ -151,14 +151,14 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 
 | Script (all invoked as `bash scripts/<name>.sh`) | Duty |
 |---|---|
-| `bootstrap-sandbox.sh` | Arm the persistence layer: canonical copy + boot hook + worklog R1 seed + R1-seeded memory scaffold; modular `--with-explorer` / `--with-snapshot`; idempotent, offline |
+| `bootstrap-sandbox.sh` | Arm the persistence layer: canonical copy + boot hook + worklog R1 seed + R1-seeded memory scaffold; explorer/snapshot modules AUTO-ENABLE when their payload ships in the tree (`--without-*` opts out); idempotent, offline |
 | `update-skill.sh` | Single-flow installer wrapper — `--ensure` always checks the origin (once per session; offline = report, exit 0); newer origin → verified override that runs THE install command (staging clone → SHA-256 manifest → tag≡content → anti-downgrade → canonical swap first → live install last) |
 | `watcher.sh` | Runtime watchdog daemon v2.1: explorer health + auto-restart · verify-only integrity checks ~every 10 min · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · `--ensure/--status/--stop/--probe-origin` |
 | `enforce-gates.sh` | Terminal-track enforcement: `--artifact` (exists, size) · `--lint` (bash/py/js/json/html/md) · `--check-skill` (frontmatter, description ≤1024, referenced files exist) · `--check-worklog --task-id` |
 | `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, installed-vs-canonical version, R1 hooks (worklog tail + memory headers) |
 | `snapshot-repo.sh` | Refresh the platform restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`, backup-first, verify-before-swap; includes the skill tree |
 
-**Bundled asset (opt-in):** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server + MD3 Expressive UI v3.4 — manual live-recovery since UI v3.4, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deploy via bootstrap `--with-explorer`; guide: `references/task-files-explorer.md`.
+**Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server + MD3 Expressive UI v3.4 — manual live-recovery since UI v3.4, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`.
 
 **Exec-bit note:** files delivered by the skills CLI come 0644 and reset on every update — every invocation is exec-bit-independent by design (`bash scripts/<name>.sh`); `chmod +x` is cosmetic only.
 

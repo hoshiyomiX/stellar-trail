@@ -69,7 +69,8 @@ Key facts:
 3. Every subsequent boot, /start.sh runs dev.sh -> explorer + watcher come alive automatically.
 
    One-command alternative for the whole persistence layer (skill + worklog +
-   memory scaffold + explorer): `bash scripts/bootstrap-sandbox.sh --with-explorer`.
+   memory scaffold + explorer): `bash scripts/bootstrap-sandbox.sh --ensure` (the
+   explorer module auto-enables when its payload ships in the tree).
 
 ### Case B — dev.sh already exists (do NOT overwrite it)
 1. Copy explorer.py, explorer.sh, explorer-ui/ as above — plus `scripts/watcher.sh` to `<project>/.zscripts/` (the daemon referenced by dev.sh §3; shipped in the package and installed automatically by bootstrap core since v3.6.3).

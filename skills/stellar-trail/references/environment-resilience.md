@@ -213,8 +213,8 @@ non-compliance" gap from outside the model.
    verified bytes; then run L1 `--apply` so the source archive is fresh too; `git status` for
    extra leftover files from the restore.
 3. **The canonical copy is gone too** (total wipe of `download/`) ⇒ the install command rebuilds
-   it — run `bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure --with-explorer
-   --with-snapshot` after installing to re-seed the canonical + arm the boot hook; repo.tar's
+   it — run `bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure` after installing
+   to re-seed the canonical + arm the boot hook (explorer/snapshot auto-enable); repo.tar's
    `skills/stellar-trail` append (L1) is a same-boot fallback while the archive survives. If
    the agent's response banner still shows an old version after all this, see the skill-card
    Known Risks: the continuation-activation failure mode (rule 11).
@@ -270,15 +270,16 @@ survived on disk with no reader.
 | Module | Installed | Single path (no redundant fallbacks) | Bugs closed |
 |---|---|---|---|
 | core (always) | canonical `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` (v3.6.3) + `worklog.md` seed (R1 hook) + `memory/` scaffolding | seed = a copy of the live installation (self-locating, offline); dev.sh restores `skills/stellar-trail` from the canonical at every boot (SHA-256 manifest verification + the v3.6.7 no-downgrade version gate); watcher v2.0 = the runtime watchdog (explorer health + verify-only integrity checks + release-file guard with local-only restore + archive refresh + compliance alarm), started by dev.sh — closing the T46 F2 consumer gap: its contract was long referenced by 4 components whose file was never shipped | #1 #2 #3 |
-| `--with-explorer` | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + an `--ensure` step in dev.sh | self-locating launcher + drift-sync from canonical; the Next.js guard still applies | #2 |
-| `--with-snapshot` | `.zscripts/repo-snapshot.sh` + an `--apply-auto` step in dev.sh | the `WMG_PROJECT` env is forwarded by dev.sh (for platforms with `/home/sync`) | #1 (an extra layer) |
+| explorer (auto-enabled since Task 19) | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + an `--ensure` step in dev.sh | self-locating launcher + drift-sync from canonical; the Next.js guard still applies | #2 |
+| snapshot (auto-enabled since Task 19) | `.zscripts/repo-snapshot.sh` + an `--apply-auto` step in dev.sh | the `WMG_PROJECT` env is forwarded by dev.sh (for platforms with `/home/sync`) | #1 (an extra layer) |
 
 What survives resets (packer contract, verified from the original archive): `download/` +
 `.zscripts/` + `memory/` + `worklog.md`. What gets wiped: `skills/` — exactly what dev.sh
 restores from the canonical.
 
-Commands: `bash scripts/bootstrap-sandbox.sh` (core) · `--ensure` (idempotent, invoked by
-Activation rule 14 at M0) · `--with-explorer` / `--with-snapshot` · `--status` (read-only) ·
+Commands: `bash scripts/bootstrap-sandbox.sh` (core + auto-enabled modules) · `--ensure`
+(idempotent, invoked by Activation rule 14 at M0) · `--with-explorer` / `--with-snapshot`
+(force-on) · `--without-explorer` / `--without-snapshot` (opt-out) · `--status` (read-only) ·
 `--project-dir` · `--force-devsh` (overwrite a non-bootstrap dev.sh — the reference deployment
 is never overwritten without this flag).
 
@@ -366,9 +367,10 @@ NOT enabled") — the persistence layer came up half-armed: explorer dead, snaps
 installed, until the user remembered to run `--with-*` manually. Since v3.6.7 the final step
 runs `--ensure --with-explorer --with-snapshot`: after an update, the layer comes up FULLY
 armed. Override: env `STELLAR_UPDATE_BOOTSTRAP_ARGS` (e.g. `"--ensure"` for the old core-only
-behavior). Consent posture note: the fresh-install path is UNCHANGED — Activation rule 14 still
-offers the modules explicitly (opt-in); automatic arming happens only on this package's own
-upgrade path, the repo owner's decision after the field report.
+behavior). Posture note (Task 19, 2026-10-04): the fresh-install path now auto-enables BOTH
+modules too — a plain `--ensure` arms explorer + snapshot whenever their payload ships in the
+install tree (`--without-explorer` / `--without-snapshot` opt out, including disarming a
+module armed by a previous run) — closing the v4.1.0 consumer report's fresh-install trap.
 
 ## Appendix A: Evolution of the heal-skill.sh Repair Chain — RETIRED v3.6.7 (moved from the SKILL.md body in v3.6.0)
 

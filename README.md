@@ -29,6 +29,14 @@ npx skills list   # expect stellar-trail, source hoshiyomiX/stellar-trail
 
 To update later: `bash skills/stellar-trail/scripts/update-skill.sh --ensure` (the bundled single-flow updater — always-check origin probe, then a four-step verified override that runs the same install command and re-arms the persistence layer; the runtime watcher also probes the origin every ~24h and alarms the worklog when a newer release lands), or simply re-run the install command.
 
+**Install ≠ activation.** The CLI copies the files and exits — the explorer server, the watcher daemon, the boot hook, and the canonical snapshot all come from the bundled bootstrap step, which the protocol runs at cold boot (Activation rule 14) and which you can run yourself at any time:
+
+```bash
+bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure
+```
+
+Since the 2026-10-04 fix this arms the FULL stack on its own — the explorer and snapshot modules auto-enable when their payload ships in the tree (opt out with `--without-explorer` / `--without-snapshot`).
+
 > **ClawHub registry — currently unavailable:** `clawhub install hoshiyomix/stellar-trail` stopped working when the registry suspended the publisher account via an automated malware-suspicion review (under appeal; the package passes the registry's own static analyzer, and every installed file is independently verifiable via the manifest). Until that resolves, this repository is the canonical channel — use Option 1 or 2.
 
 > **Activation rule:** a skill description in a list is NOT activation — load the full body via `Skill('stellar-trail')` at the first turn of every session or continuation, before responding. If the body loads late (mid-session, after unmarked responses), Activation rule 16 makes it a recovery event: run M0 immediately, append a `LATE-ACTIVATION` note to the worklog, and resume markers from that turn — never continue unmarked. The SKILL.md enforces this itself.
@@ -43,6 +51,8 @@ npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y --j
 
 `-y` skips the confirmations and `--json` forces structured non-interactive output (exit 0 on success); exporting `CI=true` works too. Re-running after a hang is safe — the installer overwrites cleanly and re-records the lock entry (observed live: `overwrites: OpenClaw` in the summary, stdout hash identical to the `skills-lock.json` `computedHash`).
 
+**The CLI summary box prints an install path that does not exist** — confirmed on skills CLI v1.7.0 (2026-10-04 consumer report): the human-readable box reports `~/my-project/.agents/skills/stellar-trail · copy → OpenClaw` while the actual install lands in `<project>/skills/stellar-trail/`. Harmless — the JSON output and `skills-lock.json` carry the correct path — but when auditing "where did it install?", trust the JSON `path` field and `skills-lock.json`, not the summary box. Reported upstream: [vercel-labs/skills#2376](https://github.com/vercel-labs/skills/issues/2376) (+ the install-vs-activation hint request, [#2377](https://github.com/vercel-labs/skills/issues/2377)).
+
 ## Reset-prone sandbox deployment
 
 If your agent runs in a container/sandbox that the platform can reset (ephemeral CI runners, preview containers), a bare install is not enough: field forensics on consumer sandboxes (three confirmed failure modes) showed that a platform reset wipes `skills/` (the packer excludes it from the restore archive), kills long-running services with no hook to revive them, and leaves the activation chain broken because `worklog.md` was never created.
@@ -50,8 +60,8 @@ If your agent runs in a container/sandbox that the platform can reset (ephemeral
 One command arms the whole persistence layer (idempotent, offline, self-locating):
 
 ```bash
-bash skills/stellar-trail/scripts/bootstrap-sandbox.sh              # core
-bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --with-explorer --with-snapshot
+bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure      # arms core + explorer + snapshot (auto-enabled)
+bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure --without-explorer --without-snapshot   # core only
 ```
 
 What it installs — one proven path per module, no redundant fallbacks:
@@ -59,18 +69,18 @@ What it installs — one proven path per module, no redundant fallbacks:
 | Module | Installs | Closes |
 |---|---|---|
 | core (always) | canonical copy under `download/stellar-trail/` + `.zscripts/dev.sh` boot hook (skill restore with the no-downgrade version gate, v3.6.7) + `.zscripts/watcher.sh` runtime watchdog v2.0 (explorer health + auto-restart, verify-only integrity checks, release-file guard, archive refresh, compliance sentinel) + `worklog.md` (R1 activation hook) + `memory/` scaffold (R1-seeded headers) | skill files wiped on reset · activation chain broken · services dead between boots |
-| `--with-explorer` | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
-| `--with-snapshot` | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
+| explorer (auto-enabled) | `.zscripts/` explorer (launcher + server + UI) revived at every boot | services killed permanently |
+| snapshot (auto-enabled) | `.zscripts/repo-snapshot.sh` refreshing the platform restore archive | extra anti-rollback layer |
 
 The directories it writes (`download/`, `.zscripts/`, `memory/`, `worklog.md`) are exactly the ones the platform packer preserves; on every boot the `dev.sh` hook verifies the live skill installation against the release SHA-256 manifest and restores it from the canonical copy. Verified by a full fresh-sandbox reset simulation (38/38 checks, 3/3 field bugs closed, negative control reproduces the bugs without bootstrap). See `skills/stellar-trail/references/environment-resilience.md` section 7 for the complete guide.
 
-The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sandbox.sh --ensure` during M0), so arming no longer depends on remembering this page. Since v3.6.7 the update path finishes the job on its own: after every verified upgrade, `update-skill.sh` step [4/4] runs `bootstrap-sandbox.sh --ensure --with-explorer --with-snapshot`, so a post-update environment carries the FULL persistence layer (explorer + snapshot modules) instead of core alone — override with `STELLAR_UPDATE_BOOTSTRAP_ARGS` if your environment must stay core-only.
+The protocol itself invokes this at cold boot (Activation rule 14: `bootstrap-sandbox.sh --ensure` during M0), so arming no longer depends on remembering this page. Since v3.6.7 the update path finishes the job on its own: after every verified upgrade, `update-skill.sh` step [4/4] runs `bootstrap-sandbox.sh --ensure --with-explorer --with-snapshot`, so a post-update environment carries the FULL persistence layer (explorer + snapshot modules) instead of core alone — override with `STELLAR_UPDATE_BOOTSTRAP_ARGS` if your environment must stay core-only. Since the 2026-10-04 fix (Task 19) a plain `--ensure` arms the full stack too — the explorer and snapshot modules auto-enable whenever their payload ships in the install tree, with `--without-*` flags to opt out — closing the fresh-install trap a v4.1.0 consumer report exposed (plain `--ensure` used to arm core alone, leaving the explorer unmaintained after any reset).
 
 **Expected audit output before the first bootstrap:** on a fresh install `bash skills/stellar-trail/scripts/audit-compliance.sh` reports `C1 memory FAIL` (no `memory/` scaffold yet) and `C5 hook-R1 WARN` (worklog activation hook not appended yet) — by design. Both messages are installation-stage hints pointing at the fix; run `bootstrap-sandbox.sh` once and both checks flip to PASS.
 
-### Task Files Explorer (opt-in)
+### Task Files Explorer
 
-`--with-explorer` also installs a built-in file browser — a stdlib Python server plus an MD3 Expressive web UI (a hero of two status tiles — Guard Status and Session Reset & Restore — a full-width Session Task list with expandable content summaries, a multi-column file card grid, search with debounce, filter chips, sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
+The explorer module (auto-enabled by bootstrap) also installs a built-in file browser — a stdlib Python server plus an MD3 Expressive web UI (a hero of two status tiles — Guard Status and Session Reset & Restore — a full-width Session Task list with expandable content summaries, a multi-column file card grid, search with debounce, filter chips, sorting, copy-path, adaptive theme) — as a functional replacement for popup "all files" previews. Launch it straight from the install tree:
 
 ```bash
 bash skills/stellar-trail/assets/explorer/explorer.sh --ensure

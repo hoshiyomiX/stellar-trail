@@ -832,7 +832,9 @@ const classFor=f=>EXTCLASS[f.ext?.toLowerCase()]||TYPECLS[f.type]||"other";
 /* ================= render ================= */
 function renderStats(){const g=DATA.guard||{},rs=DATA.resets||{};
   const syncTxt=!g||!g.installed?"skill not installed"
-    :g.in_sync?"in sync with canonical":"drift vs canonical "+(g.canonical_version||"?");
+    :g.in_sync?"in sync with canonical"
+    :g.canonical_present===false?"no canonical yet — run bootstrap --ensure"   /* Task 19: name the remedy, not a bare ? */
+    :"drift vs canonical "+(g.canonical_version||"?");
   const wTxt=g&&g.watcher_alive?"watcher alive":"watcher down";
   const cell=(o,label,cls,icon)=>{const c=(o&&o.count!=null)?o.count:0;
     const last=(o&&o.last)?o.last:"never";

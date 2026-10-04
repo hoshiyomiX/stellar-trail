@@ -23,15 +23,19 @@
 #              daemon v2.0: explorer health, release-file guard,
 #              installation integrity checks, archive refresh, compliance
 #              alarm; started by dev.sh and by the cold-boot step).
-#   explorer : --with-explorer  installs .zscripts/{explorer.sh,explorer.py,
-#              explorer-ui/} and an --ensure step in dev.sh — plus, since
-#              v3.6.9, a DEPLOY-TIME activation call at the end of every
+#   explorer : installs .zscripts/{explorer.sh,explorer.py,explorer-ui/} and
+#              an --ensure step in dev.sh — AUTO-ENABLED since Task 19 when
+#              the payload ships in the install tree (--with-explorer forces
+#              on; --without-explorer opts out) — plus, since v3.6.9, a
+#              DEPLOY-TIME activation call at the end of every
 #              bootstrap run (the running server is checked against the
 #              just-deployed code; explorer.sh v1.5 does the content-stamp
 #              freshness restart — closes the upgrade-path gap where a
 #              first-hop left the old process serving).
-#   snapshot : --with-snapshot  installs .zscripts/repo-snapshot.sh and an
-#              --apply-auto step in dev.sh (platforms with /home/sync).
+#   snapshot : installs .zscripts/repo-snapshot.sh and an --apply-auto step in
+#              dev.sh (platforms with /home/sync) — AUTO-ENABLED since Task 19
+#              when the payload ships (--with-snapshot forces on;
+#              --without-snapshot opts out).
 #
 # IMPORTANT — this is persistence, not installation:
 #   the canonical snapshot is a copy of what is ALREADY installed. It never
@@ -47,10 +51,12 @@
 #     that bootstrap does not own.
 #
 # Usage:
-#   bash scripts/bootstrap-sandbox.sh                     # install core + report
-#   bash scripts/bootstrap-sandbox.sh --ensure            # idempotent (cold-boot path; uses modules from state)
-#   bash scripts/bootstrap-sandbox.sh --with-explorer     # enable the explorer module
-#   bash scripts/bootstrap-sandbox.sh --with-snapshot     # enable the snapshot module
+#   bash scripts/bootstrap-sandbox.sh                     # install core + auto-enable present modules
+#   bash scripts/bootstrap-sandbox.sh --ensure            # idempotent (cold-boot path; state + auto-detect)
+#   bash scripts/bootstrap-sandbox.sh --with-explorer     # force the explorer module on
+#   bash scripts/bootstrap-sandbox.sh --with-snapshot     # force the snapshot module on
+#   bash scripts/bootstrap-sandbox.sh --without-explorer  # opt OUT of the auto-enabled explorer module
+#   bash scripts/bootstrap-sandbox.sh --without-snapshot  # opt OUT of the auto-enabled snapshot module
 #   bash scripts/bootstrap-sandbox.sh --status            # read-only report
 #   bash scripts/bootstrap-sandbox.sh --project-dir PATH  # override project-root detection
 #   bash scripts/bootstrap-sandbox.sh --force-devsh       # overwrite a dev.sh owned by another deployment
@@ -81,13 +87,16 @@ ENSURE=0
 FORCE_DEVSH=0
 OPT_PROJECT=""
 MODULE_ARGS=()
+MODULE_OFF=()    # --without-* opt-outs (Task 19) — also disarm previously armed modules
 
 for arg in "$@"; do
     case "$arg" in
         --ensure)        ENSURE=1 ;;
         --status)        MODE="status" ;;
-        --with-explorer) MODULE_ARGS+=("explorer") ;;
-        --with-snapshot) MODULE_ARGS+=("snapshot") ;;
+        --with-explorer)   MODULE_ARGS+=("explorer") ;;
+        --with-snapshot)   MODULE_ARGS+=("snapshot") ;;
+        --without-explorer) MODULE_OFF+=("explorer") ;;
+        --without-snapshot) MODULE_OFF+=("snapshot") ;;
         --force-devsh)   FORCE_DEVSH=1 ;;
         --project-dir)   : ;;   # value consumed from the next argument below
         --project-dir=*) OPT_PROJECT="${arg#*=}" ;;
@@ -154,6 +163,29 @@ sort_modules() { sort -u "$MODULES_FILE" 2>/dev/null > "${MODULES_FILE}.s" && mv
 load_state_modules
 for m in "${MODULE_ARGS[@]:-}"; do [ -n "$m" ] && add_module "$m"; done
 sort_modules
+
+# --- module auto-enable (Task 19, 2026-10-04): a module whose payload ships
+#     in the install tree is armed by DEFAULT. The v4.1.0 consumer report
+#     (2026-10-04) showed the fresh-install trap: plain --ensure armed no
+#     modules, so the explorer stayed unmaintained after any reset. Explicit
+#     opt-out: --without-explorer / --without-snapshot — these also disable
+#     a module armed by a previous run.
+drop_module() {  # $1=module — remove it from MODULES_FILE
+    grep -vx -- "$1" "$MODULES_FILE" > "${MODULES_FILE}.d" 2>/dev/null || true
+    mv "${MODULES_FILE}.d" "$MODULES_FILE" 2>/dev/null
+}
+module_off() { printf '%s\n' ${MODULE_OFF[@]+"${MODULE_OFF[@]}"} | grep -qx -- "$1"; }
+AUTO_ENABLED=""
+if ! module_off explorer && [ -f "$SKILL_ROOT/assets/explorer/explorer.sh" ] && ! has_module explorer; then
+    add_module explorer; AUTO_ENABLED="explorer"
+fi
+if ! module_off snapshot && [ -f "$SKILL_ROOT/scripts/snapshot-repo.sh" ] && ! has_module snapshot; then
+    add_module snapshot; AUTO_ENABLED="${AUTO_ENABLED:+$AUTO_ENABLED }snapshot"
+fi
+for m in ${MODULE_OFF[@]+"${MODULE_OFF[@]}"}; do drop_module "$m"; done
+sort_modules
+[ -n "$AUTO_ENABLED" ] && echo "[bootstrap] auto-enable: $AUTO_ENABLED — payload present in the install tree (modules arm by default since Task 19; opt out with --without-explorer / --without-snapshot)"
+
 MODULE_LIST="$(tr '\n' ',' < "$MODULES_FILE" | sed 's/,$//')"
 [ -z "$MODULE_LIST" ] && MODULE_LIST="-"
 
@@ -505,7 +537,11 @@ if has_module explorer; then
         log "explorer: .zscripts/$rel $R"
     done
 else
-    log "explorer module: NOT enabled (use --with-explorer to enable)"
+    if module_off explorer; then
+        log "explorer module: disabled (--without-explorer)"
+    else
+        log "explorer module: skipped — assets/explorer/explorer.sh not found in the install tree"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -520,7 +556,11 @@ if has_module snapshot; then
         log "WARN: scripts/snapshot-repo.sh not found in the package — snapshot module skipped"
     fi
 else
-    log "snapshot module: NOT enabled (use --with-snapshot to enable)"
+    if module_off snapshot; then
+        log "snapshot module: disabled (--without-snapshot)"
+    else
+        log "snapshot module: skipped — scripts/snapshot-repo.sh not found in the install tree"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -643,5 +683,5 @@ log "cross-reset : download/ + .zscripts/ + memory/ + worklog.md survive (packer
 if has_module explorer; then
     log "explorer   : $([ -f "$ZDIR/explorer.sh" ] && echo "activated (.zscripts/explorer.sh present, deploy-time --ensure above)" || echo "deploy pending — .zscripts/explorer.sh missing")"
 fi
-[ "$ENSURE" = "1" ] || log "optional modules: --with-explorer (task files explorer) · --with-snapshot (platform archive refresh, /home/sync)"
+[ "$ENSURE" = "1" ] || log "modules: explorer/snapshot arm by default when their payload ships in the install tree — opt out with --without-explorer / --without-snapshot"
 exit 0
