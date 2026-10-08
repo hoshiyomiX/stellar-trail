@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ============================================================
+# enforce-gates.sh — TERMINAL-TRACK ENFORCEMENT
+# stellar-trail · bundled terminal-track gate script (SKILL.md section 7)
+#
+# Terminal checks are proven by EXECUTION, never by prediction.
+# Exit codes: 0 = all pass · 1 = at least one FAIL · 2 = usage error
+#
+# Usage:
+#   bash enforce-gates.sh --task <doc|chart|web|code|mixed|conversational> \
+#        [--artifact <path>] [--lint <file> …] \
+#        [--check-skill <dir>] [--check-worklog <file> --task-id <id>] \
+#        [--selftest]
+# ============================================================
+set -u
+PASS=0; FAIL=0; WARN=0
+R="\033[0;31m"; G="\033[0;32m"; Y="\033[1;33m"; B="\033[0;34m"; N="\033[0m"
+ok(){  PASS=$((PASS+1)); printf "  ${G}[PASS]${N} %s\n" "$1"; }
+bad(){ FAIL=$((FAIL+1)); printf "  ${R}[FAIL]${N} %s\n" "$1"; }
+warn(){ WARN=$((WARN+1)); printf "  ${Y}[WARN]${N} %s\n" "$1"; }
+note(){ printf "  ${B}[NOTE]${N} %s\n" "$1"; }
+
+TASK=""; ARTIFACT=""; LINT_FILES=""; SKILL_DIR=""; WORKLOG=""; TASKID=""; SELFTEST=0
+while [ $# -gt 0 ]; do case "$1" in
+  --task) TASK="${2:-}"; shift 2;;
+  --artifact) ARTIFACT="${2:-}"; shift 2;;
+  --lint) shift; while [ $# -gt 0 ] && [ "${1:0:2}" != "--" ]; do LINT_FILES="$LINT_FILES $1"; shift; done;;
+  --check-skill) SKILL_DIR="${2:-}"; shift 2;;
+  --check-worklog) WORKLOG="${2:-}"; shift 2;;
+  --task-id) TASKID="${2:-}"; shift 2;;
+  --selftest) SELFTEST=1; shift;;
+  -h|--help) sed -n '2,15p' "$0"; exit 0;;
+  *) printf "Unknown arg: %s\n" "$1" >&2; exit 2;;
+esac; done
+
+# ---- sanity floor per task type (bytes) — below = FAIL if 0, WARN if tiny
+min_size(){ case "$1" in
+  doc) echo 8000;; chart) echo 3000;; web) echo 1500;; code|mixed) echo 50;; *) echo 0;;
+esac; }
+
+# ================= L1: artifact verification =================
+if [ -n "$ARTIFACT" ]; then
+  echo "== L1 artifact: $ARTIFACT (task=$TASK) =="
+  if [ ! -e "$ARTIFACT" ]; then bad "artifact not found: $ARTIFACT"
+  elif [ -d "$ARTIFACT" ]; then
+    n=$(find "$ARTIFACT" -type f | wc -l)
+    [ "$n" -gt 0 ] && ok "artifact directory contains $n files" || bad "artifact directory empty"
+  elif [ ! -r "$ARTIFACT" ]; then bad "artifact unreadable (permission): $ARTIFACT"
+  elif [ ! -s "$ARTIFACT" ]; then bad "artifact empty (0 bytes): $ARTIFACT"
+  else
+    sz=$(stat -c%s "$ARTIFACT" 2>/dev/null || stat -f%z "$ARTIFACT" 2>/dev/null)
+    floor=$(min_size "$TASK"); human=$(awk -v s="$sz" 'BEGIN{printf "%.1f KB", s/1024}')
+    ok "artifact exists & readable ($human)"
+    if [ "$floor" -gt 0 ] && [ "$sz" -lt "$floor" ]; then
+      warn "size below $TASK heuristic (${floor} B) — verify the content really matches the request"
+    fi
+  fi
+fi
+
+# ================= L3: lint by extension =================
+if [ -n "${LINT_FILES// /}" ]; then
+  echo "== L3 lint =="
+  for f in $LINT_FILES; do
+    [ -e "$f" ] || { bad "lint: file missing: $f"; continue; }
+    ext="${f##*.}"; case "$ext" in
+      sh|bash)
+        if bash -n "$f" 2>/tmp/eg_err; then ok "bash -n: $f"; else bad "bash -n: $f — $(head -1 /tmp/eg_err)"; fi;;
+      py)
+        if python3 -c "import ast,sys; ast.parse(open(sys.argv[1],encoding='utf-8').read())" "$f" 2>/tmp/eg_err; then ok "py ast: $f"; else bad "py ast: $f — $(tail -1 /tmp/eg_err)"; fi;;
+      js|mjs|cjs)
+        if command -v node >/dev/null 2>&1; then
+          if node --check "$f" 2>/tmp/eg_err; then ok "node --check: $f"; else bad "node --check: $f — $(head -1 /tmp/eg_err)"; fi
+        else note "node unavailable — SKIP: $f (state the fallback in the marker)"; fi;;
+      json)
+        if python3 -m json.tool "$f" >/dev/null 2>/tmp/eg_err; then ok "json parse: $f"; else bad "json parse: $f — $(tail -1 /tmp/eg_err)"; fi;;
+      html|htm)
+        if python3 - "$f" <<'PYEOF' 2>/tmp/eg_err
+import sys, html.parser
+class P(html.parser.HTMLParser):
+    def error(self, m): raise SystemExit("parse error: "+m)
+p=P(); p.feed(open(sys.argv[1],encoding="utf-8",errors="replace").read())
+raise SystemExit(0)
+PYEOF
+        then ok "html parse: $f"; else bad "html parse: $f — $(tail -1 /tmp/eg_err)"; fi;;
+      md)
+        fences=$(grep -c '^```' "$f" 2>/dev/null); fences=${fences:-0}
+        if [ $((fences % 2)) -eq 0 ]; then ok "md code-fences balanced ($fences): $f"; else bad "md code-fence count ODD ($fences): $f"; fi;;
+      *) note "no linter for .$ext — check manually: $f";;
+    esac
+  done
+fi
+
+# ================= skill package integrity =================
+if [ -n "$SKILL_DIR" ]; then
+  echo "== check-skill: $SKILL_DIR =="
+  S="$SKILL_DIR/SKILL.md"
+  [ -f "$S" ] || { bad "SKILL.md missing in $SKILL_DIR"; S=""; }
+  if [ -n "$S" ]; then
+    head -1 "$S" | grep -q '^---' && ok "opening frontmatter ---" || bad "opening frontmatter --- missing"
+    grep -q '^name:' "$S" && ok "name field: present" || bad "name field: missing"
+    if grep -q '^description:' "$S"; then
+      ok "description field: present"
+      # extract the description block (yaml folded > unwrapped to one line)
+      desc=$(python3 - "$S" <<'PYEOF'
+import sys,re
+t=open(sys.argv[1],encoding="utf-8").read()
+m=re.match(r"^---\n(.*?)\n---\n",t,re.S)
+if not m: print(""); raise SystemExit
+fm=m.group(1)+"\n"  # ensure the last indented line ends with \n so the capture cannot drop it
+dm=re.search(r"^description:\s*>-\s*\n((?:\s{2,}.*\n)+)",fm,re.M)
+if not dm:
+    dm=re.search(r"^description:\s*>?\s*\n?((?:\s{2,}.*\n)+)",fm,re.M)
+d=dm.group(1) if dm else ""
+print(re.sub(r"\s+"," ",d).strip() if d else "")
+PYEOF
+)
+      dlen=${#desc}
+      if [ "$dlen" -gt 0 ] && [ "$dlen" -le 1024 ]; then ok "description length $dlen/1024"; else bad "description length $dlen — outside 1..1024"; fi
+      case "$desc" in *"<"*|*">"*) bad "description contains angle brackets < >";; *) ok "description without angle brackets";; esac
+    else bad "description field: missing"; fi
+    # referenced files & scripts must exist
+    miss=0
+    for ref in $(grep -o 'references/[A-Za-z0-9_-]*\.md' "$S" | sort -u); do
+      [ -f "$SKILL_DIR/$ref" ] || { bad "missing reference: $ref"; miss=1; }; done
+    [ "$miss" -eq 0 ] && ok "all referenced references/*.md exist"
+    miss=0
+    # : the old 'scripts/[…].sh' pattern without an anchor
+    # also matches the substring in '.zscripts/dev.sh' → false "missing script".
+    # Anchor: the character before 'scripts/' must not be alnum/'.'/'-/'_'
+    # (excludes .zscripts/, npx-scripts/ etc); boundary characters (space/backtick)
+    # are stripped by sed before the file-existence check.
+    for scr in $(grep -oE '(^|[^.A-Za-z0-9_-])scripts/[A-Za-z0-9_-]+\.sh' "$S" | sed -E 's/^[^s]scripts\//scripts\//' | sort -u); do
+      [ -f "$SKILL_DIR/$scr" ] || { bad "missing script: $scr"; miss=1; }; done
+    [ "$miss" -eq 0 ] && ok "all referenced scripts/*.sh exist"
+  fi
+fi
+
+# ================= worklog section =================
+if [ -n "$WORKLOG" ]; then
+  echo "== check-worklog: $WORKLOG (Task ID: ${TASKID:-?}) =="
+  if [ -z "$TASKID" ]; then bad "--task-id required together with --check-worklog";
+  elif [ ! -f "$WORKLOG" ]; then bad "worklog missing: $WORKLOG";
+  elif grep -q "Task ID: $TASKID" "$WORKLOG"; then ok "section 'Task ID: $TASKID' found";
+  else bad "worklog has no section for Task ID: $TASKID"; fi
+fi
+
+# ================= selftest: prove the gate CAN fail =================
+if [ "$SELFTEST" -eq 1 ]; then
+  echo "== selftest (the gate must be able to FAIL) =="
+  T=$(mktemp -d)
+  echo "ok" > "$T/good.sh"; printf 'if [ broken\n' > "$T/bad.sh"
+  echo '{"a":1}' > "$T/good.json"; echo '{a:1}' > "$T/bad.json"
+  printf '```fence\n' > "$T/bad.md"; printf '```\n```\n' > "$T/good.md"
+  bash -n "$T/good.sh" 2>/dev/null && ok "selftest: valid script accepted" || bad "selftest: valid script REJECTED (gate too strict)"
+  bash -n "$T/bad.sh" 2>/dev/null && bad "selftest: broken script PASSES (gate leaky)" || ok "selftest: broken script correctly rejected"
+  python3 -m json.tool "$T/bad.json" >/dev/null 2>&1 && bad "selftest: broken json PASSES" || ok "selftest: broken json correctly rejected"
+  [ $(( $(grep -c '^```' "$T/bad.md") % 2 )) -eq 0 ] && bad "selftest: odd fence count PASSES" || ok "selftest: odd fence count correctly rejected"
+  [ -f "$T/missing.png" ] && bad "selftest: missing file PASSES" || ok "selftest: missing file correctly rejected"
+  rm -rf "$T"
+fi
+
+# ================= summary =================
+TOTAL=$((PASS+FAIL))
+echo "----------------------------------------"
+if [ "$TOTAL" -eq 0 ] && [ "$WARN" -eq 0 ]; then
+  echo "ENFORCE-GATES: no checks requested — see --help"; exit 2
+fi
+printf "ENFORCE-GATES: ${G}%d PASS${N} · ${R}%d FAIL${N} · ${Y}%d WARN${N}\n" "$PASS" "$FAIL" "$WARN"
+[ "$FAIL" -eq 0 ] && exit 0 || exit 1
