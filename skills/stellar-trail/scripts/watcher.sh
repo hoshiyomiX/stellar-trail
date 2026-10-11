@@ -62,7 +62,9 @@
 #                                   worklog when a newer release is found)
 #
 # The daemon is started from three redundant paths: container boot via
-# dev.sh, the protocol's cold-boot step, and manual runs.
+# dev.sh (step 4), the deploy/session path via
+# bootstrap-sandbox.sh --ensure (step 11b — the daemon can die silently at
+# container lifecycle events that no boot follows), and manual runs.
 # ============================================================================
 
 # --- SELF-LOCATE --------------------------------------------------------------

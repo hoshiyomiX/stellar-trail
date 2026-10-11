@@ -3,7 +3,7 @@
 # bootstrap-sandbox.sh — arm the persistence layer for reset-prone sandboxes
 # stellar-trail · persistence-layer arming (one command)
 #
-# WHAT THIS SOLVES (three confirmed failure modes of container sandboxes
+# WHAT THIS SOLVES (four confirmed failure modes of container sandboxes
 # whose platform restores the project from an archive on every boot):
 #   1. skill files vanish after a reset — the platform packer excludes
 #      skills/ from the restore archive, wiping the installation each boot
@@ -11,6 +11,15 @@
 #      the reset killed
 #   3. the activation chain breaks — worklog.md is never created, so the
 #      activation hook is missing and the skill is never loaded next session
+#   4. the watchdog daemon dies silently at container lifecycle events
+#      (freeze/thaw, session-start process reaping — observed with a CLEAR
+#      stop-flag and NO boot in between) and nothing between boots revives
+#      it: the explorer has three revival paths (boot, watcher, deploy-time
+#      below), the watcher itself had only one (boot). The same wild
+#      behavior leaves worklog sections appended WITHOUT their activation
+#      hook line — the tail, the one part the next session reads, loses the
+#      directive. Fixed by step 10b (worklog tail guard) + step 11b (watcher
+#      daemon ensure) — both run on EVERY bootstrap invocation
 #
 # THE SOLUTION (one proven path per module — no redundant fallbacks):
 #   core     : copy the live installation to the canonical snapshot at
@@ -20,9 +29,11 @@
 #              .zscripts/dev.sh (boot hook on the /start.sh contract) which
 #              restores skills/stellar-trail from the canonical snapshot on
 #              EVERY boot, plus .zscripts/watcher.sh (runtime watchdog
-#              daemon v2.0: explorer health, release-file guard,
+#              daemon v2.2: explorer health, release-file guard,
 #              installation integrity checks, archive refresh, compliance
-#              alarm; started by dev.sh and by the cold-boot step).
+#              alarm; started by dev.sh at boot AND by this script at every
+#              run — step 11b — so a silent daemon death heals at the next
+#              cold boot, not only at the next container boot).
 #   explorer : installs .zscripts/{explorer.sh,explorer.py,explorer-ui/} and
 #              an --ensure step in dev.sh — AUTO-ENABLED when
 #              the payload ships in the install tree (--with-explorer forces
@@ -353,6 +364,13 @@ DEVSH_EXPL
     has_module snapshot && cat <<'DEVSH_SNAP'
 #   6. SNAPSHOT --apply-auto : refresh the platform restore archive (own debounce).
 DEVSH_SNAP
+    has_module hooks && cat <<'DEVSH_HOOKSHDR'
+#   7. HARNESS HOOKS re-seed : project-root CLAUDE.md/AGENTS.md (create-if-absent).
+DEVSH_HOOKSHDR
+    cat <<'DEVSH_TAILGUARDHDR'
+#   8. WORKLOG TAIL GUARD : append-only — keep the activation directive as
+#      the last line of worklog.md (recovery net for hook-less sections).
+DEVSH_TAILGUARDHDR
     cat <<'DEVSH_VARS'
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -530,6 +548,23 @@ done
 DEVSH_HOOKS
     fi
 
+    cat <<'DEVSH_TAILGUARD'
+
+# --- 8. WORKLOG TAIL GUARD (append-only; NEVER edits existing content) ------
+#     Wild-observed: sections appended without their activation hook line
+#     leave the worklog tail — the only part the next session reads — without
+#     the directive. When the last non-blank line is not the directive,
+#     append it as a standing guard line. Idempotent; the line is
+#     byte-identical to the R1 section-first-line hook.
+R1_HOOK="⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation"
+if [ -f "$PROJECT/worklog.md" ]; then
+    TAIL_LAST="$(grep -v '^[[:space:]]*$' "$PROJECT/worklog.md" 2>/dev/null | tail -1)"
+    if [ "$TAIL_LAST" != "$R1_HOOK" ] && printf '\n%s\n' "$R1_HOOK" >> "$PROJECT/worklog.md" 2>/dev/null; then
+        log "worklog tail guard: appended the activation directive"
+    fi
+fi
+DEVSH_TAILGUARD
+
     cat <<'DEVSH_TAIL'
 
 log "dev.sh (bootstrap) finished"
@@ -559,7 +594,9 @@ fi
 
 # ---------------------------------------------------------------------------
 # 7b. CORE MODULE B2 — INSTALL .zscripts/watcher.sh (runtime watchdog daemon
-#     v2.0, part of the package; dev.sh step 4 starts it)
+#     v2.2, part of the package; started at boot by dev.sh step 4 and at
+#     every bootstrap run by step 11b — the daemon can die silently at
+#     container lifecycle events that no boot follows)
 # ---------------------------------------------------------------------------
 W_SRC="$SKILL_ROOT/scripts/watcher.sh"
 if [ -f "$W_SRC" ]; then
@@ -719,6 +756,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 10b. WORKLOG TAIL GUARD — the enforced tail directive (consumer report:
+#      agents append correct sections but skip the activation hook line, so
+#      the tail — the only part the next session reads — loses the trigger).
+#      Append-only discipline: when the last non-blank line of worklog.md is
+#      not the activation directive, append the directive as a standing
+#      guard line. NEVER edits or removes existing content; idempotent; the
+#      line is byte-identical to the section-first-line R1 hook so every
+#      grep, gate, and audit sees ONE consistent directive. Invariant: after
+#      any bootstrap run, worklog.md ends with the activation directive.
+#      (The dev.sh boot chain carries the same guard as step 8.)
+# ---------------------------------------------------------------------------
+R1_HOOK="⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation"
+if [ -f "$WORKLOG" ]; then
+    TAIL_LAST="$(grep -v '^[[:space:]]*$' "$WORKLOG" 2>/dev/null | tail -1)"
+    if [ "$TAIL_LAST" = "$R1_HOOK" ]; then
+        log "worklog tail guard: present — the tail already carries the activation directive"
+    elif printf '\n%s\n' "$R1_HOOK" >> "$WORKLOG" 2>/dev/null; then
+        log "worklog tail guard: appended — the next session reading the tail hits the activation directive even under hook-less sections"
+    else
+        log "worklog tail guard: WARN — could not append (worklog not writable?)"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # 11. EXPLORER ACTIVATION
 #     dev.sh covers BOOT, the watcher covers DEATH; this covers DEPLOY-TIME:
 #     the module step above just (re)deployed the explorer assets, and the
@@ -741,6 +802,28 @@ if has_module explorer && [ -f "$ZDIR/explorer.sh" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 11b. WATCHER DAEMON ACTIVATION
+#      dev.sh covers BOOT; the watcher covers the EXPLORER's death; this
+#      covers the WATCHER's own death: the daemon dies silently at container
+#      lifecycle events (freeze/thaw, session-start process reaping —
+#      observed 2026-10-11: daemon dead, stop-flag clear, no boot in between,
+#      the explorer alive), and no explorer-side path can revive the process
+#      whose job is to revive everything else. Plain --ensure: idempotent,
+#      no-op when already running, and a deliberate --stop (stop-flag) is
+#      RESPECTED — a user-requested stop survives every later bootstrap run.
+#      A failure never fails bootstrap (service issue, not persistence
+#      state); output goes to the boot.log ledger.
+# ---------------------------------------------------------------------------
+if [ -f "$ZDIR/watcher.sh" ]; then
+    if W_OUT="$(bash "$ZDIR/watcher.sh" --ensure 2>&1)"; then
+        echo "[watcher-ensure] $W_OUT" >> "$ZDIR/boot.log" 2>&1
+        log "watcher    : ${W_OUT#\[watcher\] }"
+    else
+        log "watcher    : WARN — daemon --ensure failed (service issue; the persistence layer is unaffected)"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # 12. PERSIST STATE + FINAL REPORT
 # ---------------------------------------------------------------------------
 mkdir -p "$ZDIR"
@@ -753,6 +836,8 @@ log "canonical   : $CANON ($VERIFY)"
 log "dev.sh      : $([ -f "$ZDIR/dev.sh" ] && { head -n 2 "$ZDIR/dev.sh" | grep -qF "$STATE_MARKER" && echo "bootstrap-generated (modules: $MODULE_LIST)"; } || echo "NOT INSTALLED")"
 log "memory      : $([ -f "$MEMORY_DIR/SESSION-STATE.md" ] && echo "scaffolded/active" || echo "FAILED")"
 log "worklog     : $([ -f "$WORKLOG" ] && { grep -q '⚡ACTIVATE' "$WORKLOG" && echo "present + activation hook" || echo "present without hook"; } || echo "FAILED")"
+log "tail guard  : $([ -f "$WORKLOG" ] && { [ "$(grep -v '^[[:space:]]*$' "$WORKLOG" | tail -1)" = "$R1_HOOK" ] && echo "worklog tail carries the activation directive" || echo "WARN — tail directive missing"; } || echo "n/a (no worklog)")"
+log "watcher     : $([ -f "$ZDIR/watcher.sh" ] && echo "daemon ensured (step 11b: started when down + stop-flag respected)" || echo "not installed")"
 log "cross-reset : download/ + .zscripts/ + memory/ + worklog.md survive (packer contract); skills/stellar-trail is restored by dev.sh from the canonical snapshot on every boot"
 if has_module explorer; then
     log "explorer   : $([ -f "$ZDIR/explorer.sh" ] && echo "activated (.zscripts/explorer.sh present, deploy-time --ensure above)" || echo "deploy pending — .zscripts/explorer.sh missing")"

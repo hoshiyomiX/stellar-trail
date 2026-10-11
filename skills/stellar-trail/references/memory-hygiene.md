@@ -142,7 +142,7 @@ Stage Summary:
 - <key results / decisions / artifacts>
 ```
 
-The `⚡ACTIVATE` line (R1) rides every file the next session reads early: the first line of EVERY appended worklog section, and — per the templates above — the first line of SESSION-STATE.md, MEMORY.md, and every handoff archive. The trigger now meets the next session at every position of the M0 read order, not just the ledger; a session that restores context at all reads a trigger line before the body of either memory file. M0 verifies the hook in the worklog tail AND both memory headers; if missing anywhere, restore at the next M1 (self-healing).
+The `⚡ACTIVATE` line (R1) rides every file the next session reads early: the first line of EVERY appended worklog section, and — per the templates above — the first line of SESSION-STATE.md, MEMORY.md, and every handoff archive, plus the LAST line of worklog.md itself: a standing tail guard that `bootstrap-sandbox.sh --ensure` and the dev.sh boot chain append whenever the file does not already end with it (append-only — existing content is never edited; recovery net for sections appended without their own hook line, a wild-observed agent behavior). The trigger now meets the next session at every position of the M0 read order, not just the ledger; a session that restores context at all reads a trigger line before the body of either memory file. M0 verifies the hook in the worklog tail AND both memory headers — the tail guard satisfies the worklog-tail check even under hook-less sections; if missing anywhere, restore at the next M1 (self-healing).
 
 ## 3. Lifecycle Procedures M0–M3
 

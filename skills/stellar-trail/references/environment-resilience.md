@@ -47,7 +47,7 @@ Four structural facts that can be exploited (verified empirically on a real cont
 |---|---|---|
 | **L1 — Source refresh** (`scripts/snapshot-repo.sh`) | Overwrites the platform restore archive with a snapshot of the CURRENT state — now including `skills/stellar-trail` (surgical append) — so the native boot restore = fresh state *for as long as that archive survives* | `--apply` after significant milestones; `--apply-auto` periodically (debounce + 15-min cooldown) |
 | **L2a — Cache-replay boot restore** (`scripts/bootstrap-sandbox.sh` → generated `.zscripts/dev.sh`) | At every boot, verifies `skills/stellar-trail` against the canonical copy's SHA-256 manifest (`download/stellar-trail/`) and restores it byte-identically when broken or missing — with a **no-downgrade version gate** (a healthy NEWER live install is never overwritten; a corrupt-but-newer install raises a watcher alarm instead of a silent repair) | Automatic at every boot; the canonical copy persists via the platform archive (which does include `download/`) |
-| **L2b — Verify-only monitoring** (`scripts/watcher.sh`) | Periodic integrity verification of the installed copies against the checksum manifest; on failure: **alarm + the remediation message** (the single install command). NO automatic multi-source repair — by design | Watchdog loop, ~every 10 minutes |
+| **L2b — Verify-only monitoring** (`scripts/watcher.sh`) | Periodic integrity verification of the installed copies against the checksum manifest; on failure: **alarm + the remediation message** (the single install command). NO automatic multi-source repair — by design | Watchdog loop, ~every 10 minutes; started at boot (dev.sh) and at every `bootstrap-sandbox.sh --ensure` — the daemon can die silently at container lifecycle events, so the session path matters |
 | **L3 — Original backup** | Undo: the platform's original restore archive is copied before being overwritten — restorable at any time | Always, before every L1 swap |
 
 L1 prevents rollback **at its source**; L2a **restores the installation** from the canonical
@@ -134,7 +134,7 @@ runtime script. One installer, one source of truth, zero silent repairs.
 ### 3c. `scripts/watcher.sh` (runtime watchdog, verify-only monitoring)
 
 ```
-bash .zscripts/watcher.sh --ensure        # start if not running (idempotent; dev.sh + M0 call this)
+bash .zscripts/watcher.sh --ensure        # start if not running (idempotent; dev.sh at boot + bootstrap --ensure at every run — the daemon dies silently at container lifecycle events, so both paths matter)
 bash .zscripts/watcher.sh --status        # daemon status via PIDFILE (never trust pgrep — see §6)
 bash .zscripts/watcher.sh --stop          # stop + set the stop-flag
 bash .zscripts/watcher.sh --force-start   # start even with a stop-flag present
@@ -150,6 +150,11 @@ hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y`); there is no sil
 design; (5) archive refresh ~every 15 minutes via repo-snapshot.sh --apply-auto; (6) compliance
 sentinel ~every 2 minutes — alarms in the worklog when it grows without an M1 checkpoint. The
 daemon survives per-tool-call process cleanup as a double-fork orphan (PPID=1, setsid).
+It can still die at container lifecycle events (freeze/thaw, session-start process
+reaping — observed with a clear stop-flag and no boot in between, while the explorer
+stayed alive); revival paths: dev.sh at boot, `bootstrap-sandbox.sh --ensure` at every
+run (step 11b), manual `--ensure`. A deliberate `--stop` (stop-flag) is respected by
+every path.
 
 ### 3d. `scripts/audit-compliance.sh` (compliance audit from OUTSIDE the model)
 
@@ -240,7 +245,7 @@ command:
 
 | Module | Installed | Single path (no redundant fallbacks) |
 |---|---|---|
-| core (always) | canonical `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` + `worklog.md` seed (R1 hook) + `memory/` scaffolding | seed = a copy of the live installation (self-locating, offline); dev.sh restores `skills/stellar-trail` from the canonical at every boot (SHA-256 manifest verification + the no-downgrade version gate); the runtime watchdog (explorer health + verify-only integrity checks + release-file guard with local-only restore + archive refresh + compliance alarm), started by dev.sh |
+| core (always) | canonical `download/stellar-trail/` + `.zscripts/dev.sh` + `.zscripts/watcher.sh` + `worklog.md` seed (R1 hook) + tail guard + `memory/` scaffolding | seed = a copy of the live installation (self-locating, offline); dev.sh restores `skills/stellar-trail` from the canonical at every boot (SHA-256 manifest verification + the no-downgrade version gate); the runtime watchdog (explorer health + verify-only integrity checks + release-file guard with local-only restore + archive refresh + compliance alarm), started by dev.sh at boot and by bootstrap-sandbox.sh at every run (the daemon can die silently at container lifecycle events); the tail guard keeps the activation directive as the worklog's last line (append-only, re-applied at every bootstrap run / boot) |
 | explorer (auto-enabled) | `.zscripts/{explorer.sh, explorer.py, explorer-ui/}` + an `--ensure` step in dev.sh | self-locating launcher + drift-sync from canonical; the Next.js guard still applies |
 | snapshot (auto-enabled) | `.zscripts/repo-snapshot.sh` + an `--apply-auto` step in dev.sh | the `WMG_PROJECT` env is forwarded by dev.sh (for platforms with `/home/sync`) |
 
