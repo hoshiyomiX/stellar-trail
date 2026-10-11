@@ -144,7 +144,7 @@ fi
 # --- ALWAYS CHECK (since the always-check fix) --------------------
 # The former 24h debounce gate was removed: --ensure probes the origin on
 # EVERY invocation (the protocol runs it once per session at M0, before
-# Phase 1 — "auto check & update before entering phases", Activation rule 15).
+# Phase 1 — "auto check & update before entering phases", Activation rule 5).
 # The state file remains a RECORD for --status; it no longer gates anything.
 # The runtime watcher adds an independent ~24h background origin probe
 # (alarm-only, never installs) so a release landing mid-boot is caught too.

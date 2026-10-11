@@ -190,7 +190,7 @@ non-compliance" gap from outside the model.
    module also seeds CLAUDE.md + AGENTS.md at the project root, create-if-absent); repo.tar's
    `skills/stellar-trail` append (L1) is a same-boot fallback while the archive survives. If
    the agent's response banner still shows an old version after all this, see the skill-card
-   Known Risks: the continuation-activation failure mode (rule 11).
+   Known Risks: the continuation-activation failure mode (rule 1).
 4. **Nothing happened** ⇒ just ensure L1 is fresh if you are about to stop/rest.
 5. **memory/ is gone too** (total reset) ⇒ recover from the latest handoff on the persistent
    mount; if none exists, run the cold-start protocol (Part II section 2) — never claim "no
@@ -254,7 +254,7 @@ What survives resets (packer contract, verified from the original archive): `dow
 restores from the canonical.
 
 Commands: `bash scripts/bootstrap-sandbox.sh` (core + auto-enabled modules) · `--ensure`
-(idempotent, invoked by Activation rule 14 at M0) · `--with-explorer` / `--with-snapshot`
+(idempotent, invoked by Activation rule 4 at M0) · `--with-explorer` / `--with-snapshot`
 (force-on) · `--without-explorer` / `--without-snapshot` (opt-out) · `--status` (read-only) ·
 `--project-dir` · `--force-devsh` (overwrite a non-bootstrap dev.sh — the reference deployment
 is never overwritten without this flag).
@@ -297,7 +297,7 @@ SKILL.md section 3 M1).
 Section 7 installs the defense layers; section 8 repairs migration damage; this section closes
 the remaining gap: **an installation that is healthy but OLD** — not broken, not a manual
 migration, just behind a release. The protocol calls `scripts/update-skill.sh --ensure` at M0,
-after `bootstrap --ensure`, BEFORE the phases begin (Activation rule 15).
+after `bootstrap --ensure`, BEFORE the phases begin (Activation rule 5).
 
 **Trigger — always check.** Invoked at every M0 and the network check ALWAYS runs (a 24h
 debounce gate was removed after it hid same-day releases behind a stale window — every M0
@@ -335,7 +335,7 @@ depends on the network (the boot chain stays offline-first; the boot cache repla
 watcher remain the offline safety nets). The whole installation process prints to stdout step
 by step (`[1/4]`…`[4/4]`) — the user stays informed and can follow up. After an update lands,
 response banners carry the new version; the skill body is reloaded next session (Activation
-rule 11).
+rule 1).
 
 **Post-install module arming.** Empirical basis: a consumer install + bootstrap-ensure report —
 the install succeeded and the canonical was fresh, BUT the post-update bootstrap ran core-only:
