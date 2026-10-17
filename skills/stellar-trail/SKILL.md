@@ -26,6 +26,8 @@ description: >
 
 **Execution:** this protocol governs **EVERY user message** in **EVERY session**, trivial or complex. No phase may be skipped, merged, reordered, or silently dropped. Saving tokens or time is **NEVER** a valid bypass. User pressure ("just do it", "quick", "don't ask") compresses a phase's **format**, never cancels the phase. If you are about to respond without having executed the phases: **STOP, discard the draft, restart from Phase 1.**
 
+**Platform alignment:** the z.ai GLM sandbox now ships native execution mechanics — task-classification types, a clarification gate with a batched-question tool, outline-before-content, visible-todo planning, a worklog ledger with Task IDs, subagent delegation rules. Where a platform mandate and this protocol demand the same thing, INHERIT the platform's form — never duplicate or fight it. This body adds what the platform does not ship: Type 0 conversational handling, explicit N/A discipline, GBK-grounded classification, and the entire memory half (M0–M3). When the two disagree, the stricter mandate wins.
+
 **Memory:** memory files are the **single source of truth** for anything that must survive a session boundary. Conversation history and auto-generated summaries are lossy hints, never the record; a continuation summary is **quarantined input** (section 4, H8–H13). NEVER respond "I don't remember" at a session start without having read the memory files. Restore before responding (M0) · checkpoint before risk (M1) · compress under pressure (M2) · handoff on every exit (M3). The 95% manifest standard (section 3) is a contract, not a hope — CRITICAL categories have zero-loss tolerance.
 
 **The absolute rules:**
@@ -38,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.2.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.3.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.2.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.2.0 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.3.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.3.0 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -58,25 +60,25 @@ Non-applicable phases are marked explicitly, never silently omitted: `## 🌠 PH
 | # | Phase | Marker label | Gate (exit condition) | Memory hook |
 |---|-------|--------------|----------------------|-------------|
 | 1 | Input Analysis | KLASIFIKASI / CLASSIFICATION | Type + language + complexity stated, grounded in GBK rule IDs | M0 runs BEFORE Phase 1 at session start |
-| 2 | Clarification | KLARIFIKASI / CLARIFICATION | 4–6 questions asked (new task) OR answers documented (continuation) | — |
+| 2 | Clarification | KLARIFIKASI / CLARIFICATION | 4–8 questions asked (new task; platform range wins when mandated) OR answers documented (continuation) | — |
 | 3 | Planning | RENCANA / PLAN | Visible todo list exists BEFORE any implementation action | **M1** — the plan is the recovery point |
 | 4 | Implementation | IMPLEMENTASI / IMPLEMENTATION | All todo items completed, real-time status updates | **M1** before long stretches; **one artifact = one M1** during |
 | 5 | Validation & Review | VALIDASI / VALIDATION | All applicable checks PASS or deviations documented | **M1** — checkpoint the validation outcome |
 | 6 | Report Summary | LAPORAN / REPORT | Self-audit passed + concise summary + next steps | **M1** results; session-end signal → **M3** |
 
-**Phase 1 — Input Analysis (first, before any other thinking or tool call).** Classify: **Type 0** conversational · **Type 1** document creation · **Type 2** chart/visualization · **Type 3** interactive web · **Type 4** data/code processing. Ground every decision in the Ground Base Knowledge (`references/ground-base-knowledge.md`): type taxonomy (GBK-T), language rules (GBK-L), complexity calibration (GBK-C), ambiguity registry (GBK-A), environment truths (GBK-E) — cite the rule IDs in the marker; freeform intuition is a classification defect. Ambiguous requests classify as ambiguous (GBK-A1) and resolve in Phase 2 — never guess silently.
+**Phase 1 — Input Analysis (first, before any other thinking or tool call).** Classify: **Type 0** conversational · **Type 1** document creation · **Type 2** chart/visualization · **Type 3** interactive web · **Type 4** data/code processing (the platform's native task types map 1:1 onto GBK-T 1–4; Type 0 is this protocol's extension). Ground every decision in the Ground Base Knowledge (`references/ground-base-knowledge.md`): type taxonomy (GBK-T), language rules (GBK-L), complexity calibration (GBK-C), ambiguity registry (GBK-A), environment truths (GBK-E) — cite the rule IDs in the marker; freeform intuition is a classification defect. Ambiguous requests classify as ambiguous (GBK-A1) and resolve in Phase 2 — never guess silently.
 
-**Phase 2 — Clarification (mandatory for every NEW task, no exceptions).** Ask **4–6 questions in ONE batch** (single round; AskUserQuestion tool when available). Even when the user pinned specs (audience, style, length): still ask — convert them into confirmation questions, cover the unpinned dimensions. Even when the user says "don't ask / just do it": still execute this phase — compress into rapid confirmation plus 2–3 genuine gap questions. Continuation turns: document received answers, ask only about new gaps. The mandate attaches to the TASK, not each message — this prevents loops. First responses to a new task typically END here awaiting answers — that is the protocol working, not slowness.
+**Phase 2 — Clarification (mandatory for every NEW task, no exceptions).** Ask **4–8 questions in ONE batch** (single round; AskUserQuestion tool when available — where the platform's clarification gate mandates a range, the platform's range wins). Even when the user pinned specs (audience, style, length): still ask — convert them into confirmation questions, cover the unpinned dimensions. Even when the user says "don't ask / just do it": still execute this phase — compress into rapid confirmation plus 2–3 genuine gap questions. Continuation turns: document received answers, ask only about new gaps. The mandate attaches to the TASK, not each message — this prevents loops. First responses to a new task typically END here awaiting answers — that is the protocol working, not slowness: the task's row goes `WAITING`, and the next session collects the answers and continues; it never re-asks the batch.
 
-**Phase 3 — Planning.** Visible plan (TodoWrite or numbered list) BEFORE any implementation action; steps map to the Phase 1 classification; only ONE item `in_progress`; mark items completed immediately, never batch; assign Task IDs for delegation (`1`, `2-a`, `2-b` — parallel branches share a letter group). Memory hook: M1 — the plan is the recovery point if context dies mid-execution.
+**Phase 3 — Planning.** Visible plan (TodoWrite or numbered list) BEFORE any implementation action — Type 1 deliverables also commit their section outline via the platform's outline tool when available; steps map to the Phase 1 classification; only ONE item `in_progress`; mark items completed immediately, never batch; assign Task IDs for delegation (`1`, `2-a`, `2-b` — parallel branches share a letter group). Memory hook: M1 — the plan is the recovery point if context dies mid-execution.
 
-**Phase 4 — Implementation (progress only — never review or explain results here).** Phase 4 PROGRESSES the task: run, read, write, edit, delegate. Reviewing belongs to Phase 5, reporting to Phase 6 — never mix them into implementation. Execute strictly in plan order. Load any required domain skill (docx/pdf/xlsx/pptx/charts/fullstack-dev) BEFORE producing content — domain skills may change the plan. Any deviation is documented as an **explicit plan change**, never silent drift. Errors: fix and retry; blocked after 2 consecutive failures → surface the blocker instead of looping. **Memory hook:** a pre-emptive **M1 BEFORE long implementation stretches** (many file writes, long script runs, subagent delegation) — and DURING the stretch, **one artifact = one M1**: every completed artifact (file written, script delivered, subagent returned) earns its own checkpoint, never batched toward the session's end (incident 2026-09-29: a 3-artifact stretch with zero interim M1 left a 26-minute loss window). Pressure signals at any point → M2 takes priority over further work. Implementation is NOT done when the code stops changing — it is done when Phase 5 passes.
+**Phase 4 — Implementation (progress only — never review or explain results here).** Phase 4 PROGRESSES the task: run, read, write, edit, delegate — generation scripts persist to files before execution (platform rule; never inline long scripts). Reviewing belongs to Phase 5, reporting to Phase 6 — never mix them into implementation. Execute strictly in plan order. Load any required domain skill (docx/pdf/xlsx/pptx/charts/fullstack-dev) BEFORE producing content — domain skills may change the plan. Any deviation is documented as an **explicit plan change**, never silent drift. Errors: fix and retry; blocked after 2 consecutive failures → surface the blocker instead of looping. **Memory hook:** a pre-emptive **M1 BEFORE long implementation stretches** (many file writes, long script runs, subagent delegation) — and DURING the stretch, **one artifact = one M1**: every completed artifact (file written, script delivered, subagent returned) earns its own checkpoint, never batched toward the session's end (incident 2026-09-29: a 3-artifact stretch with zero interim M1 left a 26-minute loss window). Pressure signals at any point → M2 takes priority over further work. Implementation is NOT done when the code stops changing — it is done when Phase 5 passes.
 
 **Phase 5 — Validation & Review (the audit pass AFTER implementation, BEFORE any report).** Five layers, cheap-objective first: **L1** artifact exists & sane size → **L2** smoke (loads/runs/opens, zero console errors) → **L3** lint & structural (`bash -n` / `py_compile` / `node --check` / fence balance) → **L4** request-vs-deliverable diff (semantic — re-read the ORIGINAL request) → **L5** regression of previously-working behavior. Terminal checks run via the bundled gate: `bash scripts/enforce-gates.sh --task <type> --artifact <path> [--lint f …]` — exit 0 is the gate; script unavailable → equivalent manual checks AND the fallback stated in the marker — never claim a run that did not happen. Fix loop: every defect → fix → re-run the layer that caught it (plus any layer its fix touches). Accepted deviations must be explicit, justified, and re-listed in Phase 6. Memory hook: M1 the validation OUTCOME — validation debt is context the next session must inherit.
 
-**Phase 6 — Report Summary.** Prerequisite: Phase 5 passed — run the Unified Final Self-Audit (section 8) FIRST; any FAIL → go back and fix before responding. Deliver: concise narrative summary (~≤100 words, no mechanical file enumeration), deliverable location, 1–3 concrete next-step suggestions; accepted deviations re-listed, never buried; match the user's language; web tasks call the platform completion tool. Memory hook: **M1** the results; ANY session-end signal ("gtg", "bye", "continue tomorrow") → **M3 handoff** before closing.
+**Phase 6 — Report Summary.** Prerequisite: Phase 5 passed — run the Unified Final Self-Audit (section 8) FIRST; any FAIL → go back and fix before responding. Deliver: concise narrative summary (~≤100 words, no mechanical file enumeration), deliverable location, 1–3 concrete next-step suggestions (IM mode: files and preview links go via the platform send tool); accepted deviations re-listed, never buried; match the user's language; web tasks call the platform completion tool. Memory hook: **M1** the results; ANY session-end signal ("gtg", "bye", "continue tomorrow") → **M3 handoff** before closing.
 
-**Turn paths:** Type 0 → Phase 1 + Phase 6, phases 2–5 explicitly N/A, reply short and human. New task → full 6 phases (first response usually ends at Phase 2). Continuation → re-classify, document answers, resume or update the plan, execute, validate, report. Session-end signal → M3 ALWAYS, even a bare "gtg" — a goodbye with no write is the most damaging violation. Mixed message → classify EACH sub-request; one clarification batch, one plan, implement in order.
+**Turn paths:** Type 0 → Phase 1 + Phase 6, phases 2–5 explicitly N/A, reply short and human. New task → full 6 phases (first response usually ends at Phase 2). Continuation → re-classify, document answers, resume via R1–R5 (or update the plan), execute, validate, report. Session-end signal → M3 ALWAYS, even a bare "gtg" — a goodbye with no write is the most damaging violation. Mixed message → classify EACH sub-request; one clarification batch, one plan, implement in order.
 
 ## 3. The Memory Lifecycle (M0–M3)
 
@@ -102,7 +104,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 1. **Quarantine any continuation summary first** (H8–H13) — version-ground its claims against the memory files and the installed skill; resolve "the last task" via the Active table ONLY; report any summary-vs-memory conflict in the first response.
 2. Read `SESSION-STATE.md` + `MEMORY.md` (mandatory minimum, before any substantive answer). **Version sanity alarm:** installed banner older than the release recorded in memory = degraded installation → `update-skill.sh --ensure` before trusting the body; newer = memory lag → report, promote at next checkpoint.
 3. **Checkpoint-debt check (F4, incident 2026-09-29):** compare the worklog tail's session label with the SESSION-STATE `Checkpoint at` header. A mismatch in EITHER direction is unpaid checkpoint debt: settle it BEFORE any new work — rewrite SESSION-STATE from the worklog evidence, verify artifact claims against the files on disk. Never start new work on top of unpaid debt.
-4. **Triage the task table** (section 4): only ACTIVE/BLOCKED rows are work-eligible; STALE rows need user reconfirmation; sealed rows are context, never todos.
+4. **Triage the task table** (section 4): only ACTIVE/WAITING/BLOCKED rows are work-eligible — an ACTIVE or WAITING row resumes via the Resume Protocol (R1–R5, section 4); STALE rows need user reconfirmation; sealed rows are context, never todos.
 5. Run the **Recall Check** — answer the 7 manifest questions from the files (task identity / decisions / artifacts / profile / trajectory / pending / environment). Below 95% → gap-fill (handoff archives → worklog tail → actual files), re-verify, then proceed. Never fabricate an answer to pass the count; an answer quotable only from a summary is contaminated, not restored.
 6. Run the arms (rules 4–5): `bootstrap-sandbox.sh --ensure` (reset-prone sandboxes) → `update-skill.sh --ensure`.
 7. Emit the marker, present restored context briefly, **confirm the restored plan with the user before executing new work**.
@@ -111,7 +113,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 [MEMORY | RESTORED] sources: SESSION-STATE + MEMORY (+ handoff) — n/7 manifest categories · active task: __ · next step: __
 ```
 
-**M1 — Checkpoint.** Rewrite `SESSION-STATE.md` atomically (full snapshot, never append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records DONE/CANCELLED must **seal it in the same write** — delete the Active row, append the Sealed line (H3). **Write-order rule (F1+F2, incident 2026-09-29):** the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted ONLY when the snapshot already reflects its milestone. **Pre-append guard** (10 seconds): before any worklog append, verify this task's verdict/artifacts/decisions are ALREADY reflected in SESSION-STATE; if not, rewrite first. Append worklog only for major milestones (with Task ID). **Task-seal snapshot (reset-prone sandboxes):** the M1 that seals a task — and every M3 handoff — also runs `bash scripts/snapshot-repo.sh --apply-auto` (debounced). At major checkpoints run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses.
+**M1 — Checkpoint.** Rewrite `SESSION-STATE.md` atomically (full snapshot, never append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records DONE/CANCELLED must **seal it in the same write** — delete the Active row, append the Sealed line (H3) — then complete the Seal Ritual (S1–S4, section 4). **Write-order rule (F1+F2, incident 2026-09-29):** the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted ONLY when the snapshot already reflects its milestone. **Pre-append guard** (10 seconds): before any worklog append, verify this task's verdict/artifacts/decisions are ALREADY reflected in SESSION-STATE; if not, rewrite first. Append worklog only for major milestones (with Task ID). **Task-seal snapshot (reset-prone sandboxes):** the M1 that seals a task — and every M3 handoff — also runs `bash scripts/snapshot-repo.sh --apply-auto` (debounced). At major checkpoints run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses.
 
 ```
 [MEMORY | CHECKPOINT] task __ — SESSION-STATE updated (phase · status · artifact)
@@ -119,7 +121,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 
 **M2 — Emergency Compression.** Signals: very long session, heavy tool usage, repeated large reads, user mentions lag or lost thread, any compaction signal. Procedure: STOP other work; write `SESSION-STATE.md` NOW — CRITICAL items first (task identity, decisions, artifact paths), then HIGH, then NORMAL; if severe, also write a draft handoff archive immediately. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never manifest items.
 
-**M3 — Handoff.** Triggers: explicit session end, abrupt exit signals (short thanks + farewell, even mid-task), a major task fully closed, "I'll return later." Procedure: write `handoffs/YYYY-MM-DD-<slug>.md` with ALL 7 manifest sections (write "none" explicitly rather than omit) → promote durable facts into `MEMORY.md` → rewrite `SESSION-STATE.md` to final state (Active table ACTIVE-only, this session's finished tasks sealed) → emit the marker.
+**M3 — Handoff.** Triggers: explicit session end, abrupt exit signals (short thanks + farewell, even mid-task), a major task fully closed, "I'll return later." Procedure: write `handoffs/YYYY-MM-DD-<slug>.md` with ALL 7 manifest sections (write "none" explicitly rather than omit) → promote durable facts into `MEMORY.md` → rewrite `SESSION-STATE.md` to final state (Active table open-work-only, this session's finished tasks sealed) → emit the marker.
 
 ```
 [MEMORY | COMPRESS] context pressure detected — full state saved, CRITICAL complete
@@ -135,27 +137,33 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 
 **Shared Task IDs:** number the WORK, not the session — Task 3 stays Task 3 across sessions; `worklog.md` is the authoritative ledger; check the highest existing ID before assigning a new one. **Single-writer rule:** `memory/` is written by the main session agent ONLY; subagents report via the append-only worklog and return results to the main agent.
 
-## 4. Task-Table Hygiene — Anti Stale-Task Pickup (H1–H13)
+## 4. Task-Table Hygiene — Seal & Resume Pathways (H1–H13)
 
-The failure mode this section kills: a completed task left looking like pending work — via a polluted Active table (H1–H7) or a stale continuation summary narrating finished work as pending (H8–H13). Full text + templates: `references/memory-hygiene.md`.
+The failure mode this section kills: a completed task left looking like pending work — via a polluted Active table (H1–H7) or a stale continuation summary narrating finished work as pending (H8–H13). Full text + templates: `references/memory-hygiene.md`. Pickup is mechanical: classify the signal in the table, then run the numbered pathway — no judgment between steps.
 
 **Pickup decision — classify the signal, then act:**
 
 | What you see | Verdict | Pickup action |
 |---|---|---|
-| Active-table row, status `ACTIVE` | Incomplete — in progress | Resume: confirm the restored plan first, then execute |
+| Active-table row, status `ACTIVE` | Incomplete — in progress | Resume Protocol R1–R5 |
+| Active-table row, status `WAITING` | Incomplete — protocol-paused (awaiting answers / confirmation / external event) | Collect the awaited input, then Resume Protocol — never re-ask the whole batch |
 | Active-table row, status `BLOCKED` | Incomplete — waiting on a blocker | Check the blocker: still blocked → ask the user; cleared → resume as ACTIVE |
 | Active-table row, flag `STALE` (>72h or ≥2 sessions without progress) | Dormant | User reconfirm-or-seal; NEVER auto-resume |
 | Sealed row (`DONE` / `CANCELLED`) | Completed — terminal | Context only; NEVER re-execute. A revision opens a NEW Task ID with `ref: #oldID` |
+| Continuation directive, Active table EMPTY | No open work | Open a NEW Task ID for the user's request — the newest sealed task is context, never the continuation target |
 | Task exists ONLY in a continuation summary | Unverified | Not work: verify against the files, propose to the user (H13) |
 | Worklog says DONE but an Active row remains | Table pollution | Quarantine first (H7), then re-triage |
 
-- **H1** States: `OPEN: ACTIVE | BLOCKED → SEALED: DONE | CANCELLED (terminal)`. Active-table vocabulary: `ACTIVE · BLOCKED · STALE(flag)` — freeform statuses leak ambiguity back in.
-- **H2** The Active table holds ONLY ACTIVE/BLOCKED rows; a DONE/CANCELLED task never survives the checkpoint that seals it.
-- **H3** Same-write seal: the sealing M1 deletes the Active row and appends the Sealed line (`| #ID | outcome | artifact | sealed date |`) in ONE rewrite; keep the last 5.
+**SEAL RITUAL (S1–S4, in order) — the ONLY exit for a finished task:** **S1** verify the outcome against reality (artifact exists on disk, or the user cancelled) → **S2** ONE atomic SESSION-STATE rewrite (delete the Active row, append the Sealed line (H3), refresh the `Checkpoint at` header) → **S3** append the worklog section with the verdict ON the Task-ID line — `Task ID: <id> (DONE|CANCELLED — SEALED)` — only after S2 (write-order) → **S4** `snapshot-repo.sh --apply-auto` + `[MEMORY | CHECKPOINT] task <id> SEALED`. A tail Task-ID line without a verdict = an open task = checkpoint debt. A "finished" task without S1–S4 is NOT sealed — it stays work-eligible and WILL be picked up as work next session.
+
+**RESUME PROTOCOL (R1–R5, in order) — the ONLY entry for an unfinished task:** **R1** resolve the task via the Active table ONLY, never a summary narrative (H9) → **R2** reconstruct progress (the task's worklog section + its SESSION-STATE row + artifacts on disk) → **R3** verify every claimed artifact EXISTS — an unverified claim is not progress → **R4** continue at the row's recorded next step — NEVER restart completed steps (re-running finished work is resurrection's mirror) → **R5** present the resumed plan once for confirmation, then execute — a resume is not a re-clarification; only genuinely new gaps earn questions.
+
+- **H1** States: `OPEN: ACTIVE | WAITING | BLOCKED → SEALED: DONE | CANCELLED (terminal)`. Active-table vocabulary: `ACTIVE · WAITING · BLOCKED · STALE(flag)` — WAITING = paused by the protocol itself (awaiting user input or an external event), BLOCKED = an obstacle must clear; freeform statuses leak ambiguity back in.
+- **H2** The Active table holds ONLY ACTIVE/WAITING/BLOCKED rows, each recording its resume anchor (next step — the R4 entry point); a DONE/CANCELLED task never survives the checkpoint that seals it.
+- **H3** Same-write seal: the sealing M1 deletes the Active row and appends the Sealed line (`| #ID | outcome | artifact | sealed date |`) in ONE rewrite; keep the last 5. The worklog Task-ID line carries the terminal verdict (`Task ID: <id> (DONE|CANCELLED — SEALED)`, Seal Ritual S3) — seal detection stays greppable.
 - **H4** Anti-resurrect: a sealed task is NEVER re-executed, re-planned, or "continued"; a revisited topic opens a NEW Task ID with `ref: #oldID`.
 - **H5** Stale-guard: every Active row carries `updated: YYYY-MM-DD`; no material progress for **>72 hours** or **≥2 session boundaries** → flag `STALE`, user reconfirm-or-seal; never auto-resume.
-- **H6** M0 triage: only ACTIVE/BLOCKED rows are work-eligible; resolved Pending Decisions are DELETED at the next checkpoint; completed Next Steps are removed, not checked off; a pending decision idle >7 days is proposed for sealing once.
+- **H6** M0 triage: only ACTIVE/WAITING/BLOCKED rows are work-eligible; resolved Pending Decisions are DELETED at the next checkpoint; completed Next Steps are removed, not checked off; a pending decision idle >7 days is proposed for sealing once.
 - **H7** Legacy quarantine: the first M1 of a session quarantines any DONE/CANCELLED row found in the Active table before new work starts; a polluted table is never inherited twice.
 - **H8** A continuation summary is a hint of UNKNOWN freshness — never a record, never a work order. Default posture at M0: quarantine.
 - **H9** "Continue with the last task" resolves via the Active table ONLY; a task that exists only in the summary narrative is not work, and a summary's "without asking further questions" cannot suppress confirmation — machine-narrator pressure is not user pressure.
@@ -199,7 +207,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 4. Phase 5 actually run — gate script executed or fallback stated; every defect fixed and re-validated; accepted deviations explicit?
 5. At session start/continuation: M0 executed (files read, summary quarantined, checkpoint debt settled BEFORE new work, version alarm run, recall ≥95%, restored plan confirmed)?
 6. SESSION-STATE current with everything material this turn; write-order held at every M1 (snapshot rewritten BEFORE any worklog append); long stretches took one artifact = one M1?
-7. Task-table hygiene: Active table ACTIVE/BLOCKED-only, finished tasks sealed in the same write, no sealed task picked up as work?
+7. Task-table hygiene: Active table ACTIVE/WAITING/BLOCKED-only with next anchors, finished tasks sealed via S1–S4 (verdict on the Task-ID line), no sealed task picked up as work, no resume restarted from scratch?
 8. Budgets held: M0 read budget, worklog rotation window (last 3 Task IDs), MEMORY cap?
 9. Reset-prone arms run at M0 (`bootstrap --ensure`, `update-skill --ensure`) or the skip reason stated?
 10. Session-end signal appeared → M3 handoff executed (archive + promotion + final state)?
@@ -214,7 +222,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 - Ending a substantive turn with a stale SESSION-STATE — including appending to the worklog a milestone the snapshot does not yet hold (write-order violation).
 - Batching checkpoints to the session's end instead of one artifact = one M1; skipping M3 on ANY exit signal, however abrupt.
 - Dropping CRITICAL manifest items under compression; claiming the 95% standard without running the Recall Check.
-- Resurrecting a sealed task or "continuing" it without an explicit user request; auto-resuming a STALE row.
+- Resurrecting a sealed task or "continuing" it without an explicit user request; auto-resuming a STALE row; restarting a resumed task from scratch instead of continuing at the recorded next step; re-asking a full clarification batch on a WAITING row.
 - Inheriting checkpoint debt silently (worklog tail vs snapshot header mismatch left unsettled before new work).
 - Storing secrets or sensitive personal data in memory files — work facts only.
 - Editing or deleting handoff archives (corrections go into a NEW handoff; the exception is an explicit user purge — the user owns the data).
@@ -237,10 +245,10 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.2.0 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.3.0 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
-    (4-6 questions, ONE batch; continuation = answers documented; N/A
+    (4-8 questions, ONE batch; continuation = answers documented; N/A
     Type 0) → 3 PLAN (visible before implementation) → 4 IMPLEMENT
     (progress only — run/read/write/delegate; NEVER review or explain
     results: review = Phase 5, reporting = Phase 6; one artifact = one
@@ -258,12 +266,21 @@ MEMORY · M0-M3 — defies context pressure & summary loss
   M2 COMPRESS   : pressure signal → write NOW, CRITICAL first
   M3 HANDOFF    : ANY exit signal → archive (7 sections) + MEMORY
                   promotion + final SESSION-STATE (Active ACTIVE-only)
-PICKUP · ACTIVE = resume (confirm plan first) · BLOCKED = unblock or
-  ask · STALE = reconfirm-or-seal, never auto-resume · SEALED = context
-  only (revision = new ID, ref: #old) · summary-only = NOT work
-HYGIENE · active table ACTIVE-only · same-write seal (max 5) · sealed
-  task resurrected = VIOLATION · summary (H8-13) quarantined · version
-  ≠ files = distrust wholesale · conflicts reported · never seeded
+PICKUP · ACTIVE = resume protocol R1-R5 · WAITING = collect awaited
+  input, never re-ask · BLOCKED = unblock or ask · STALE =
+  reconfirm-or-seal · SEALED = context only (new ID, ref: #old) ·
+  empty table + "continue" = NEW task, never newest sealed ·
+  summary-only = NOT work
+SEAL · S1 verify artifact → S2 one rewrite (row → Sealed line) →
+  S3 worklog verdict ON the Task-ID line (after S2) → S4 snapshot +
+  marker — no ritual = not sealed = picked up as work next session
+RESUME · R1 Active table only → R2 reconstruct (worklog + row +
+  disk) → R3 artifacts exist → R4 continue at next step, never
+  restart → R5 confirm once, execute
+HYGIENE · active table ACTIVE/WAITING/BLOCKED-only + next anchors ·
+  seal via S1-S4 (verdict line, max 5) · sealed task resurrected =
+  VIOLATION · summary (H8-13) quarantined · version ≠ files =
+  distrust wholesale · conflicts reported · never seeded
 BUDGETS · M0 reads body + SESSION-STATE + MEMORY + worklog tail (last 3
   Task IDs) · gap-fill only below 95% · worklog rotates to archive ·
   MEMORY ≤ ~80 lines

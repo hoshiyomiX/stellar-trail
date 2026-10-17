@@ -14,7 +14,7 @@
 #   memory-foundation        memory/SESSION-STATE.md exists (the memory
 #                            protocol's foundation)
 #   active-table-hygiene     the Active Tasks table contains only
-#                            ACTIVE/BLOCKED/STALE rows — a DONE or CANCELLED
+#                            ACTIVE/WAITING/BLOCKED/STALE rows — a DONE or CANCELLED
 #                            row there makes finished work look pending
 #   checkpoint-staleness     the worklog is actively growing while
 #                            SESSION-STATE.md has not been rewritten for over
@@ -84,7 +84,7 @@ if [ -f "$SS" ]; then
     elif echo "$ACTIVE_ROWS" | grep -qiE '\| *(DONE|CANCELLED|TERTUTUP|SEALED) *\|'; then
         res FAIL "active-table-hygiene" "terminal row (DONE/CANCELLED/...) inside the Active table — finished work displayed as pending, stale-pickup risk"
     else
-        res PASS "active-table-hygiene" "active table holds only ACTIVE/BLOCKED/STALE rows ($(echo "$ACTIVE_ROWS" | wc -l) rows)"
+        res PASS "active-table-hygiene" "active table holds only ACTIVE/WAITING/BLOCKED/STALE rows ($(echo "$ACTIVE_ROWS" | wc -l) rows)"
     fi
 fi
 

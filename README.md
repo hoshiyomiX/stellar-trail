@@ -4,7 +4,7 @@
 
 Unified execution discipline + persistent cross-session memory protocol — **purpose-built for z.ai GLM agents (Super Z)**.
 
-stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs. The protocol body is deliberately slim (~265 lines, English only): deep procedures live in four on-demand references, and the M0 read path is hard-budgeted — the field-proven diagnosis being that oversized read paths breed overthinking and compliance violations. Checkpoints follow a fixed write order (snapshot first, ledger append last, one checkpoint per completed artifact), every task-sealing checkpoint refreshes the restore archive, and an external audit script catches drift the model's own discipline misses.
+stellar-trail governs **how a task executes** inside a turn — a mandatory 6-phase workflow (classify → clarify → plan → implement → validate → report) — and **how its context survives** across sessions — a memory lifecycle (restore → checkpoint → compress → handoff) — so long-running agent work survives context resets, session restarts, and multi-session handoffs. The protocol body is deliberately slim (~285 lines, English only): deep procedures live in four on-demand references, and the M0 read path is hard-budgeted — the field-proven diagnosis being that oversized read paths breed overthinking and compliance violations. Checkpoints follow a fixed write order (snapshot first, ledger append last, one checkpoint per completed artifact), every task-sealing checkpoint refreshes the restore archive, and an external audit script catches drift the model's own discipline misses.
 
 ## Install
 
@@ -44,7 +44,7 @@ The shipped frontmatter description is the best activation captor ever measured 
 
 | Piece | Role |
 |---|---|
-| `SKILL.md` | The slim protocol body (~265 lines): 6-phase execution, memory lifecycle M0–M3 with an overview table, task pickup decision table, enforcement dual-track |
+| `SKILL.md` | The slim protocol body (~285 lines): 6-phase execution, memory lifecycle M0–M3 with an overview table, task pickup decision table + Seal Ritual/Resume Protocol, platform alignment, enforcement dual-track |
 | `scripts/bootstrap-sandbox.sh` | One-command persistence-layer arming: canonical copy, boot hook (SHA-256-verified restore with a no-downgrade gate), watcher deploy + daemon ensure, worklog seed + tail guard, memory scaffold; explorer/snapshot/hooks modules auto-enable with their payload |
 | `scripts/update-skill.sh` | Single-flow updater: always-check origin probe, four-step verified override, full-stack re-arm |
 | `scripts/watcher.sh` | runtime watchdog v2.2 (verify-only): explorer health + revive, deployment-gap notice, integrity checks ~10 min, release-file guard, archive refresh ~15 min, compliance sentinel, ~24h origin release probe (alarm-only); started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events, so the session path matters |

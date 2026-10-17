@@ -1,5 +1,23 @@
 # Changelog
 
+## v5.3.0 — 2026-10-17 · sandbox-evolution alignment + mechanical Seal Ritual & Resume Protocol
+
+**Why — the sandbox evolved, and continuing agents still got confused at two points:** the z.ai GLM platform now ships its own native execution mechanics (task-classification types, a clarification gate with a batched-question tool, outline-before-content, a worklog ledger with Task IDs) that overlap this protocol's execution half — an agent following both needed to know which mandate wins. And field continuation failures concentrated on exactly two pathways: a finished task whose seal never fully happened got re-executed next session, and an unfinished task got restarted from scratch or re-clarified from zero.
+
+**What:**
+
+- **Platform alignment clause (section 0):** where a platform mandate and the protocol demand the same thing, the platform's form is INHERITED — never duplicated or fought; the protocol concentrates on what the platform does not ship (Type 0 handling, N/A discipline, GBK grounding, the entire memory half). Stricter mandate wins. Phase 1 now notes the native-type ↔ GBK-T 1–4 mapping.
+- **Clarification range widened 4–6 → 4–8 with platform deference** (Phase 2 + QRC): where the platform's clarification gate mandates a batch range, the platform's range wins; the one-batch single-round core is unchanged.
+- **Phase touchpoints inherited:** Phase 3 commits document outlines via the platform outline tool when available; Phase 4 persists generation scripts to files (platform rule); Phase 6 delivers files/preview links via the platform send tool in IM mode.
+- **Seal Ritual (S1–S4) — the only exit for a finished task:** verify artifact → one atomic SESSION-STATE rewrite (row → Sealed line) → worklog append with the verdict ON the Task-ID line (`Task ID: <id> (DONE|CANCELLED — SEALED)`) → snapshot + marker. No ritual = not sealed = it WILL be picked up as work next session. Seal detection is now greppable: a tail Task-ID line without a verdict is an open task.
+- **Resume Protocol (R1–R5) — the only entry for an unfinished task:** resolve via the Active table only → reconstruct (worklog + row + disk) → verify artifacts exist → continue at the recorded next step (NEVER restart completed steps) → confirm once, execute. A resume is not a re-clarification.
+- **WAITING status added to the closed vocabulary** (ACTIVE · WAITING · BLOCKED · STALE flag): protocol-paused tasks (awaiting answers/confirmation/external event) stop masquerading as mid-execution ACTIVE or obstacle BLOCKED — pickup collects the awaited input and continues, never re-asks the batch. Every Active row now records its resume anchor (next step) — the R4 entry point.
+- **Two new pickup rows:** WAITING → collect + resume; continuation-directive-with-empty-table → open a NEW Task ID (the newest sealed task is context, never the continuation target).
+- **QRC gains SEAL and RESUME blocks;** self-audit item 7 and the violations list extended (restart-instead-of-resume, re-ask-on-WAITING); memory-hygiene gains full pathway procedures (section 5.0), the Next-column template, and the verdict-line worklog template.
+- **Version 5.3.0** (banner constants, integrity.version, skill card).
+
+**Verification (all run this release):** task13 46/46 · task11 85/85 (re-pinned) · check-skill 7/7 (description untouched, 877/1024, wording-frozen) · harness-hooks 17/17 · guardtest 14/14 · explorer-gap 8/8 · inner-block single-quote guard · `bash -n` all touched scripts · audit-compliance PASS 0 WARN · manifest 18/18 ×2 · three-tree md5 identical · CLI reinstall byte-identical.
+
 ## v5.2.0 — 2026-10-12 · SKILL.md body optimization — trimmed, renumbered, LLM-scannable (10-point owner plan)
 
 **Why — a 10-point owner optimization plan for the protocol body:** the body had drifted wordy (245 lines), carried absolute-rule numbering inherited from a deleted lineage (11–16), formatted its memory lifecycle as dense prose an LLM must re-parse every session, and left task pickup implicit in a 13-rule list.
@@ -17,16 +35,3 @@
 - **Version 5.2.0** (banner constants, integrity.version, skill card).
 
 **Verification (all run this release):** trigger-eval rejection measurement above (artifacts: task24 workspace — description-v{9-baseline,10,10b}.txt + raw JSONL + analysis) · task13 · task11 · check-skill 7/7 (description untouched, 877/1024) · harness-hooks 17/17 · guardtest 14/14 · explorer-gap 8/8 · inner-block single-quote guard · `bash -n` all touched scripts · audit-compliance PASS 0 WARN · manifest 18/18 ×2 · three-tree md5 identical · CLI reinstall byte-identical.
-
-## v5.1.0 — 2026-10-11 · watcher liveness + worklog tail enforcement (consumer report)
-
-**Why — a consumer report on a fresh install:** the explorer dashboard behaved correctly and the worklog was being written, but the watchdog daemon was dead and the agent's worklog sections carried no activation hook line. Forensics on the reference sandbox reproduced both exactly: the daemon had died silently at a container lifecycle event (stop-flag clear, no boot in between — the explorer has three revival paths, the watcher had only one: boot), and the worklog tail — the only part the next session reads — held sections appended without their `⚡ACTIVATE` first line.
-
-**What:**
-
-- **Watcher daemon ensure at every bootstrap run (step 11b).** The documented-but-missing "cold-boot path" made real: `bootstrap-sandbox.sh --ensure` now starts the daemon when it is down — idempotent, no-op when already running; a deliberate `--stop` (stop-flag) is always respected; a failure never fails bootstrap. The watcher now has the same revival coverage as the explorer: boot (dev.sh) + session (bootstrap) + manual.
-- **Worklog tail guard (bootstrap step 10b + generated dev.sh step 8).** When the last non-blank line of `worklog.md` is not the activation directive, it is appended as a standing guard line — append-only (existing content is never edited or removed), idempotent, byte-identical to the section-first-line R1 hook. Invariant: after any bootstrap run or boot, the worklog ends with the activation directive. Documented as R1 clause (d) in SKILL.md §3b; the generated dev.sh header now lists all eight steps (the hooks step was missing from it).
-- **Docs made true:** the watcher.sh header, environment-resilience §3c, and the bootstrap header already claimed the daemon was started beyond boot — the code now matches every claim; README package table updated + two new troubleshooting entries (dead daemon self-heal, bare worklog tail); memory-hygiene R1 documentation extended with the tail guard.
-- **Version 5.1.0** (banner constants ×4, integrity.version, skill card).
-
-**Verification (all run this release):** task23-guardtest behavioral suite 14/14 in an isolated scratch project (daemon: started-when-down · idempotent-same-pid · stop-flag-respected · restart-after-flag-clear; tail guard: appended-when-missing · idempotent-md5-stable · content-untouched · fresh-seed-guarded · marker-skipped-section E2E · boot path via the generated dev.sh step 8) · task13 46/46 · task11 85/85 · check-skill 7/7 (description untouched, 877/1024) · harness-hooks suite 17/17 · explorer-gap suite 8/8 · inner-block single-quote guard · `bash -n` all touched scripts + the generated-dev.sh syntax gate · audit-compliance PASS 0 WARN · three-tree md5 identical · live re-arm verified on the reference sandbox (daemon revived + the real worklog tail carrying the directive).
