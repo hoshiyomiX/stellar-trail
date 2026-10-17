@@ -44,7 +44,7 @@ The shipped frontmatter description is the best activation captor ever measured 
 
 | Piece | Role |
 |---|---|
-| `SKILL.md` | The slim protocol body (~285 lines): 6-phase execution, memory lifecycle M0–M3 with an overview table, task pickup decision table + Seal Ritual/Resume Protocol, platform alignment, enforcement dual-track |
+| `SKILL.md` | The slim protocol body (~285 lines): 6-phase execution, memory lifecycle M0–M3 with an overview table, task pickup decision table + acceptance-gated Seal Ritual/Resume Protocol, platform alignment, enforcement dual-track |
 | `scripts/bootstrap-sandbox.sh` | One-command persistence-layer arming: canonical copy, boot hook (SHA-256-verified restore with a no-downgrade gate), watcher deploy + daemon ensure, worklog seed + tail guard, memory scaffold; explorer/snapshot/hooks modules auto-enable with their payload |
 | `scripts/update-skill.sh` | Single-flow updater: always-check origin probe, four-step verified override, full-stack re-arm |
 | `scripts/watcher.sh` | runtime watchdog v2.2 (verify-only): explorer health + revive, deployment-gap notice, integrity checks ~10 min, release-file guard, archive refresh ~15 min, compliance sentinel, ~24h origin release probe (alarm-only); started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events, so the session path matters |

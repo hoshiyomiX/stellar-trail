@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.3.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.3.1); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.3.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.3.0 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.3.1 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.3.1 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -146,7 +146,7 @@ The failure mode this section kills: a completed task left looking like pending 
 | What you see | Verdict | Pickup action |
 |---|---|---|
 | Active-table row, status `ACTIVE` | Incomplete — in progress | Resume Protocol R1–R5 |
-| Active-table row, status `WAITING` | Incomplete — protocol-paused (awaiting answers / confirmation / external event) | Collect the awaited input, then Resume Protocol — never re-ask the whole batch |
+| Active-table row, status `WAITING` | Incomplete — protocol-paused (awaiting answers / acceptance / confirmation / external event) | Collect the awaited input, then Resume Protocol (an awaited acceptance instead runs the Seal Ritual) — never re-ask the whole batch |
 | Active-table row, status `BLOCKED` | Incomplete — waiting on a blocker | Check the blocker: still blocked → ask the user; cleared → resume as ACTIVE |
 | Active-table row, flag `STALE` (>72h or ≥2 sessions without progress) | Dormant | User reconfirm-or-seal; NEVER auto-resume |
 | Sealed row (`DONE` / `CANCELLED`) | Completed — terminal | Context only; NEVER re-execute. A revision opens a NEW Task ID with `ref: #oldID` |
@@ -154,7 +154,7 @@ The failure mode this section kills: a completed task left looking like pending 
 | Task exists ONLY in a continuation summary | Unverified | Not work: verify against the files, propose to the user (H13) |
 | Worklog says DONE but an Active row remains | Table pollution | Quarantine first (H7), then re-triage |
 
-**SEAL RITUAL (S1–S4, in order) — the ONLY exit for a finished task:** **S1** verify the outcome against reality (artifact exists on disk, or the user cancelled) → **S2** ONE atomic SESSION-STATE rewrite (delete the Active row, append the Sealed line (H3), refresh the `Checkpoint at` header) → **S3** append the worklog section with the verdict ON the Task-ID line — `Task ID: <id> (DONE|CANCELLED — SEALED)` — only after S2 (write-order) → **S4** `snapshot-repo.sh --apply-auto` + `[MEMORY | CHECKPOINT] task <id> SEALED`. A tail Task-ID line without a verdict = an open task = checkpoint debt. A "finished" task without S1–S4 is NOT sealed — it stays work-eligible and WILL be picked up as work next session.
+**SEAL RITUAL (S1–S4, in order) — the ONLY exit for a finished task:** **S1** verify the outcome against reality (artifact exists on disk, or the user cancelled) AND the user's acceptance of the report — a bare continuation is not acceptance; an unaccepted delivery keeps the row `WAITING` (acceptance) and seals on the acceptance turn → **S2** ONE atomic SESSION-STATE rewrite (delete the Active row, append the Sealed line (H3), refresh the `Checkpoint at` header) → **S3** append the worklog section with the verdict ON the Task-ID line — `Task ID: <id> (DONE|CANCELLED — SEALED)` — only after S2 (write-order) → **S4** `snapshot-repo.sh --apply-auto` + `[MEMORY | CHECKPOINT] task <id> SEALED`. A tail Task-ID line without a verdict = an open task = checkpoint debt. A "finished" task without S1–S4 is NOT sealed — it stays work-eligible and WILL be picked up as work next session.
 
 **RESUME PROTOCOL (R1–R5, in order) — the ONLY entry for an unfinished task:** **R1** resolve the task via the Active table ONLY, never a summary narrative (H9) → **R2** reconstruct progress (the task's worklog section + its SESSION-STATE row + artifacts on disk) → **R3** verify every claimed artifact EXISTS — an unverified claim is not progress → **R4** continue at the row's recorded next step — NEVER restart completed steps (re-running finished work is resurrection's mirror) → **R5** present the resumed plan once for confirmation, then execute — a resume is not a re-clarification; only genuinely new gaps earn questions.
 
@@ -222,7 +222,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 - Ending a substantive turn with a stale SESSION-STATE — including appending to the worklog a milestone the snapshot does not yet hold (write-order violation).
 - Batching checkpoints to the session's end instead of one artifact = one M1; skipping M3 on ANY exit signal, however abrupt.
 - Dropping CRITICAL manifest items under compression; claiming the 95% standard without running the Recall Check.
-- Resurrecting a sealed task or "continuing" it without an explicit user request; auto-resuming a STALE row; restarting a resumed task from scratch instead of continuing at the recorded next step; re-asking a full clarification batch on a WAITING row.
+- Resurrecting a sealed task or "continuing" it without an explicit user request; auto-resuming a STALE row; restarting a resumed task from scratch instead of continuing at the recorded next step; re-asking a full clarification batch on a WAITING row; sealing a delivery the user never accepted — a bare continuation is not acceptance (S1).
 - Inheriting checkpoint debt silently (worklog tail vs snapshot header mismatch left unsettled before new work).
 - Storing secrets or sensitive personal data in memory files — work facts only.
 - Editing or deleting handoff archives (corrections go into a NEW handoff; the exception is an explicit user purge — the user owns the data).
@@ -245,7 +245,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.3.0 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.3.1 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A
@@ -267,13 +267,15 @@ MEMORY · M0-M3 — defies context pressure & summary loss
   M3 HANDOFF    : ANY exit signal → archive (7 sections) + MEMORY
                   promotion + final SESSION-STATE (Active ACTIVE-only)
 PICKUP · ACTIVE = resume protocol R1-R5 · WAITING = collect awaited
-  input, never re-ask · BLOCKED = unblock or ask · STALE =
-  reconfirm-or-seal · SEALED = context only (new ID, ref: #old) ·
-  empty table + "continue" = NEW task, never newest sealed ·
-  summary-only = NOT work
-SEAL · S1 verify artifact → S2 one rewrite (row → Sealed line) →
-  S3 worklog verdict ON the Task-ID line (after S2) → S4 snapshot +
-  marker — no ritual = not sealed = picked up as work next session
+  input, never re-ask — an awaited acceptance → Seal Ritual · BLOCKED =
+  unblock or ask · STALE = reconfirm-or-seal · SEALED = context only
+  (new ID, ref: #old) · empty table + "continue" = NEW task, never
+  newest sealed · summary-only = NOT work
+SEAL · S1 verify artifact + USER ACCEPTANCE — bare continuation ≠
+  acceptance; unaccepted → WAITING (acceptance), seals on the
+  acceptance turn → S2 one rewrite (row → Sealed line) → S3 worklog
+  verdict ON the Task-ID line (after S2) → S4 snapshot + marker — no
+  ritual = not sealed = picked up as work next session
 RESUME · R1 Active table only → R2 reconstruct (worklog + row +
   disk) → R3 artifacts exist → R4 continue at next step, never
   restart → R5 confirm once, execute
