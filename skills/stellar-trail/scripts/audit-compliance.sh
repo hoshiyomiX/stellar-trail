@@ -19,6 +19,14 @@
 #   checkpoint-staleness     the worklog is actively growing while
 #                            SESSION-STATE.md has not been rewritten for over
 #                            30 minutes — the signature of a missing checkpoint
+#   silent-work               work artifacts (workspace/ scripts/ download/
+#                            upload/, minus the watcher-guarded canonical copy)
+#                            whose mtimes run ahead of the last checkpoint by
+#                            over the threshold — the signature of sessions
+#                            working WITHOUT the protocol at all (incident
+#                            class 2026-10-21: a 66-minute silent-work window
+#                            froze the worklog, so checkpoint-staleness never
+#                            fired; this check watches the disk instead)
 #   version-sanity           every installed copy reports the same version as
 #                            the canonical snapshot — drift means a stale or
 #                            damaged installation
@@ -97,6 +105,38 @@ if [ -f "$SS" ] && [ -f "$WL" ]; then
         res WARN "checkpoint-staleness" "worklog active ($(date -d "@$WL_M" '+%H:%M' 2>/dev/null)) but SESSION-STATE last written $(date -d "@$SS_M" '+%H:%M' 2>/dev/null) — gap $(( (WL_M - SS_M) / 60 )) min: the signature of a missing checkpoint"
     else
         res PASS "checkpoint-staleness" "checkpoint fresh (safe gap / no active work orphaned from its checkpoint)"
+    fi
+fi
+
+# --- silent-work (v5.4.0; incident 2026-10-21) -------------------------------
+# The checkpoint-staleness check above needs the worklog to GROW; sessions
+# that work without writing a single protocol line freeze the worklog and
+# slip past it (field-proven: a 66-minute silent-work window, zero alarms).
+# This check watches the other side: work artifacts whose mtimes run ahead
+# of the last checkpoint by the threshold (env-tunable, same knobs as the
+# watcher duty 6b: STELLAR_SILENCE_WORK_SECS / STELLAR_SILENCE_EVIDENCE_SECS).
+# WARN, not FAIL: during compliant work an artifact can legitimately sit
+# between completion and its M1 — the real-time alarm is watcher duty 6b;
+# this check makes the signal greppable in scheduled/manual audits.
+if [ -f "$SS" ]; then
+    SW_SS_M=$(stat -c%Y "$SS" 2>/dev/null || echo 0)
+    SW_TH="${STELLAR_SILENCE_WORK_SECS:-1800}"
+    SW_EV="${STELLAR_SILENCE_EVIDENCE_SECS:-7200}"
+    SW_MARK="$(mktemp)"
+    touch -d @$((SW_SS_M + SW_TH)) "$SW_MARK" 2>/dev/null
+    SW_N=$(find "$ROOT/workspace" "$ROOT/scripts" "$ROOT/download" -type f -newer "$SW_MARK" \
+        -not -path "$ROOT/download/stellar-trail/*" -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
+    rm -f "$SW_MARK"
+    SW_MARK2="$(mktemp)"
+    touch -d @$((SW_SS_M + SW_EV)) "$SW_MARK2" 2>/dev/null
+    SW_E=$(find "$ROOT/upload" -type f -newer "$SW_MARK2" -not -path "*/node_modules/*" 2>/dev/null | wc -l)
+    rm -f "$SW_MARK2"
+    if [ "$SW_N" -gt 0 ]; then
+        res WARN "silent-work" "$SW_N work artifact(s) under workspace/ scripts/ download/ newer than the last checkpoint by over $((SW_TH / 60)) min — work may be running without the protocol (incident class 2026-10-21); verify from disk before building on it"
+    elif [ "$SW_E" -gt 0 ]; then
+        res WARN "silent-work" "$SW_E upload file(s) newer than the last checkpoint by over $((SW_EV / 60)) min — user-provided evidence not yet processed by a logged session"
+    else
+        res PASS "silent-work" "no work artifact outruns the last checkpoint (everything logged / safe gap)"
     fi
 fi
 

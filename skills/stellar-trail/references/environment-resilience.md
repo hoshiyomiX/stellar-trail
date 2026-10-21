@@ -140,7 +140,7 @@ bash .zscripts/watcher.sh --stop          # stop + set the stop-flag
 bash .zscripts/watcher.sh --force-start   # start even with a stop-flag present
 ```
 
-The 30-second loop runs six checks: (1) download/ change trigger → dev.sh; (2) explorer health →
+The 30-second loop runs eight checks: (1) download/ change trigger → dev.sh (the ALERT surface is excluded from this hash — an alarm never kicks the boot hook); (2) explorer health →
 auto-restart via explorer.sh --ensure (skipped when a Next.js project owns the preview port);
 (3) release-file guard — `skill-card.md` + `assets/integrity.sha256` in the canonical copy must
 exist and stay version-fresh, restored ONLY from a healthy local same-version install (no vault,
@@ -148,7 +148,16 @@ no network); (4) installation integrity ~every 10 minutes — **verify-only**: o
 failure it logs `INTEGRITY ALARM` with the remediation message (`npx skills add
 hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y`); there is no silent repair by
 design; (5) archive refresh ~every 15 minutes via repo-snapshot.sh --apply-auto; (6) compliance
-sentinel ~every 2 minutes — alarms in the worklog when it grows without an M1 checkpoint. The
+sentinel ~every 2 minutes — alarms in the worklog when it grows without an M1 checkpoint;
+(6b) silent-work sentinel + ALERT surface ~every 2 minutes (v5.4.0, incident 2026-10-21) —
+WORK-SILENCE (workspace/ scripts/ download/ artifacts outrunning the last checkpoint by
+>30 min: work without the protocol) and EVIDENCE-PENDING (upload/ evidence unprocessed by
+any logged session for >2 h); alarms append to the worklog AND refresh
+`download/ALERT-ACTIVE.md`, the user-visible alarm surface, removed automatically on
+all-clear — the worklog paradox (alarms written only where a compliant session reads) is what
+let the incident run unseen; (7) origin release probe ~every 24 h (epoch-gated, alarm-only);
+(8) periodic compliance audit ~every 6 h (epoch-gated) — the external audit-compliance.sh
+verdict lands in watcher.log as greppable history, a FAIL also alarms the worklog. The
 daemon survives per-tool-call process cleanup as a double-fork orphan (PPID=1, setsid).
 It can still die at container lifecycle events (freeze/thaw, session-start process
 reaping — observed with a clear stop-flag and no boot in between, while the explorer
@@ -236,6 +245,44 @@ Recorded as receipts so the design can be audited, not accepted on faith:
 - **An alive-but-stale deployment is a real failure mode** (files updated, the running process
   still serving old code): freshness checks must compare CONTENT (code stamps / md5), not
   mtimes.
+
+### 6b. Documented incidents (field evidence)
+
+**Incident 2026-10-21 — cross-session protocol skip ("silent work"), deployment container
+(sovereign-re project, harness z.ai web, skill v5.3.1).** Between protocol sessions 94 and 95,
+at least two continuation sessions ran entirely without loading the protocol body: they
+analyzed field-diagnosis output, implemented build-4, packaged a release zip, and guided an
+on-device deploy — all with zero banner, zero phase markers, zero M1 checkpoints, zero worklog
+appends. SESSION-STATE froze at the session-94 header while the disk advanced two stages, and
+the user's 05:25 field-evidence upload sat unprocessed by any logged session.
+
+What the record proves, point by point:
+
+- **Every machine sentinel was silent for the whole window** — and correctly so, by their own
+  logic: the compliance sentinel alarms on "worklog growing without a checkpoint"; these
+  sessions wrote NOTHING, so the worklog never grew and the condition never fired (last alarm
+  23:14 the night before, incident window 04:19–05:25, zero alarms). Sentinel coverage was
+  keyed on the wrong signal for this class.
+- **The incident was caught by the USER, not the machine** — the owner noticed the missing
+  banner. Alarms wrote only to files a compliant session would read: the guard-that-cannot-
+  wake-the-guard paradox.
+- **Artifacts-on-disk saved the recovery** — because every silent-session output was a real
+  file, the compliant session that followed could re-verify everything from disk (md5, perms,
+  diffs) instead of memory; the wrong "zip packaging regression" framing was debunked by
+  re-verifying the original artifacts (the extractor on-device was stripping exec bits).
+  Rule 6 (late activation) executed as designed: unverified-input posture, checkpoint debt
+  settled, no retro-edits. Permanent damage: zero.
+- **What changed in v5.4.0 as a direct consequence:** watcher duty 6b (silent-work sentinel —
+  WORK-SILENCE / EVIDENCE-PENDING classes keyed on ARTIFACT MTIMES vs the checkpoint, the
+  exact forensic signal this incident was reconstructed from) + the `download/ALERT-ACTIVE.md`
+  user-visible alarm surface + the M0 artifact-freshness sweep (detection at every session
+  start, watcher-independent) + the audit-compliance `silent-work` check + duty 8's ~6 h
+  periodic audit schedule.
+- **What did NOT change (honest limits):** the description stays wording-frozen (877/1024,
+  measured local optimum) — no measured basis exists that any wording wins the
+  heavy-continuation-summary cell; a pre-response hook (blocking a session's first response
+  until the skill loads) has no harness API and is documented as infeasible, not implemented;
+  and the last defense layer remains the owner's eyes — audit for the banner on every response.
 
 ## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh`
 

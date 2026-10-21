@@ -29,11 +29,13 @@
 #              .zscripts/dev.sh (boot hook on the /start.sh contract) which
 #              restores skills/stellar-trail from the canonical snapshot on
 #              EVERY boot, plus .zscripts/watcher.sh (runtime watchdog
-#              daemon v2.2: explorer health, release-file guard,
+#              daemon v2.3: explorer health, release-file guard,
 #              installation integrity checks, archive refresh, compliance
-#              alarm; started by dev.sh at boot AND by this script at every
-#              run — step 11b — so a silent daemon death heals at the next
-#              cold boot, not only at the next container boot).
+#              alarm, silent-work sentinel + ALERT surface, periodic
+#              compliance audit; started by dev.sh at boot AND by this
+#              script at every run — step 11b — so a silent daemon death
+#              heals at the next cold boot, not only at the next container
+#              boot).
 #   explorer : installs .zscripts/{explorer.sh,explorer.py,explorer-ui/} and
 #              an --ensure step in dev.sh — AUTO-ENABLED when
 #              the payload ships in the install tree (--with-explorer forces
@@ -594,7 +596,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # 7b. CORE MODULE B2 — INSTALL .zscripts/watcher.sh (runtime watchdog daemon
-#     v2.2, part of the package; started at boot by dev.sh step 4 and at
+#     v2.3, part of the package; started at boot by dev.sh step 4 and at
 #     every bootstrap run by step 11b — the daemon can die silently at
 #     container lifecycle events that no boot follows)
 # ---------------------------------------------------------------------------

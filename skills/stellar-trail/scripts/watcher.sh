@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # watcher.sh — runtime watchdog daemon for the stellar-trail persistence layer
-# stellar-trail · watcher v2.2 (runtime watchdog, verify-only)
+# stellar-trail · watcher v2.3 (runtime watchdog, verify-only)
 #
 # WHAT THIS DAEMON DOES (one loop every 30 seconds, WATCHER_INTERVAL to tune):
 #   1. download/ change trigger — when the top level of download/ changes,
@@ -37,7 +37,22 @@
 #   6. Compliance sentinel (every ~2 minutes) — when the worklog is being
 #      actively written but memory/SESSION-STATE.md has not been rewritten
 #      for over 30 minutes, append a one-line alarm to the worklog (debounced
-#      to one alarm per hour).
+#      to one alarm per hour). BLIND SPOT (field-proven 2026-10-21): this
+#      needs the worklog to GROW — sessions that work without writing a
+#      single protocol line never trigger it. Duty 6b closes that hole.
+#   6b. Silent-work sentinel + ALERT surface (every ~2 minutes) — work
+#      artifacts (workspace/ scripts/ download/ upload/, minus the
+#      watcher-guarded canonical copy) whose mtimes run ahead of the last
+#      checkpoint: WORK-SILENCE (work without the protocol, >30 min) and
+#      EVIDENCE-PENDING (user field evidence unprocessed by any logged
+#      session, >2 h). Alarms append to the worklog (1 h debounce per class)
+#      AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
+#      file list, because worklog/watcher.log are only read when the
+#      protocol already runs (the 2026-10-21 incident ran its full course
+#      with zero machine alarms; the USER caught it). The ALERT file is
+#      excluded from the duty-1 hash and removed automatically when every
+#      class clears. Thresholds env-tunable: STELLAR_SILENCE_WORK_SECS,
+#      STELLAR_SILENCE_EVIDENCE_SECS.
 #   7. Origin release probe (every ~24 hours, epoch-state-gated so container
 #      reboots do not reset the clock) — compare the origin's latest release
 #      tag with the live installation. A NEWER origin tag appends a one-line
@@ -45,6 +60,13 @@
 #      install command). ALARM-ONLY: the watcher never installs — the single
 #      installation flow is the only installer, by design. Run it on demand
 #      with --probe-origin.
+#   8. Periodic compliance audit (every ~6 hours, epoch-state-gated like duty
+#      7) — run scripts/audit-compliance.sh and log the verdict to
+#      watcher.log as greppable history (a FAIL also appends a one-line
+#      worklog alarm). The audit previously ran only at major checkpoints /
+#      manual calls — between them, compliance drift had no scheduled
+#      detector (field-verified 2026-10-21). Env-tunable:
+#      STELLAR_AUDIT_INTERVAL. Verify-only — the audit never repairs.
 #
 # SURVIVAL MECHANICS (verified empirically on this platform):
 #   every tool call spawns a fresh shell that the platform kills — including
@@ -103,6 +125,12 @@ INSTALL_HINT="npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a o
 ORIGIN_URL="${STELLAR_WATCHER_ORIGIN:-https://github.com/hoshiyomiX/stellar-trail.git}"
 ORIGIN_INTERVAL="${STELLAR_WATCHER_ORIGIN_INTERVAL:-86400}"
 ORIGIN_STATE="$ZDIR/.origin-probe.last"
+# Duty 6b thresholds (incident 2026-10-21 classes) + duty 8 cadence — tunable
+# for tests and forks; defaults: 30 min work-silence / 2 h evidence-pending /
+# 6 h periodic audit
+SILENCE_WORK_SECS="${STELLAR_SILENCE_WORK_SECS:-1800}"
+SILENCE_EVIDENCE_SECS="${STELLAR_SILENCE_EVIDENCE_SECS:-7200}"
+AUDIT_INTERVAL="${STELLAR_AUDIT_INTERVAL:-21600}"
 mkdir -p "$ZDIR" 2>/dev/null || true
 
 wlog() {
@@ -198,7 +226,7 @@ case "$1" in
         exit 0
         ;;
     --status)
-        echo "=== WATCHER STATUS (v2.2) ==="
+        echo "=== WATCHER STATUS (v2.3) ==="
         echo "project : $PROJECT"
         if alive; then
             echo "daemon  : RUNNING (pid $(cat "$PIDFILE"))"
@@ -209,6 +237,8 @@ case "$1" in
         [ -f "$STOPFLAG" ] && echo "stopflag: SET (auto-start blocked)" || echo "stopflag: clear"
         echo "interval: ${INTERVAL}s   log: $LOG"
         echo "origin   : $ORIGIN_URL (probe every ${ORIGIN_INTERVAL}s, alarm-only)"
+        echo "sentinel : duty 6b silent-work — work ${SILENCE_WORK_SECS}s / evidence ${SILENCE_EVIDENCE_SECS}s vs checkpoint · ALERT at download/ALERT-ACTIVE.md"
+        echo "audit    : duty 8 periodic compliance audit every ${AUDIT_INTERVAL}s (verdict in watcher.log)"
         if [ -f "$ORIGIN_STATE" ]; then
             O_EP="$(awk '{print $1}' "$ORIGIN_STATE" 2>/dev/null)"
             O_AL="$(awk '{print $2}' "$ORIGIN_STATE" 2>/dev/null)"
@@ -254,6 +284,9 @@ fi
         STOPFLAG="$ZDIR/watcher.stop"
         LOG="$ZDIR/watcher.log"
         INSTALL_HINT="'"$INSTALL_HINT"'"
+        SILENCE_WORK_SECS="'"$SILENCE_WORK_SECS"'"
+        SILENCE_EVIDENCE_SECS="'"$SILENCE_EVIDENCE_SECS"'"
+        AUDIT_INTERVAL="'"$AUDIT_INTERVAL"'"
         wlog() {
             echo "[$(date "+%F %T")] $*" >> "$LOG"
             if [ -s "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 51200 ]; then
@@ -265,7 +298,10 @@ fi
         CYCLES=0
         CANON_DIR="$DOWNLOAD/stellar-trail"
         GUARD_STATE="$ZDIR/.guard-release.state"
-        LAST="$(ls -1 "$DOWNLOAD" 2>/dev/null | sort | md5sum)"
+        # duty 1 hashes the top level of download/ EXCEPT the ALERT surface —
+        # an alarm file appearing/clearing must never trigger dev.sh (the
+        # sentinel does not get to kick the boot hook)
+        LAST="$(ls -1 "$DOWNLOAD" 2>/dev/null | grep -v ^ALERT | sort | md5sum)"
         while true; do
             if [ -f "$STOPFLAG" ]; then
                 wlog "watcher stopping: stop-flag detected"
@@ -274,8 +310,9 @@ fi
             fi
             sleep "$INTERVAL"
 
-            # 1. download/ change trigger (dev.sh is optional)
-            CUR="$(ls -1 "$DOWNLOAD" 2>/dev/null | sort | md5sum)"
+            # 1. download/ change trigger (dev.sh is optional; ALERT files
+            #    are excluded from the hash — see the LAST= note above)
+            CUR="$(ls -1 "$DOWNLOAD" 2>/dev/null | grep -v ^ALERT | sort | md5sum)"
             if [ "$CUR" != "$LAST" ]; then
                 LAST="$CUR"
                 if [ -f "$DEVSH" ]; then
@@ -415,6 +452,108 @@ fi
                 fi
             fi
 
+            # 6b. Silent-work sentinel + ALERT surface (v2.3; incident class
+            #     2026-10-21: sessions worked for real without writing a
+            #     single protocol line — the worklog never grew, so the duty-6
+            #     growth condition could never fire and ZERO alarms shot
+            #     while the disk advanced two stages and user evidence sat
+            #     unprocessed). This duty watches the OTHER side of the same
+            #     failure: work artifacts whose mtimes run ahead of the last
+            #     memory checkpoint. Two classes, separate labels and
+            #     thresholds (env-tunable, see the header):
+            #       WORK-SILENCE — workspace/ scripts/ download/ artifacts
+            #         newer than the checkpoint by over the work threshold:
+            #         work is happening without the protocol.
+            #       EVIDENCE-PENDING — upload/ artifacts newer than the
+            #         checkpoint by over the evidence threshold: user field
+            #         evidence no logged session has processed.
+            #     Alarms append one line to the worklog (1 h debounce per
+            #     class) and refresh download/ALERT-ACTIVE.md — a surface in
+            #     the user-visible file list; the worklog is only read when
+            #     the protocol already runs (the guard that cannot wake the
+            #     guard). The ALERT file also carries the duty-6 staleness
+            #     class, is excluded from the duty-1 hash, and is removed
+            #     automatically when every class clears. Verify-only: detect
+            #     + alarm, never repair.
+            #     CONSTRAINT (same as duties 2b/7): this block lives inside a
+            #     single-quoted bash -c string — NO single quotes here.
+            if [ $((CYCLES % 4)) -eq 0 ]; then
+                SW_SS="$PROJECT/memory/SESSION-STATE.md"
+                SW_WL="$PROJECT/worklog.md"
+                if [ -f "$SW_SS" ]; then
+                    SW_SS_M=$(stat -c%Y "$SW_SS" 2>/dev/null || echo 0)
+                    SW_NOW=$(date +%s)
+                    SW_CLASSES=""
+                    SW_ANY=0
+                    # class A — WORK-SILENCE: work artifacts outrunning the
+                    # checkpoint by over the work threshold (canonical copy,
+                    # node_modules and the ALERT surface itself excluded)
+                    SW_MARK="$ZDIR/.silence-mark.work"
+                    touch -d @$((SW_SS_M + SILENCE_WORK_SECS)) "$SW_MARK" 2>/dev/null
+                    SW_A_N=$(find "$PROJECT/workspace" "$PROJECT/scripts" "$PROJECT/download" -type f -newer "$SW_MARK" -not -path "$PROJECT/download/stellar-trail/*" -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
+                    if [ "$SW_A_N" -gt 0 ]; then
+                        SW_ANY=1
+                        SW_CLASSES="$SW_CLASSES WORK-SILENCE"
+                        SW_LA=0
+                        [ -f "$ZDIR/.silence-alarm.work.last" ] && SW_LA=$(cat "$ZDIR/.silence-alarm.work.last" 2>/dev/null)
+                        case "$SW_LA" in ""|*[!0-9]*) SW_LA=0;; esac
+                        if [ $((SW_NOW - SW_LA)) -gt 3600 ]; then
+                            echo "$SW_NOW" > "$ZDIR/.silence-alarm.work.last"
+                            printf "\n> SILENT-WORK-ALARM %s: %s work artifact(s) under workspace/ scripts/ download/ are newer than the last checkpoint by over %s minutes — work is happening WITHOUT the stellar-trail protocol (incident class 2026-10-21). Agent: invoke Skill(stellar-trail) + run M0 + treat the unlogged work as unverified input (rule 6). User: audit the responses — every marked response opens with the stellar-trail banner.\n" "$(date "+%F %T")" "$SW_A_N" "$((SILENCE_WORK_SECS / 60))" >> "$SW_WL" 2>/dev/null
+                            wlog "SILENT-WORK-ALARM: $SW_A_N artifact(s) ahead of the checkpoint by over $((SILENCE_WORK_SECS / 60)) min (WORK-SILENCE)"
+                        fi
+                    fi
+                    # class B — EVIDENCE-PENDING: user field evidence no
+                    # logged session has processed (the upload-05:25 case)
+                    SW_MARK_B="$ZDIR/.silence-mark.evidence"
+                    touch -d @$((SW_SS_M + SILENCE_EVIDENCE_SECS)) "$SW_MARK_B" 2>/dev/null
+                    SW_B_N=$(find "$PROJECT/upload" -type f -newer "$SW_MARK_B" -not -path "*/node_modules/*" 2>/dev/null | wc -l)
+                    if [ "$SW_B_N" -gt 0 ]; then
+                        SW_ANY=1
+                        SW_CLASSES="$SW_CLASSES EVIDENCE-PENDING"
+                        SW_LB=0
+                        [ -f "$ZDIR/.silence-alarm.evidence.last" ] && SW_LB=$(cat "$ZDIR/.silence-alarm.evidence.last" 2>/dev/null)
+                        case "$SW_LB" in ""|*[!0-9]*) SW_LB=0;; esac
+                        if [ $((SW_NOW - SW_LB)) -gt 3600 ]; then
+                            echo "$SW_NOW" > "$ZDIR/.silence-alarm.evidence.last"
+                            printf "\n> EVIDENCE-PENDING-ALARM %s: %s file(s) in upload/ are newer than the last checkpoint by over %s minutes — user-provided field evidence has not been processed by any logged session (incident class 2026-10-21). Agent: at the next session run M0 and process it under the rule-6 unverified-input posture. User: this evidence is still waiting.\n" "$(date "+%F %T")" "$SW_B_N" "$((SILENCE_EVIDENCE_SECS / 60))" >> "$SW_WL" 2>/dev/null
+                            wlog "EVIDENCE-PENDING-ALARM: $SW_B_N upload file(s) ahead of the checkpoint by over $((SILENCE_EVIDENCE_SECS / 60)) min"
+                        fi
+                    fi
+                    # class C — the duty-6 staleness condition, mirrored here
+                    # only so the ALERT file carries the full picture (the
+                    # worklog alarm for this class stays with duty 6 alone)
+                    if [ -f "$SW_WL" ]; then
+                        SW_WL_M=$(stat -c%Y "$SW_WL" 2>/dev/null || echo 0)
+                        if [ "$SW_WL_M" -gt "$SW_SS_M" ] && [ $((SW_NOW - SW_WL_M)) -lt 900 ] && [ $((SW_WL_M - SW_SS_M)) -gt 1800 ]; then
+                            SW_ANY=1
+                            SW_CLASSES="$SW_CLASSES COMPLIANCE-STALE"
+                        fi
+                    fi
+                    # ALERT surface — one file in the user-visible list. The
+                    # worklog paradox (alarms written only where the protocol
+                    # already reads) is what let the 2026-10-21 incident run
+                    # its full course unseen; this file is what the user sees
+                    # WITHOUT loading anything. Refreshed when the active
+                    # class set changes; removed on all-clear (self-heals a
+                    # manual deletion while classes remain active).
+                    SW_ALERT="$DOWNLOAD/ALERT-ACTIVE.md"
+                    if [ "$SW_ANY" = 1 ]; then
+                        SW_PREV="-"
+                        [ -f "$ZDIR/.alert-classes.last" ] && SW_PREV=$(cat "$ZDIR/.alert-classes.last" 2>/dev/null)
+                        if [ "$SW_PREV" != "$SW_CLASSES" ] || [ ! -f "$SW_ALERT" ]; then
+                            printf "%s\n" "$SW_CLASSES" > "$ZDIR/.alert-classes.last" 2>/dev/null
+                            printf "> stellar-trail WATCHDOG ALERT — active since %s\n> Active classes:%s\n> Meaning: work artifacts or user evidence are running ahead of the last memory checkpoint, or the worklog is growing without one — the protocol is not running as specified.\n> Agent remediation: invoke Skill(stellar-trail), run M0, apply the rule-6 unverified-input posture over any unlogged work found on disk.\n> User remediation: audit the agent responses — every marked response opens with the stellar-trail banner; this file is removed automatically once every class clears (watcher = verify-only, it never repairs).\n" "$(date "+%F %T")" "$SW_CLASSES" > "$SW_ALERT" 2>/dev/null
+                            wlog "ALERT surface refreshed:$SW_CLASSES"
+                        fi
+                    elif [ -f "$SW_ALERT" ]; then
+                        rm -f "$SW_ALERT"
+                        printf "%s\n" "-" > "$ZDIR/.alert-classes.last" 2>/dev/null
+                        wlog "silent-work sentinel: all clear — download/ALERT-ACTIVE.md removed"
+                    fi
+                fi
+            fi
+
             # 7. Origin release probe (~every 24 hours; epoch-state-gated so
             #    container reboots do not reset the clock — cycle counting
             #    would). The probe runs as a one-shot child invocation of
@@ -435,6 +574,42 @@ fi
             if [ $((O_NOW - O_LAST)) -ge "$ORIGIN_INTERVAL" ] && [ -f "$ZDIR/watcher.sh" ]; then
                 wlog "origin release probe due -> watcher.sh --probe-origin"
                 bash "$ZDIR/watcher.sh" --probe-origin >> "$LOG" 2>&1
+            fi
+
+            # 8. Periodic compliance audit (~every 6 h, epoch-state-gated like
+            #    duty 7 so container reboots do not reset the clock): the
+            #    external audit-compliance.sh ran only at major checkpoints
+            #    and manual calls (field-verified 2026-10-21) — between them,
+            #    compliance drift had no scheduled detector. The verdict goes
+            #    to watcher.log as greppable history; a FAIL also appends a
+            #    one-line worklog alarm. The audit gained a silent-work check
+            #    in v5.4.0, so the periodic record covers the incident class
+            #    as well. Verify-only — the audit never repairs anything.
+            #    CONSTRAINT (same as duties 2b/6b/7): NO single quotes here.
+            AUDIT_STATE="$ZDIR/.audit-periodic.last"
+            A8_NOW=$(date +%s)
+            A8_LINE=""
+            [ -f "$AUDIT_STATE" ] && A8_LINE="$(cat "$AUDIT_STATE" 2>/dev/null)"
+            A8_LAST="${A8_LINE%% *}"
+            case "$A8_LAST" in ""|*[!0-9]*) A8_LAST=0;; esac
+            if [ $((A8_NOW - A8_LAST)) -ge "$AUDIT_INTERVAL" ]; then
+                AUDIT_SH=""
+                for AUD_CAND in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
+                    if [ -f "$AUD_CAND/scripts/audit-compliance.sh" ]; then
+                        AUDIT_SH="$AUD_CAND/scripts/audit-compliance.sh"
+                        break
+                    fi
+                done
+                if [ -n "$AUDIT_SH" ]; then
+                    echo "$A8_NOW" > "$AUDIT_STATE" 2>/dev/null
+                    wlog "periodic compliance audit due -> audit-compliance.sh"
+                    AUD_OUT="$(bash "$AUDIT_SH" --root "$PROJECT" 2>&1)"; AUD_RC=$?
+                    wlog "periodic audit verdict:$(echo "$AUD_OUT" | tail -1) (rc $AUD_RC)"
+                    if [ "$AUD_RC" -ne 0 ]; then
+                        printf "\n> PERIODIC-AUDIT-ALARM %s: the scheduled compliance audit FAILED — run bash skills/stellar-trail/scripts/audit-compliance.sh for the findings and settle them at the next M0/M1.\n" "$(date "+%F %T")" >> "$PROJECT/worklog.md" 2>/dev/null
+                        wlog "PERIODIC-AUDIT-ALARM: audit-compliance FAILED (rc $AUD_RC)"
+                    fi
+                fi
             fi
         done
     ' >/dev/null 2>&1 &
