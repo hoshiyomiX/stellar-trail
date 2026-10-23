@@ -13,7 +13,7 @@ if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-co
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MIUIX (HyperOS) — Task Files Explorer UI v4.1 · zero-dependency
+   MIUIX (HyperOS) — Task Files Explorer UI v4.2 · zero-dependency
    (no CDN, no web font)
    Design system ported from compose-miuix-ui/miuix (Apache-2.0):
    the color roles below are VERBATIM from miuix-ui
@@ -325,6 +325,12 @@ section{margin-bottom:26px}
 .fcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
 .filegrid--list .fcard{align-items:center}
 .filegrid.noanim .fcard{animation:none}   /* v4.1: silent background refresh — no entrance replay */
+/* v4.2 boot render diet: offscreen cards skip layout + paint (browser-native
+   content-visibility); remembered sizes (auto X) keep scrollbar estimates
+   stable after first paint. Kills the every-open paint burst on slow devices
+   (field report: multi-device seconds-long freeze at every open). */
+.fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
+.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
@@ -1045,7 +1051,7 @@ setInterval(loadMeta,10000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadMeta()});   /* v4.1: loadMeta's sig check triggers loadList only on real change */
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
 loadMeta();
-if(!STATIC)loadList();else renderStatic(false);
+if(!STATIC)loadList(true);else renderStatic(false);   /* v4.2: first load renders SILENT — no entrance burst at open (the burst re-fires only on explicit user actions) */
 
 </script>
 </body>
