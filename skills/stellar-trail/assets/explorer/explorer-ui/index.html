@@ -13,7 +13,7 @@ if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-co
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MIUIX (HyperOS) — Task Files Explorer UI v4.0 · zero-dependency
+   MIUIX (HyperOS) — Task Files Explorer UI v4.1 · zero-dependency
    (no CDN, no web font)
    Design system ported from compose-miuix-ui/miuix (Apache-2.0):
    the color roles below are VERBATIM from miuix-ui
@@ -214,12 +214,14 @@ section{margin-bottom:26px}
 .gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
 .gdot.off{background:var(--mx-error)}
-/* ---- Task rail (SuperArrow-style cards) ------------------------- */
+/* ---- Task rail (SuperArrow-style cards) — v4.1: horizontal scroll --- */
 .taskrail{
-  display:grid;gap:10px;
-  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;padding:2px 2px 8px;
 }
 .tcard{
+  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
+  scroll-snap-align:start;
   background:var(--mx-card);border-radius:var(--mx-radius-l);
   padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
   border:2px solid transparent;
@@ -232,15 +234,15 @@ section{margin-bottom:26px}
 .tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
 .tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
 .tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
-.tcard .tt{
-  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.35;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
+  overflow-wrap:break-word;word-break:break-word;
 }
 .tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
   display:flex;align-items:center;justify-content:space-between}
 .tcard .tc .ic{width:13px;height:13px;fill:currentColor;opacity:.55}
 .rail-empty{
-  grid-column:1/-1;background:var(--mx-card);border-radius:var(--mx-radius-l);
+  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
   padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
   box-shadow:var(--mx-shadow);
 }
@@ -322,6 +324,7 @@ section{margin-bottom:26px}
 @keyframes cardin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
 .fcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
 .filegrid--list .fcard{align-items:center}
+.filegrid.noanim .fcard{animation:none}   /* v4.1: silent background refresh — no entrance replay */
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
@@ -535,8 +538,8 @@ footer b{color:var(--mx-text-2);font-weight:600}
   <!-- Task history -->
   <section aria-labelledby="secTask">
     <div class="smalltitle"><svg class="ic"><use href="#i-task"/></svg><span id="secTask">Task History</span>
-      <span class="note">parsed from worklog.md — click a card to filter its related files</span></div>
-    <div class="taskrail" id="taskRail" role="list"></div>
+      <span class="note">parsed from worklog.md — full titles, scroll sideways; click a card to filter its related files</span></div>
+    <div class="taskrail" id="taskRail" role="list" tabindex="0" aria-label="Task history — scroll horizontally with arrow keys"></div>
   </section>
 
   <!-- Toolbar -->
@@ -594,7 +597,7 @@ footer b{color:var(--mx-text-2);font-weight:600}
 
 <footer>
   Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
-  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.5) · zero-dependency · <span id="ftInfo">loading…</span>
+  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.1 · zero-dependency · <span id="ftInfo">loading…</span>
 </footer>
 
 <!-- FAB scroll-to-top -->
@@ -685,7 +688,7 @@ const TYPES=["doc","pdf","img","data","pkg","code","office","other"];
 /* ================= state ================= */
 const S={q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1};
 const PER_PAGE=100;
-let META=null,PAGE=null,PAGE_MAP={},lastBuilt="",firstLoadDone=false,lastFocus=null;
+let META=null,PAGE=null,PAGE_MAP={},lastSig="",firstLoadDone=false,lastFocus=null,TASKS_DONE=false;
 
 /* ================= icon & tile mapping ================= */
 const EXTICON={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
@@ -716,6 +719,7 @@ function renderStats(){
 }
 function renderTasks(){
   const rail=$("#taskRail");
+  const sl=rail.scrollLeft;   /* v4.1: keep the rail position across re-renders */
   const ts=[...(META.tasks||[])].slice(-14).reverse();
   if(!ts.length){rail.innerHTML=`<div class="rail-empty">worklog.md has no Task section yet — this rail fills in automatically once one exists.</div>`}
   else{rail.innerHTML=ts.map(t=>
@@ -726,7 +730,8 @@ function renderTasks(){
     $$(".tcard").forEach(c=>{
       const go=()=>{const id=c.dataset.id;S.task=S.task===id?null:id;S.page=1;renderTasks();renderPill();loadList()};
       c.onclick=go;
-      c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};})}
+      c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};});
+    rail.scrollLeft=sl;}   /* v4.1: restored after the rebuild */
 }
 function renderChips(){
   const tc=(META.stats&&META.stats.type_counts)||{};
@@ -770,7 +775,7 @@ function cardHTML(f,i){const cls=classFor(f);
       <a href="${f.href}?dl=1" download="${esc(f.name)}" title="Download ${esc(f.name)}" aria-label="Download ${esc(f.name)}">${I("down")}</a>
     </div>
   </div></div>`}
-function renderList(){
+function renderList(anim=true){   /* v4.1: anim=false for silent background refresh — no entrance replay */
   const head=$("#listhead"),body=$("#listbody"),pager=$("#pager");
   if(!PAGE){body.innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;pager.hidden=true;head.innerHTML="";return}
   const from=PAGE.total?(PAGE.page-1)*PAGE.per_page+1:0,to=Math.min(PAGE.page*PAGE.per_page,PAGE.total);
@@ -782,8 +787,8 @@ function renderList(){
       <div class="t">No files match the active filters</div>
       <div class="h">try changing the keyword, type, task, or location</div></div>`;
     pager.hidden=true;return}
-  body.innerHTML=`<div class="filegrid${S.view==="list"?" filegrid--list":""}">`+
-    PAGE.files.map((f,i)=>cardHTML(f,i)).join("")+`</div>`;
+  body.innerHTML=`<div class="filegrid${S.view==="list"?" filegrid--list":""}${anim?"":" noanim"}">`+
+    PAGE.files.map((f,i)=>cardHTML(f,anim?i:0)).join("")+`</div>`;
   if(PAGE.pages>1){
     pager.hidden=false;
     pager.innerHTML=
@@ -811,7 +816,7 @@ async function loadList(silent){
     const d=await(await fetch(listURL(),{cache:"no-store"})).json();
     PAGE=d;PAGE_MAP={};d.files.forEach(f=>PAGE_MAP[f.key]=f);
     if(d.page<S.page)S.page=d.page;              /* server clamped the page */
-    renderList();
+    renderList(!silent);    /* v4.1: animate on first load + user actions; silent when background-refreshed */
     if(!firstLoadDone&&!STATIC){firstLoadDone=true}
   }catch(e){
     if(!silent&&!STATIC&&firstLoadDone)snack("Connection to explorer.py lost — retrying…","Retry",()=>loadList());
@@ -829,13 +834,16 @@ async function loadMeta(){
       return;
     }
     META=d;
-    renderStats();renderTasks();renderChips();renderPill();
+    const sig=d.content_sig||d.inventory_built||"";   /* v4.1: content signature (old servers fall back to the timestamp) */
+    const changed=lastSig&&sig&&sig!==lastSig;
+    renderStats();renderChips();                     /* cheap per-poll tiles/chips keep guard+version fresh */
+    if(changed||!TASKS_DONE){renderTasks();renderPill();TASKS_DONE=true}   /* rail: only on real change — preserves scroll position */
     const sv=d.server,up=Date.now()/1000-sv.started_epoch;
     $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · inventory built ${d.inventory_built}`;
-    if(lastBuilt&&d.inventory_built&&d.inventory_built!==lastBuilt&&firstLoadDone){
-      loadList(true);                            /* files changed — silently refresh the page */
+    if(changed&&firstLoadDone){
+      loadList(true);                            /* data actually changed — silent refresh, no animation replay */
     }
-    lastBuilt=d.inventory_built||"";
+    lastSig=sig;
     firstLoadDone=true;
   }catch(e){
     if(e instanceof SyntaxError)STATIC=true;     /* origin answered, but not explorer.py JSON */
@@ -1034,7 +1042,7 @@ function goLive(){const u=new URL("/",location.href).href;   /* absolute: the to
   catch(e){try{location.replace(u)}catch(_){}}}   /* sandboxed/cross-origin frame: at least recover this frame */
 
 setInterval(loadMeta,10000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden){loadMeta();if(firstLoadDone&&!STATIC)loadList(true)}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadMeta()});   /* v4.1: loadMeta's sig check triggers loadList only on real change */
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
 loadMeta();
 if(!STATIC)loadList();else renderStatic(false);

@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.1); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.2); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.4.1 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.1 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.4.2 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.2 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -190,7 +190,7 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 | `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, silent-work (artifacts outrunning the checkpoint — the 2026-10-21 incident class), installed-vs-canonical version, R1 hooks (worklog tail + memory headers) |
 | `snapshot-repo.sh` | Refresh the restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`; backup-first, verify-before-swap; includes the skill tree |
 
-**Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server + Miuix UI v4.0 — manual live-recovery, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`. Also bundled: `assets/harness-hooks/` (CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files at session start; seeded create-if-absent by bootstrap, `--without-harness-hooks` opts out).
+**Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.6 + Miuix UI v4.1 — content-signature change detection (refresh only on real change, no per-poll re-render churn), horizontally scrollable full-text task rail, manual live-recovery, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`. Also bundled: `assets/harness-hooks/` (CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files at session start; seeded create-if-absent by bootstrap, `--without-harness-hooks` opts out).
 
 **Exec-bit note:** files delivered by the skills CLI come 0644 and reset on every update — every invocation is exec-bit-independent by design (`bash scripts/<name>.sh`); `chmod +x` is cosmetic only.
 
@@ -246,7 +246,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.4.1 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.4.2 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A

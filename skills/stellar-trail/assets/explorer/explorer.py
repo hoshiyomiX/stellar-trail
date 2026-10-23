@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.5 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.6 (preview-popup replacement)
 =========================================================================
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
@@ -60,6 +60,21 @@ parse_tasks alone scaled at ~44 ms per task-section per 22k files):
   - /healthz and /file/ never touch the inventory — they stay O(1) and
     responsive even while a rebuild is in flight.
 
+v1.6 startup-freeze contract (Task 32/34, evidence 2026-10-23 — v1.5 paid
+a FULL list re-render + entrance-animation replay on EVERY 10 s poll:
+the change detection keyed on inventory_built flipped on every rebuild
+because CACHE_TTL 3 s < the 10 s poll interval, so each poll was a cold
+rebuild with a fresh timestamp even with ZERO disk changes):
+  - content_sig: md5 over (key|mtime|size|type|task) per file plus the
+    task digest — changes ONLY when the served data actually changes.
+    /api/files and /api/list both expose it; the UI compares it across
+    polls (falls back to inventory_built when an old server lacks it).
+  - CACHE_TTL 12 s: most 10 s polls hit the warm cache; a real change
+    becomes visible within ~2 polls (<= ~22 s).
+  - skill/guard/resets are folded into the cached build — computed once
+    per rebuild instead of ~2.6 MB of log regex scans + a source md5 per
+    request. Their tiles refresh per poll from the cached payload.
+
 At startup the server writes .zscripts/explorer.code-stamp (md5 of its own
 source) — the freshness anchor explorer.sh compares. The guardian block
 reads assets/integrity.version directly.
@@ -100,8 +115,8 @@ STARTED = time.time()
 
 MAX_DEPTH = 4  # walk depth limit per root
 
-# v1.5 scalability knobs
-CACHE_TTL = 3.0                 # seconds an inventory is served before a rebuild
+# v1.5/v1.6 scalability knobs
+CACHE_TTL = 12.0                # v1.6: > the 10 s UI poll so most polls hit the warm cache; a change shows within ~2 polls (~22 s). v1.5's 3 s made every poll a cold rebuild — the timestamp flip then triggered spurious client re-renders every 10 s (measured)
 API_FILES_DEFAULT_MAX = 1000    # default per-root cap on /api/files arrays
 API_LIST_MAX_PER_PAGE = 500     # hard ceiling for /api/list per_page
 
@@ -201,7 +216,7 @@ def parse_tasks(roots):
         m_ti = re.search(r"^Task:\s*(.+)$", sec, re.M)
         if m_id and m_ti:
             title = m_ti.group(1).strip()
-            title = re.sub(r"\s+", " ", title)[:90]
+            title = re.sub(r"\s+", " ", title)[:600]  # v1.6: full text for the UI v4.1 rail (v1.5's 90 cut mid-sentence)
             tasks.append({"id": m_id.group(1), "title": title,
                           "sec": sec, "tokens": None})
     all_files = [f for r in roots for f in r["files"]]
@@ -444,9 +459,27 @@ def build_inventory():
         for f in files:
             type_counts[f["type"]] = type_counts.get(f["type"], 0) + 1
     tasks = parse_tasks(roots)
+
+    # v1.6: content signature — flips ONLY when the served data actually
+    # changes (file set / mtimes / sizes / types / task attribution + the
+    # task list itself). A rebuild that changes nothing yields the SAME
+    # signature; the v1.5 timestamp flipped every rebuild, which made the
+    # UI re-render the whole list + replay entrance animations on every
+    # 10 s poll (measured — the startup "UI freeze" root cause).
+    h = hashlib.md5()
+    for r in roots:
+        h.update(("root:%s\n" % r["label"]).encode("utf-8"))
+        for f in r["files"]:
+            h.update(("%s|%d|%d|%s|%s\n" % (
+                f["key"], f["mtime"], f["size"], f["type"],
+                f.get("task") or "")).encode("utf-8"))
+    for t in tasks:
+        h.update(("task:%s|%s|%d\n" % (t["id"], t["title"], t["count"])).encode("utf-8"))
+
     return {
         "built": time.strftime("%Y-%m-%d %H:%M:%S"),
         "built_epoch": time.time(),
+        "content_sig": h.hexdigest(),
         "stats": {
             "total_files": total_n,
             "total_size": total_s,
@@ -456,6 +489,12 @@ def build_inventory():
         },
         "roots": roots,
         "tasks": tasks,
+        # v1.6: folded per-request reads — computed once per rebuild and
+        # served from the cache (they change rarely; the UI tiles refresh
+        # per poll from this payload)
+        "skill": skill_info(),
+        "guard": guard_info(),
+        "resets": reset_restore_info(),
     }
 
 
@@ -507,12 +546,13 @@ def api_files_payload(inv, max_per_root):
         },
         "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
         "inventory_built": inv["built"],
+        "content_sig": inv["content_sig"],  # v1.6: stable change signal (timestamp-free)
         "stats": inv["stats"],
         "roots": roots_out,
         "tasks": inv["tasks"],
-        "skill": skill_info(),   # v1.3 compat (kept); the UI tiles read "guard"
-        "guard": guard_info(),   # v1.4: Guard Status tile
-        "resets": reset_restore_info(),  # v1.4: Session Reset & Restore tile
+        "skill": inv["skill"],    # v1.6: folded into the cached build
+        "guard": inv["guard"],
+        "resets": inv["resets"],
     }
 
 
@@ -572,6 +612,7 @@ def api_list_payload(inv, query):
         "page": page, "per_page": per_page, "pages": pages, "total": total,
         "files": files[start:start + per_page],
         "inventory_built": inv["built"],
+        "content_sig": inv["content_sig"],  # v1.6: stable change signal
         "server_pid": os.getpid(),
     }
 
@@ -592,7 +633,6 @@ def safe_path(label: str, rel: str):
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-
     def _no_store(self):
         self.send_header("Cache-Control", "no-store")
 
@@ -682,6 +722,16 @@ class Handler(BaseHTTPRequestHandler):
         sys.stdout.flush()
 
 
+class ExplorerServer(ThreadingHTTPServer):
+    """v1.6: listen backlog 64 — socketserver's default queue of 5 lets the
+    kernel DROP SYNs during a 20-request burst, so dropped clients wait ~1 s
+    for the SYN retransmit (measured on BOTH v1.5 and v1.6 — an environment
+    behavior, not a v1.6 regression; it broke the burst budget in the task30
+    harness). 64 covers page-load bursts (initial meta+list) and validator
+    storms with margin."""
+    request_queue_size = 64
+
+
 if __name__ == "__main__":
     with open(PIDFILE, "w") as f:
         f.write(str(os.getpid()))
@@ -690,7 +740,7 @@ if __name__ == "__main__":
     print("[explorer] START pid %s bind %s:%d ui %s"
           % (os.getpid(), BIND, PORT, UI), flush=True)
     try:
-        ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
+        ExplorerServer((BIND, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
