@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.3); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.4); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.4.3 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.3 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.4.4 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.4 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -104,7 +104,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 1. **Quarantine any continuation summary first** (H8–H13) — version-ground its claims against the memory files and the installed skill; resolve "the last task" via the Active table ONLY; report any summary-vs-memory conflict in the first response.
 2. Read `SESSION-STATE.md` + `MEMORY.md` (mandatory minimum, before any substantive answer). **Version sanity alarm:** installed banner older than the release recorded in memory = degraded installation → `update-skill.sh --ensure` before trusting the body; newer = memory lag → report, promote at next checkpoint.
 3. **Checkpoint-debt check (F4, incident 2026-09-29):** compare the worklog tail's session label with the SESSION-STATE `Checkpoint at` header. A mismatch in EITHER direction is unpaid checkpoint debt: settle it BEFORE any new work — rewrite SESSION-STATE from the worklog evidence, verify artifact claims against the files on disk. Never start new work on top of unpaid debt.
-4. **Artifact-freshness sweep + ALERT lift (incident 2026-10-21):** if `download/ALERT-ACTIVE.md` exists, read it FIRST and lift its findings into the first response. Then compare the newest work-artifact mtime (workspace/ · scripts/ · download/ · upload/, excluding the canonical `download/stellar-trail/` copy) against the `Checkpoint at` header: artifacts newer by >30 min = **UNLOGGED WORK** — someone worked without the protocol. Apply the rule-6 posture: treat it as unverified input, verify from disk before building on it, settle the debt (checkpoint rewrite from the evidence), report the conflict (H12 spirit). The watcher alarms this class asynchronously (duty 6b); this sweep guarantees detection at every session start even when the watcher is dead.
+4. **Artifact-freshness sweep + ALERT lift (incident 2026-10-21):** if `download/ALERT-ACTIVE.md` exists, read it FIRST and lift its findings into the first response. Then compare the newest work-artifact mtime (workspace/ · scripts/ · download/ · upload/, excluding the canonical `download/stellar-trail/` copy) against the `Checkpoint at` header: artifacts newer by >30 min = **UNLOGGED WORK** — someone worked without the protocol. Apply the rule-6 posture: treat it as unverified input, verify from disk before building on it, settle the debt (checkpoint rewrite from the evidence), report the conflict (H12 spirit). The watcher alarms this class asynchronously (duty 6b); this sweep guarantees detection at every session start even when the watcher is dead. **Release-consistency sweep (v5.4.4; dead-session class 2026-10-23):** a release can be committed and promoted while its session dies before the M1/worklog writes — the ledger then lags the disk and the next summary narrates the missing steps as done. Arbiter = disk, never the summary: the newest dev-tree tag hash and the installed `integrity.version` must be traceable in the ledger, and every tree must pass its checksum manifest (versions can align while content does not). An unrecorded release or a failing manifest = checkpoint debt from a dead session — settle from disk BEFORE new work.
 5. **Triage the task table** (section 4): only ACTIVE/WAITING/BLOCKED rows are work-eligible — an ACTIVE or WAITING row resumes via the Resume Protocol (R1–R5, section 4); STALE rows need user reconfirmation; sealed rows are context, never todos.
 6. Run the **Recall Check** — answer the 7 manifest questions from the files (task identity / decisions / artifacts / profile / trajectory / pending / environment). Below 95% → gap-fill (handoff archives → worklog tail → actual files), re-verify, then proceed. Never fabricate an answer to pass the count; an answer quotable only from a summary is contaminated, not restored.
 7. Run the arms (rules 4–5): `bootstrap-sandbox.sh --ensure` (reset-prone sandboxes) → `update-skill.sh --ensure`.
@@ -185,9 +185,9 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 |---|---|
 | `bootstrap-sandbox.sh` | Arm persistence: canonical copy + boot hook + watcher daemon ensure + worklog R1 seed + tail guard + memory scaffold; explorer/snapshot modules AUTO-ENABLE when their payload ships in the tree (`--without-*` opts out); idempotent, offline |
 | `update-skill.sh` | Single-flow installer wrapper — `--ensure` always checks the origin (once per session; offline = report, exit 0); newer origin → verified override that runs THE install command (staging clone → SHA-256 manifest → tag≡content → anti-downgrade → canonical swap first → live install last) |
-| `watcher.sh` | Runtime watchdog daemon v2.3: explorer health + auto-restart · explorer deployment-gap NOTICE (once per gap; never installs) · verify-only integrity checks ~every 10 min · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · **silent-work sentinel + ALERT surface ~every 2 min** (WORK-SILENCE: artifacts outrunning the checkpoint >30 min · EVIDENCE-PENDING: user evidence unprocessed >2 h · alarms to worklog AND `download/ALERT-ACTIVE.md`, removed on all-clear; incident class 2026-10-21) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · **periodic compliance audit ~every 6 h** (duty 8, verdict to watcher.log) · `--ensure/--status/--stop/--probe-origin`; started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events |
+| `watcher.sh` | Runtime watchdog daemon v2.3: explorer health + auto-restart · explorer deployment-gap NOTICE (once per gap; never installs) · verify-only integrity checks ~every 10 min (failures raise the INTEGRITY class on the ALERT surface — v5.4.4) · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · **silent-work sentinel + ALERT surface ~every 2 min** (WORK-SILENCE: artifacts outrunning the checkpoint >30 min · EVIDENCE-PENDING: user evidence unprocessed >2 h · alarms to worklog AND `download/ALERT-ACTIVE.md`, removed on all-clear; incident class 2026-10-21) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · **periodic compliance audit ~every 6 h** (duty 8, verdict to watcher.log) · `--ensure/--status/--stop/--probe-origin`; started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events |
 | `enforce-gates.sh` | Terminal-track enforcement: `--artifact` (exists, size) · `--lint` (bash/py/js/json/html/md) · `--check-skill` (frontmatter, description ≤1024, referenced files exist) · `--check-worklog --task-id` |
-| `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, silent-work (artifacts outrunning the checkpoint — the 2026-10-21 incident class), installed-vs-canonical version, R1 hooks (worklog tail + memory headers) |
+| `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, silent-work (artifacts outrunning the checkpoint — the 2026-10-21 incident class), installed-vs-canonical version, R1 hooks (worklog tail + memory headers), tree-integrity (per-tree checksum manifest), release-recording (newest tag vs the ledger — the 2026-10-23 dead-session class), watcher-liveness (v5.4.4) |
 | `snapshot-repo.sh` | Refresh the restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`; backup-first, verify-before-swap; includes the skill tree |
 
 **Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.6 + Miuix UI v4.2 — content-signature change detection (refresh only on real change, no per-poll re-render churn), silent first paint + offscreen card skip (boot render diet), horizontally scrollable full-text task rail, manual live-recovery, static-copy graceful mode, official Material Icons): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`. Also bundled: `assets/harness-hooks/` (CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files at session start; seeded create-if-absent by bootstrap, `--without-harness-hooks` opts out).
@@ -246,7 +246,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.4.3 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.4.4 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A
@@ -259,7 +259,9 @@ EXECUTION · 6 phases, no skips — pressure compresses format, never phases
 MEMORY · M0-M3 — defies context pressure & summary loss
   M0 RESTORED   : quarantine summary → SESSION-STATE + MEMORY → version
                   alarm → debt check (worklog tail vs snapshot header;
-                  mismatch = settle BEFORE new work) → artifact-freshness
+                  mismatch = settle BEFORE new work) + release-consistency
+                  (newest tag hash vs ledger · tree checksums — dead-session
+                  debt, disk is the arbiter) → artifact-freshness
                   sweep + ALERT lift (unlogged work = rule-6 posture) →
                   recall ≥95% → arms → confirm plan
   M1 CHECKPOINT : atomic SESSION-STATE rewrite (task · artifact ·

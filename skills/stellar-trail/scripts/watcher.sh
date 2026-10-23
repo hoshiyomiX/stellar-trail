@@ -413,16 +413,27 @@ fi
 
             # 4. Installation integrity check (~every 10 minutes) — verify
             #    only. No automatic repair from alternate sources exists.
+            #    v5.4.4: a failure also sets the INTEGRITY marker consumed by
+            #    the 6b ALERT surface — watcher.log alone is invisible in the
+            #    user file list (2026-10-23: the alarm sat unread for 25+ min
+            #    after the platform-upgrade boot while the tree was broken).
+            #    CONSTRAINT (same as duties 2b/6b/7): NO single quotes here.
             if [ $((CYCLES % 20)) -eq 0 ]; then
+                INT_BAD=0
                 for CAND in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
                     [ -d "$CAND" ] || continue
                     [ -f "$CAND/assets/integrity.sha256" ] || continue
                     if (cd "$CAND" && sha256sum -c assets/integrity.sha256 --quiet >/dev/null 2>&1); then
                         :   # healthy — nothing to log, keeps noise down
                     else
+                        INT_BAD=1
+                        touch "$ZDIR/.alert-integrity.on" 2>/dev/null
                         wlog "INTEGRITY ALARM: $CAND failed its checksum manifest — re-run the install command: $INSTALL_HINT"
                     fi
                 done
+                if [ "$INT_BAD" = 0 ]; then
+                    rm -f "$ZDIR/.alert-integrity.on" 2>/dev/null
+                fi
             fi
 
             # 5. Platform archive refresh (~every 15 minutes, own debounce)
@@ -530,6 +541,16 @@ fi
                             SW_CLASSES="$SW_CLASSES COMPLIANCE-STALE"
                         fi
                     fi
+                    # class D — INTEGRITY (v5.4.4): the duty-4 checksum marker.
+                    # An installation can fail its manifest while every version
+                    # string aligns (the 2026-10-23 dead-session promotion miss:
+                    # duty-4 caught it at 12:41:49, yet nothing surfaced it to
+                    # the user until a compliant session read watcher.log). Set
+                    # by duty 4 on failure; cleared by its next passing cycle.
+                    if [ -f "$ZDIR/.alert-integrity.on" ]; then
+                        SW_ANY=1
+                        SW_CLASSES="$SW_CLASSES INTEGRITY"
+                    fi
                     # ALERT surface — one file in the user-visible list. The
                     # worklog paradox (alarms written only where the protocol
                     # already reads) is what let the 2026-10-21 incident run
@@ -543,7 +564,7 @@ fi
                         [ -f "$ZDIR/.alert-classes.last" ] && SW_PREV=$(cat "$ZDIR/.alert-classes.last" 2>/dev/null)
                         if [ "$SW_PREV" != "$SW_CLASSES" ] || [ ! -f "$SW_ALERT" ]; then
                             printf "%s\n" "$SW_CLASSES" > "$ZDIR/.alert-classes.last" 2>/dev/null
-                            printf "> stellar-trail WATCHDOG ALERT — active since %s\n> Active classes:%s\n> Meaning: work artifacts or user evidence are running ahead of the last memory checkpoint, or the worklog is growing without one — the protocol is not running as specified.\n> Agent remediation: invoke Skill(stellar-trail), run M0, apply the rule-6 unverified-input posture over any unlogged work found on disk.\n> User remediation: audit the agent responses — every marked response opens with the stellar-trail banner; this file is removed automatically once every class clears (watcher = verify-only, it never repairs).\n" "$(date "+%F %T")" "$SW_CLASSES" > "$SW_ALERT" 2>/dev/null
+                            printf "> stellar-trail WATCHDOG ALERT — active since %s\n> Active classes:%s\n> Meaning: work artifacts or user evidence are running ahead of the last memory checkpoint, the worklog is growing without one, or an installation failed its checksum manifest (INTEGRITY class) — the protocol is not running as specified.\n> Agent remediation: invoke Skill(stellar-trail), run M0, apply the rule-6 unverified-input posture over any unlogged work found on disk.\n> User remediation: audit the agent responses — every marked response opens with the stellar-trail banner; this file is removed automatically once every class clears (watcher = verify-only, it never repairs).\n" "$(date "+%F %T")" "$SW_CLASSES" > "$SW_ALERT" 2>/dev/null
                             wlog "ALERT surface refreshed:$SW_CLASSES"
                         fi
                     elif [ -f "$SW_ALERT" ]; then

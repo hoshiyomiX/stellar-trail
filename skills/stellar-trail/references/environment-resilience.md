@@ -40,6 +40,9 @@ Four structural facts that can be exploited (verified empirically on a real cont
    container.
 4. **The packer can exclude important directories** (real forensics: `skills/` never made it into
    the platform packer's archive) — a skill installation is the most frequent rollback victim.
+   Platform generations differ: the 2026-10-23 upgrade restart preserved the FULL workspace
+   (mtimes intact) — treat the exclusion list as the documented MINIMUM, never as a promise;
+   the defenses below hold under both extremes by design.
 
 ## 2. Defense Layers
 
@@ -283,6 +286,30 @@ What the record proves, point by point:
   heavy-continuation-summary cell; a pre-response hook (blocking a session's first response
   until the skill loads) has no harness API and is documented as infeasible, not implemented;
   and the last defense layer remains the owner's eyes — audit for the banner on every response.
+
+**Incident 2026-10-23 — platform-upgrade restart + dead-session delivery debt (z.ai web container,
+skill v5.4.3 in flight).** The platform upgraded mid-morning; the container restarted 12:31:45 UTC
+and the FULL workspace survived (all paths, mtimes intact — scripts/ history, the dev tree's git,
+and the 06:36–06:48 write window). Two findings reshaped the defense map:
+
+- **The persistence design HELD under the upgrade** — the boot chain self-healed by 12:31:56 (skill
+  restore from canonical, watcher, explorer redeployed at the correct version, repo.tar refreshed),
+  zero data loss. But platform generations differ: the documented packer preserve-set
+  (`download/` · `.zscripts/` · `memory/` · `worklog.md`) is the MINIMUM guarantee; this restart
+  preserved far more. Do not tune defenses DOWN on one generous generation — the wipe-class reset
+  (7 occurrences, Task-22 era) remains the design case.
+- **The upgrade exposed a dead-session delivery debt** — the prior session had committed + tagged
+  v5.4.3 (06:48:00) but died before its M1/worklog writes; its MANUAL three-tree promotion missed
+  exactly one file (references/task-files-explorer.md stale in live+canonical while dev+git were
+  correct). The new container's watcher duty-4 caught it at 12:41:49 (INTEGRITY ALARM) — but it
+  reached watcher.log only, invisible in the user file list, and the audit PASSED 8/8 over the
+  broken tree (version-equality blind). The continuation summary then narrated the missing steps
+  (worklog section, M1, 9/9 gates, a delivery snapshot) as DONE — the files disproved every one.
+  Shipped in v5.4.4: audit tree-integrity (per-tree checksum) + release-recording (newest tag hash
+  vs the ledger) + watcher-liveness checks; the M0 release-consistency sweep; the INTEGRITY class
+  on the ALERT surface; and SCRIPTED (never manual) three-tree promotion. Durable rule: disk
+  version-stamps (mtimes, tag hashes, manifests) are the arbiter — a summary is a claim, not a
+  record.
 
 ## 7. Consumer Sandbox Deployment — `bootstrap-sandbox.sh`
 

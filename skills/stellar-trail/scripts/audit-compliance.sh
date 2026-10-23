@@ -30,6 +30,19 @@
 #   version-sanity           every installed copy reports the same version as
 #                            the canonical snapshot — drift means a stale or
 #                            damaged installation
+#   tree-integrity (v5.4.4)  every skill tree (live + canonical + dev) passes
+#                            its OWN checksum manifest — version equality
+#                            alone passed over a tree whose promotion missed
+#                            one file (incident 2026-10-23: the watcher's
+#                            duty-4 caught what this audit missed)
+#   release-recording (v5.4.4) the dev tree's NEWEST tag hash appears in the
+#                            ledger (worklog + archive + memory) — a committed
+#                            release nobody recorded is dead-session debt
+#                            (incident 2026-10-23: v5.4.3 committed, session
+#                            died pre-M1, the summary narrated it as done)
+#   watcher-liveness (v5.4.4) the watchdog daemon is alive — a mid-session
+#                            watcher death left duty 4/6b/8 blind for hours
+#                            (2026-10-23: pid 920 died ~06:22–06:37 unseen)
 #   worklog-activation-hook  the activation hook line is present at the tail
 #                            of the worklog (keeps the activation chain alive
 #                            across resets)
@@ -157,6 +170,71 @@ for CAND in "$ROOT/skills/stellar-trail" "$ROOT"/skills/@*/stellar-trail; do
     else res PASS "version-sanity ($KEY)" "installed $IV = canonical $CANON_VER"
     fi
 done
+
+# --- tree-integrity (v5.4.4; incident 2026-10-23) ----------------------------
+# Version equality passed over a broken tree: the v5.4.3 promotion missed one
+# file (references/task-files-explorer.md) in live+canonical while every
+# version string said 5.4.3 — the watcher duty-4 INTEGRITY ALARM caught it;
+# this audit PASSED 8/8 over the same tree. Per-tree checksum verification
+# closes the gap at every audit run (manual + duty-8 periodic).
+INT_PASS=0; INT_BAD_TREES=""
+for TI_T in "$ROOT/skills/stellar-trail" "$ROOT/download/stellar-trail" "$ROOT/stellar-trail-dev/skills/stellar-trail"; do
+    [ -f "$TI_T/assets/integrity.sha256" ] || continue
+    TI_OUT="$(cd "$TI_T" && sha256sum -c assets/integrity.sha256 2>&1)"
+    if [ $? -eq 0 ]; then
+        INT_PASS=$((INT_PASS+1))
+    else
+        TI_N=$(printf '%s\n' "$TI_OUT" | grep -c ': FAILED')
+        INT_BAD_TREES="$INT_BAD_TREES ${TI_T##*project/}:$TI_N"
+    fi
+done
+if [ -z "$INT_BAD_TREES" ]; then
+    res PASS "tree-integrity" "all $INT_PASS skill tree(s) pass their checksum manifest"
+else
+    res WARN "tree-integrity" "checksum-manifest failures (path:count) —$INT_BAD_TREES — repair from a healthy tree / re-run the install command; verify the promotion instrument"
+fi
+
+# --- release-recording (v5.4.4; dead-session class 2026-10-23) ---------------
+# The dying session committed + tagged v5.4.3 but never wrote the delivery
+# worklog section or the M1 — the ledger believed the release was still
+# "fix locked" while live served 5.4.3, and the continuation summary narrated
+# the missing steps as done. The NEWEST tag's commit hash must appear in the
+# ledger (worklog, archive, or either memory file); an unmentioned newest tag
+# is unrecorded-release debt: settle from disk at the next M0/M1.
+RR_DEV="$ROOT/stellar-trail-dev"
+if [ -d "$RR_DEV/.git" ]; then
+    RR_TAG="$(git -C "$RR_DEV" describe --tags --abbrev=0 2>/dev/null || true)"
+    RR_HASH="$(git -C "$RR_DEV" rev-parse --short=7 "$RR_TAG" 2>/dev/null || true)"
+    RR_FOUND=0
+    for RR_F in "$WL" "$ROOT/worklog-archive.md" "$SS" "$ROOT/memory/MEMORY.md"; do
+        [ -f "$RR_F" ] || continue
+        if grep -q "$RR_HASH" "$RR_F" 2>/dev/null; then RR_FOUND=1; break; fi
+    done
+    if [ -z "$RR_TAG" ] || [ -z "$RR_HASH" ]; then
+        res WARN "release-recording" "newest tag unreadable in $RR_DEV — check the git tree"
+    elif [ "$RR_FOUND" = 1 ]; then
+        res PASS "release-recording" "newest release $RR_TAG ($RR_HASH) is recorded in the ledger"
+    else
+        res WARN "release-recording" "newest tag $RR_TAG ($RR_HASH) appears NOWHERE in worklog/worklog-archive/SESSION-STATE/MEMORY — an unrecorded release (dead-session debt, incident class 2026-10-23): settle from disk at the next M0/M1 before new work"
+    fi
+fi
+
+# --- watcher-liveness (v5.4.4; dead-watcher window 2026-10-23) ---------------
+# The pre-upgrade watcher died silently mid-session while the session kept
+# working — arms run at M0 only, so duty 4/6b/8 went blind for hours until the
+# next container boot re-armed them. The audit now reports daemon liveness
+# itself; a dead watcher is a WARN, not a FAIL (CLI-only installs have no
+# .zscripts layer at all — that case passes by design).
+if [ -d "$ROOT/.zscripts" ]; then
+    WLV_PID="$(cat "$ROOT/.zscripts/watcher.pid" 2>/dev/null || true)"
+    if [ -n "$WLV_PID" ] && kill -0 "$WLV_PID" 2>/dev/null; then
+        res PASS "watcher-liveness" "watcher daemon alive (pid $WLV_PID)"
+    else
+        res WARN "watcher-liveness" "watcher daemon NOT running — duty 4/6b/8 are blind until the next boot; run: bash scripts/bootstrap-sandbox.sh --ensure"
+    fi
+else
+    res PASS "watcher-liveness" "no .zscripts layer (CLI-only install) — check skipped by design"
+fi
 
 # --- worklog-activation-hook -------------------------------------------------
 if [ -f "$WL" ]; then
