@@ -4,642 +4,637 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
-<title>Task Files Explorer — MD3 Expressive</title>
-<script>/* Set theme before paint (avoid FOUC) — respect prefers-color-scheme
-   while the user has no manual choice yet (persisted in localStorage) */
-(function(){try{var t=localStorage.getItem("md3-theme");
+<title>Task Files Explorer — Miuix</title>
+<script>/* Set theme before paint (avoid FOUC) — follow prefers-color-scheme until
+   the user picks manually (persisted under "miuix-theme"; the legacy "md3-theme"
+   key of UI v3.x is honored as a fallback so an existing choice survives). */
+(function(){try{var t=localStorage.getItem("miuix-theme")||localStorage.getItem("md3-theme");
 if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light").matches)?"light":"dark"}
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MATERIAL DESIGN 3 — EXPRESSIVE
-   Task Files Explorer UI v3.4 · zero-dependency (no CDN, no web font)
-   System: tonal color roles (light+dark) · type scale · shape scale
-           + shape morphing · spring/emphasized motion · wavy progress
-           · state layers · ripple · tonal elevation
-   Adaptive: window size classes MD3 — compact <600 · medium 600-839
-           · expanded 840-1239 · large 1240-1599 (list-detail + nav
-           rail) · extra-large ≥1600 · landscape compact · a11y
-           focus-visible · app bar on-scroll elevation
+   MIUIX (HyperOS) — Task Files Explorer UI v4.0 · zero-dependency
+   (no CDN, no web font)
+   Design system ported from compose-miuix-ui/miuix (Apache-2.0):
+   the color roles below are VERBATIM from miuix-ui
+   top.yukonga.miuix.kmp.theme/Colors.kt — lightColorScheme() and
+   darkColorScheme() defaults. Component vocabulary: TopAppBar
+   (frosted), Card (squircle surface), SmallTitle, SearchBar, TabRow
+   chips, SuperArrow rows, Snackbar, FloatingActionButton, Dialog
+   (windowDimming scrim). Type scale follows Miuix TextStyles,
+   compact per the explorer's locked formatting decision.
+   Adaptive: dark/light · desktop & mobile · a11y focus-visible.
    ================================================================ */
 
-/* ---- Design tokens -------------------------------------------- */
+/* ---- Design tokens (non-color) --------------------------------- */
 :root{
-  /* Shape scale */
-  --md-shape-xs:4px; --md-shape-s:8px; --md-shape-m:12px; --md-shape-l:16px;
-  --md-shape-xl:20px; --md-shape-2xl:28px; --md-shape-full:999px;
+  /* Shape scale (squircle feel — generous radii) */
+  --mx-radius-s:10px; --mx-radius-m:14px; --mx-radius-l:18px;
+  --mx-radius-xl:22px; --mx-radius-full:999px;
 
-  /* Motion — MD3 curves & durations */
-  --md-dur-short:150ms; --md-dur-med:300ms; --md-dur-long:500ms; --md-dur-xlong:700ms;
-  --md-ease-standard:cubic-bezier(.2,0,0,1);
-  --md-ease-emph-decel:cubic-bezier(.05,.7,.1,1);
-  --md-ease-emph-accel:cubic-bezier(.3,0,.8,.15);
-  --md-ease-spring:cubic-bezier(.34,1.56,.64,1);       /* back-out: signature Expressive overshoot */
+  /* Motion — HyperOS standard + spring overshoot */
+  --mx-dur:180ms; --mx-dur-med:280ms; --mx-dur-long:450ms;
+  --mx-ease:cubic-bezier(.2,0,0,1);
+  --mx-ease-spring:cubic-bezier(.34,1.56,.64,1);
 
-  /* Elevation */
-  --md-elev-1:0 1px 3px 1px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.30);
-  --md-elev-2:0 2px 6px 2px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.30);
-  --md-elev-3:0 4px 8px 3px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.30);
+  /* Type scale (Miuix TextStyles, compact) */
+  --fs-appbar:17px;   /* MainTitle */
+  --fs-section:13px;  /* SmallTitle */
+  --fs-card:14px;     /* title3-ish */
+  --fs-body:13px;     /* body1 */
+  --fs-label:12px;    /* subtitle */
+  --fs-caption:11px;  /* caption */
 
-  /* State layer opacity */
-  --md-state-hover:.08; --md-state-focus:.12; --md-state-press:.12;
+  --mx-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mx-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 
-  /* Type scale (MD3) */
-  --md-fs-display-s:clamp(32px,4vw,36px);
-  --md-fs-headline-s:24px; --md-fs-title-l:22px; --md-fs-title-m:16px; --md-fs-title-s:14px;
-  --md-fs-body-m:14px; --md-fs-body-s:12px;
-  --md-fs-label-l:14px; --md-fs-label-m:12px; --md-fs-label-s:11px;
-
-  --md-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
-  --md-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --appbar-h:56px;
+  --pad:clamp(14px,3vw,24px);
 }
 
-/* ---- DARK color scheme (default) -------------------------------- */
+/* ---- DARK color scheme (default) — verbatim darkColorScheme() --- */
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --md-primary:#5BD0FA; --md-on-primary:#003546;
-  --md-primary-container:#004C63; --md-on-primary-container:#B7E9FF;
-  --md-secondary:#B3C5DF; --md-on-secondary:#1D2E43;
-  --md-secondary-container:#34445A; --md-on-secondary-container:#C9DBF8;
-  --md-tertiary:#E6BBDA; --md-on-tertiary:#46263F;
-  --md-tertiary-container:#5F3C56; --md-on-tertiary-container:#FFD7F1;
-  --md-error:#FFB4AB; --md-on-error:#690005;
-  --md-error-container:#93000A; --md-on-error-container:#FFDAD6;
-  --md-surface:#0A1219; --md-surface-dim:#060D13;
-  --md-surface-container-lowest:#080F16;
-  --md-surface-container-low:#101A21;
-  --md-surface-container:#141F26;
-  --md-surface-container-high:#19242C;
-  --md-surface-container-highest:#1E2931;
-  --md-on-surface:#DDE3EA; --md-on-surface-variant:#BFC9D2;
-  --md-outline:#8993A0; --md-outline-variant:#3F4954;
-  --md-inverse-surface:#DDE3EA; --md-inverse-on-surface:#141B21;
-  --md-inverse-primary:#00678A; --md-scrim:rgba(0,0,0,.55);
-  /* Extended color roles — per file type (tonal quadruplet pattern) */
-  --t-doc-bg:#004C63;   --t-doc-fg:#B7E9FF;
-  --t-pdf-bg:#93000A;   --t-pdf-fg:#FFDAD6;
-  --t-img-bg:#5F3C56;   --t-img-fg:#FFD7F1;
-  --t-data-bg:#005230;  --t-data-fg:#9FF6BE;
-  --t-code-bg:#34445A;  --t-code-fg:#C9DBF8;
-  --t-pkg-bg:#45389B;   --t-pkg-fg:#E5DEFF;
-  --t-office-bg:#5B4300;--t-office-fg:#FFDF99;
-  --t-other-bg:#1E2931; --t-other-fg:#BFC9D2;
+  --mx-primary:#277AF7; --mx-on-primary:#FFFFFF;
+  --mx-primary-container:#338FE4; --mx-on-primary-container:#FFFFFF;
+  --mx-on-primary-variant:#99C7F1;
+  --mx-tertiary-container:#2B3B54; --mx-on-tertiary-container:#4788FF;
+  --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
+  --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
+  --mx-page:#242424;                 /* background */
+  --mx-card:#000000;                 /* surface — HyperOS black cards */
+  --mx-on-card:rgba(255,255,255,.90);/* onBackground */
+  --mx-on-card-2:#F2F2F2;            /* onSurface */
+  --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */
+  --mx-text-3:rgba(255,255,255,.40); /* onSurfaceVariantActions */
+  --mx-text-dim:#737373;             /* onSurfaceContainerVariant */
+  --mx-on-bg-variant:#787E96;        /* onBackgroundVariant — section titles */
+  --mx-outline:#404040; --mx-divider:#393939;
+  --mx-error:#F12522; --mx-error-container:#2E0603; --mx-on-error-container:#FFDAD6;
+  --mx-scrim:rgba(0,0,0,.60);        /* windowDimming */
+  --mx-appbar:rgba(36,36,36,.72);
+  --mx-hover:rgba(255,255,255,.07); --mx-press:rgba(255,255,255,.045);
+  --mx-shadow:0 1px 3px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.30);
+  --mx-shadow-lg:0 12px 40px rgba(0,0,0,.60);
+  --mx-spinner:#4788FF;
+  --mx-scroll:rgba(255,255,255,.14);
+  /* per-type icon-tile accents (HyperOS settings-style tiles) */
+  --t-doc-bg:#2B3B54;   --t-doc-fg:#4788FF;
+  --t-pdf-bg:#3A1512;   --t-pdf-fg:#FF7B6B;
+  --t-img-bg:#3A2140;   --t-img-fg:#C77DFF;
+  --t-data-bg:#0F3A24;  --t-data-fg:#5DDF9B;
+  --t-code-bg:#1E3348;  --t-code-fg:#7DB8FF;
+  --t-pkg-bg:#2C2340;   --t-pkg-fg:#B39DFF;
+  --t-office-bg:#3D3010;--t-office-fg:#FFC55C;
+  --t-other-bg:#333333; --t-other-fg:#ABABAB;
 }
-/* ---- LIGHT color scheme ----------------------------------------- */
+/* ---- LIGHT color scheme — verbatim lightColorScheme() ------------ */
 :root[data-theme="light"]{
   color-scheme:light;
-  --md-primary:#00678A; --md-on-primary:#FFFFFF;
-  --md-primary-container:#C1E8FF; --md-on-primary-container:#001E30;
-  --md-secondary:#4C617E; --md-on-secondary:#FFFFFF;
-  --md-secondary-container:#D4E3FF; --md-on-secondary-container:#0F1D36;
-  --md-tertiary:#8B4E7D; --md-on-tertiary:#FFFFFF;
-  --md-tertiary-container:#FFD7F2; --md-on-tertiary-container:#3A1130;
-  --md-error:#BA1A1A; --md-on-error:#FFFFFF;
-  --md-error-container:#FFDAD6; --md-on-error-container:#410002;
-  --md-surface:#F9FAFC; --md-surface-dim:#D9DADE;
-  --md-surface-container-lowest:#FFFFFF;
-  --md-surface-container-low:#F3F4F7;
-  --md-surface-container:#EDEFF2;
-  --md-surface-container-high:#E7E9ED;
-  --md-surface-container-highest:#E2E4E8;
-  --md-on-surface:#191C20; --md-on-surface-variant:#41484E;
-  --md-outline:#71787E; --md-outline-variant:#C1C7CE;
-  --md-inverse-surface:#2E3135; --md-inverse-on-surface:#EFF0F7;
-  --md-inverse-primary:#5BD0FA; --md-scrim:rgba(0,0,0,.32);
-  --t-doc-bg:#C1E8FF;   --t-doc-fg:#001E30;
-  --t-pdf-bg:#FFDAD6;   --t-pdf-fg:#410002;
-  --t-img-bg:#FFD7F2;   --t-img-fg:#3A1130;
-  --t-data-bg:#A5F2C1;  --t-data-fg:#00210F;
-  --t-code-bg:#D4E3FF;  --t-code-fg:#0F1D36;
-  --t-pkg-bg:#E5DEFF;   --t-pkg-fg:#1B124E;
-  --t-office-bg:#FFDF99;--t-office-fg:#261A00;
-  --t-other-bg:#E2E4E8; --t-other-fg:#41484E;
+  --mx-primary:#3482FF; --mx-on-primary:#FFFFFF;
+  --mx-primary-container:#5D9BFF; --mx-on-primary-container:#FFFFFF;
+  --mx-on-primary-variant:#AECDFF;
+  --mx-tertiary-container:#EAF2FF; --mx-on-tertiary-container:#3482FF;
+  --mx-secondary-container:#F0F0F0; --mx-on-secondary-container:#A9A9A9;
+  --mx-secondary-variant:#F0F0F0; --mx-on-secondary-variant:#B2B2B2;
+  --mx-page:#F7F7F7;                 /* surface — HyperOS gray page */
+  --mx-card:#FFFFFF;                 /* surfaceContainer — white cards */
+  --mx-on-card:rgba(0,0,0,.90);
+  --mx-on-card-2:#000000;
+  --mx-text-2:rgba(0,0,0,.60);
+  --mx-text-3:rgba(0,0,0,.40);
+  --mx-text-dim:#959595;
+  --mx-on-bg-variant:#8C93B0;
+  --mx-outline:#D9D9D9; --mx-divider:#E0E0E0;
+  --mx-error:#E94634; --mx-error-container:#FDF6F4; --mx-on-error-container:#410002;
+  --mx-scrim:rgba(0,0,0,.30);
+  --mx-appbar:rgba(247,247,247,.72);
+  --mx-hover:rgba(0,0,0,.045); --mx-press:rgba(0,0,0,.03);
+  --mx-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05);
+  --mx-shadow-lg:0 12px 40px rgba(0,0,0,.16);
+  --mx-spinner:#3482FF;
+  --mx-scroll:rgba(0,0,0,.18);
+  --t-doc-bg:#EAF2FF;   --t-doc-fg:#2E6FD8;
+  --t-pdf-bg:#FDECE9;   --t-pdf-fg:#D63A28;
+  --t-img-bg:#F3EAFB;   --t-img-fg:#8A46C9;
+  --t-data-bg:#E4F7EC;  --t-data-fg:#1E8A4E;
+  --t-code-bg:#E8F0FA;  --t-code-fg:#2E6FD8;
+  --t-pkg-bg:#EFEAFB;   --t-pkg-fg:#6C4ECC;
+  --t-office-bg:#FBF1DF;--t-office-fg:#B07610;
+  --t-other-bg:#EFEFEF; --t-other-fg:#7A7A7A;
 }
 
 /* ---- Base ------------------------------------------------------ */
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:var(--md-font);background:var(--md-surface);color:var(--md-on-surface);
-  font-size:var(--md-fs-body-m);line-height:1.5;min-height:100vh;min-height:100dvh;
-  transition:background var(--md-dur-med) var(--md-ease-standard)}
-svg.ic{width:24px;height:24px;fill:currentColor;flex:none;display:block}
-[hidden]{display:none!important}
+body{
+  font-family:var(--mx-font);font-size:var(--fs-body);
+  background:var(--mx-page);color:var(--mx-on-card);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  min-height:100vh;transition:background var(--mx-dur-med) var(--mx-ease);
+}
+::selection{background:var(--mx-primary);color:var(--mx-on-primary)}
+a{color:var(--mx-primary);text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-::selection{background:var(--md-primary-container);color:var(--md-on-primary-container)}
+input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--mx-primary);outline-offset:2px;border-radius:6px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--mx-scroll);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+.mono{font-family:var(--mx-mono)}
 
-/* MD3 focus: 3px ring + 2px gap */
-:focus-visible{outline:3px solid var(--md-primary);outline-offset:2px}
-
-/* State layer (hover 8% / focus 12% / press 12% of currentColor) */
-.state{position:relative;overflow:hidden}
-.state::before{content:"";position:absolute;inset:0;border-radius:inherit;background:currentColor;
-  opacity:0;transition:opacity var(--md-dur-short) var(--md-ease-standard);pointer-events:none}
-.state:hover::before{opacity:var(--md-state-hover)}
-.state:focus-visible::before{opacity:var(--md-state-focus)}
-.state:active::before{opacity:var(--md-state-press)}
-
-/* Ripple */
-.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.14;
-  transform:scale(0);animation:ripple .55s var(--md-ease-emph-decel) forwards;pointer-events:none}
-@keyframes ripple{to{transform:scale(1);opacity:0}}
-
-/* ---- Wavy linear progress (signature Expressive) --------------- */
-.wavy{position:relative;height:4px;overflow:hidden}
-.wavy svg{position:absolute;left:0;top:50%;width:200%;height:12px;
-  transform:translate(0,-50%);animation:wavy-scroll 1.15s linear infinite}
-.wavy svg.w2{animation-duration:1.75s;animation-direction:reverse;opacity:.45}
-.wavy .p1{fill:var(--md-primary)} .wavy .p2{fill:var(--md-tertiary)}
-@keyframes wavy-scroll{to{transform:translate(-50%,-50%)}}
-.wavy{transition:transform var(--md-dur-long) var(--md-ease-emph-decel),
-  opacity var(--md-dur-long) var(--md-ease-standard)}
-.wavy.done{transform:scaleY(0);opacity:0}   /* amplitude fades away, then done */
-.wavy--pagebar{position:fixed;top:64px;left:0;right:0;z-index:70}
-.wavy--mini{height:3px;border-radius:2px}
-
-/* ---- Top app bar ----------------------------------------------- */
-.appbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;
-  min-height:64px;padding:10px 20px;background:var(--md-surface-container);
-  border-bottom:1px solid var(--md-outline-variant);
-  transition:box-shadow var(--md-dur-short) var(--md-ease-standard)}
-/* MD3: the top app bar gains elevation when content scrolls beneath it */
-.appbar.scrolled{box-shadow:var(--md-elev-2)}
-/* A11y: visible keyboard focus indicator (MD3 focus state) */
-:where(button,a,input,select,[tabindex]):focus-visible{outline:3px solid var(--md-primary);
-  outline-offset:2px}
-.brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand .mark{width:40px;height:40px;border-radius:var(--md-shape-m);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center;transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.brand:hover .mark{border-radius:var(--md-shape-2xl)}
-.brand .bt{font-size:var(--md-fs-title-l);font-weight:400;letter-spacing:0;white-space:nowrap}
-.brand .bt b{font-weight:500;color:var(--md-primary)}
-.badge-live{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;
-  border-radius:var(--md-shape-full);background:var(--md-tertiary-container);
-  color:var(--md-on-tertiary-container);font-size:var(--md-fs-label-m);font-weight:500;
-  letter-spacing:1.2px}
-.badge-live .dot{width:8px;height:8px;border-radius:50%;background:currentColor;
-  animation:livepulse 1.8s var(--md-ease-standard) infinite}
-@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 var(--md-tertiary-container)}
-  50%{box-shadow:0 0 0 6px transparent}}
-.spacer{flex:1}
-.iconbtn{width:44px;height:44px;border-radius:var(--md-shape-full);
-  color:var(--md-on-surface-variant);display:grid;place-items:center;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring)}
-.iconbtn:active{border-radius:var(--md-shape-m)}
-.clockchip{font-family:var(--md-mono);font-size:var(--md-fs-label-l);
-  color:var(--md-on-surface-variant);padding:8px 14px;border-radius:var(--md-shape-full);
-  background:var(--md-surface-container-high)}
+/* ---- TopAppBar (frosted, Miuix) -------------------------------- */
+.topappbar{
+  position:sticky;top:0;z-index:60;height:var(--appbar-h);
+  display:flex;align-items:center;gap:10px;padding:0 var(--pad);
+  background:var(--mx-appbar);
+  -webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);
+  border-bottom:1px solid transparent;
+  transition:border-color var(--mx-dur-med) var(--mx-ease);
+}
+.topappbar.scrolled{border-bottom-color:var(--mx-divider)}
+.appbar-logo{
+  width:34px;height:34px;border-radius:11px;flex:none;display:grid;place-items:center;
+  background:var(--mx-primary);color:var(--mx-on-primary);
+  box-shadow:var(--mx-shadow);
+}
+.appbar-logo .ic{width:20px;height:20px;fill:currentColor}
+.appbar-title{font-size:var(--fs-appbar);font-weight:650;letter-spacing:.1px;color:var(--mx-on-card-2)}
+.appbar-sub{font-size:var(--fs-caption);color:var(--mx-on-bg-variant);margin-top:1px}
+.appbar-spacer{flex:1}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
+  white-space:nowrap;
+}
+.chip .ic{width:14px;height:14px;fill:currentColor;flex:none}
+.chip--primary{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.iconbtn{
+  width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
+  color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
+}
+.iconbtn:hover{background:var(--mx-hover)}
+.iconbtn:active{background:var(--mx-press)}
+.iconbtn .ic{width:20px;height:20px;fill:currentColor}
 
 /* ---- Layout ---------------------------------------------------- */
-main{max-width:1240px;margin:0 auto;padding:24px 20px 32px}
-.sechead{display:flex;align-items:center;gap:12px;margin:32px 0 14px;flex-wrap:wrap}
-.sechead h2{font-size:var(--md-fs-title-l);font-weight:400;letter-spacing:0}
-.sechead .sic{width:36px;height:36px;border-radius:var(--md-shape-m);
-  background:var(--md-tertiary-container);color:var(--md-on-tertiary-container);
-  display:grid;place-items:center}
-.sechead .sic svg.ic{width:20px;height:20px}
-.sechead .tag{font-size:var(--md-fs-label-l);color:var(--md-on-surface-variant);font-weight:400}
+main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
+section{margin-bottom:26px}
+.smalltitle{ /* Miuix SmallTitle */
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
+}
+.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
+.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
 
-/* ---- Stat cards ------------------------------------------------ */
-.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:20px}
-.statcard{background:var(--md-surface-container-low);border-radius:var(--md-shape-l);
-  padding:16px 18px;min-width:0;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    box-shadow var(--md-dur-med) var(--md-ease-standard)}
-.statcard:hover{border-radius:var(--md-shape-2xl);box-shadow:var(--md-elev-1)}
-.statcard--hero{background:var(--md-primary-container)}
-.statcard .top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.statcard .k{font-size:var(--md-fs-label-m);font-weight:500;letter-spacing:.5px;
-  text-transform:uppercase;color:var(--md-on-surface-variant)}
-.statcard--hero .k{color:var(--md-on-primary-container)}
-.statcard .chip40{width:40px;height:40px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;flex:none;transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.statcard:hover .chip40{border-radius:var(--md-shape-full)}
-.chip40 svg.ic{width:22px;height:22px}
-.chip40--primary{background:var(--md-primary);color:var(--md-on-primary)}
-.statcard--hero .chip40--primary{background:var(--md-surface);color:var(--md-primary)}
-.chip40--secondary{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.chip40--tertiary{background:var(--md-tertiary-container);color:var(--md-on-tertiary-container)}
-.chip40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.statcard .v{font-size:var(--md-fs-display-s);font-weight:400;line-height:1.15;
-  color:var(--md-on-surface);overflow-wrap:anywhere}
-.statcard--hero .v{color:var(--md-on-primary-container)}
-.statcard .v--text{font-size:var(--md-fs-title-m);font-weight:500;padding:8px 0}
-.statcard .s{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);margin-top:4px}
+/* ---- Stat tiles (Miuix Card grid) ------------------------------ */
+.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.statcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  position:relative;overflow:hidden;
+}
+.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
+.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
+  font-variant-numeric:tabular-nums}
+.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile40{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.tile40 .ic{width:22px;height:22px;fill:currentColor}
+.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
+.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
+.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
+.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
+.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
+.gdot.off{background:var(--mx-error)}
+/* ---- Task rail (SuperArrow-style cards) ------------------------- */
+.taskrail{
+  display:grid;gap:10px;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+}
+.tcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
+  border:2px solid transparent;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
+             border-color var(--mx-dur) var(--mx-ease),
+             box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.tcard:hover{transform:translateY(-2px)}
+.tcard.active{border-color:var(--mx-primary)}
+.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
+.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
+.tcard .tt{
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
+  display:flex;align-items:center;justify-content:space-between}
+.tcard .tc .ic{width:13px;height:13px;fill:currentColor;opacity:.55}
+.rail-empty{
+  grid-column:1/-1;background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
+  box-shadow:var(--mx-shadow);
+}
 
-/* ---- Task rail -------------------------------------------------- */
-.taskrail{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:thin;
-  scroll-snap-type:x proximity;
-  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent);
-  mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent)}
-.tcard{min-width:310px;max-width:400px;flex:none;background:var(--md-surface-container);
-  color:var(--md-on-surface);border-radius:var(--md-shape-l);padding:18px 22px;text-align:left;
-  scroll-snap-align:start;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard)}
-.tcard:hover{border-radius:var(--md-shape-2xl)}
-.tcard .th{display:flex;align-items:center;gap:8px}
-.tcard .tid{font-family:var(--md-mono);font-size:var(--md-fs-label-s);font-weight:500;
-  letter-spacing:1px;color:var(--md-primary)}
-.tcard .tick{width:16px;height:16px;color:var(--md-on-secondary-container);opacity:0;
-  transform:scale(.5);transition:opacity var(--md-dur-med) var(--md-ease-standard),
-    transform var(--md-dur-med) var(--md-ease-spring)}
-.tcard.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);
-  border-radius:var(--md-shape-xl)}
-.tcard.active .tid{color:var(--md-on-secondary-container)}
-.tcard.active .tick{opacity:1;transform:scale(1)}
-.tcard .tt{font-size:var(--md-fs-title-s);font-weight:500;line-height:1.4;margin-top:8px;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.tcard .tc{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);margin-top:8px}
-.tcard.active .tc{color:var(--md-on-secondary-container)}
-.rail-empty{font-size:var(--md-fs-body-s);color:var(--md-on-surface-variant);padding:8px 2px}
+/* ---- Toolbar: SearchBar + chips + segments --------------------- */
+.toolbar{display:flex;flex-direction:column;gap:10px}
+.searchbar{ /* Miuix SearchBar pill */
+  display:flex;align-items:center;gap:10px;height:44px;padding:0 8px 0 16px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  transition:box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.searchbar:focus-within{box-shadow:0 0 0 2px var(--mx-primary)}
+.searchbar .ic{width:19px;height:19px;fill:var(--mx-on-secondary-container);flex:none}
+.searchbar input{
+  flex:1;min-width:0;background:none;border:0;outline:0;
+  font-size:var(--fs-card);color:var(--mx-on-card-2);
+}
+.searchbar input::placeholder{color:var(--mx-on-secondary-container)}
+.toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fchip{ /* Miuix TabRow-style filter chip */
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;
+  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
+  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
+  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease),
+             transform var(--mx-dur) var(--mx-ease);
+}
+.fchip:hover{transform:translateY(-1px)}
+.fchip .ic{width:14px;height:14px;fill:currentColor}
+.fchip.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.fchip .fnum{font-variant-numeric:tabular-nums;opacity:.75;font-size:var(--fs-caption)}
+.seg{ /* segmented control */
+  display:inline-flex;align-items:center;gap:2px;height:32px;padding:3px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+}
+.seg button{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;
+  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
+  color:var(--mx-on-secondary-variant);
+  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
+}
+.seg button.on{background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow)}
+.seg button .ic{width:14px;height:14px;fill:currentColor}
+.seg .sortarr{transition:transform var(--mx-dur-med) var(--mx-ease)}
+.seg button.asc .sortarr{transform:rotate(180deg)}
+.ichip{ /* active filter pill */
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
+  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
+  font-size:var(--fs-label);font-weight:550;
+}
+.ichip .x{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
+}
+.ichip .x:hover{background:var(--mx-hover)}
+.ichip .x .ic{width:13px;height:13px;fill:currentColor}
+.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ---- Toolbar ---------------------------------------------------- */
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:20px 0 6px}
-.toolrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:1;min-width:0}
-.search{flex:1;min-width:240px;display:flex;align-items:center;gap:10px;height:40px;
-  padding:0 6px 0 16px;background:var(--md-surface-container-high);
-  border-radius:var(--md-shape-full);color:var(--md-on-surface-variant);
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard)}
-.search:focus-within{border-radius:var(--md-shape-l);background:var(--md-surface-container-highest)}
-.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--md-on-surface);
-  font:inherit;font-size:var(--md-fs-body-s)}
-.search input::placeholder{color:var(--md-on-surface-variant)}
-.search .fchip-btn{width:32px;height:32px}   /* clear button fits the 40px pill */
-.fchip-btn{width:44px;height:44px;border-radius:var(--md-shape-full);display:grid;
-  place-items:center;flex:none}
-.fchip-btn svg.ic{width:20px;height:20px}
+/* ---- File cards ------------------------------------------------ */
+.rootline{
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-label);color:var(--mx-text-2);
+}
+.rootline .ic{width:15px;height:15px;fill:currentColor}
+.rootline b{color:var(--mx-on-card-2);font-weight:600}
+.rootline .cnt{margin-left:auto;color:var(--mx-text-3);font-variant-numeric:tabular-nums}
+.filegrid{
+  display:grid;gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
+}
+.filegrid--list{grid-template-columns:1fr;gap:8px}
+.fcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;position:relative;
+  display:flex;gap:11px;align-items:flex-start;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  animation:cardin var(--mx-dur-long) var(--mx-ease-spring) both;
+}
+@keyframes cardin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.filegrid--list .fcard{align-items:center}
+.ftile{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.ftile .ic{width:21px;height:21px;fill:currentColor}
+.fbody{flex:1;min-width:0}
+.fnm{
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.3;
+  word-break:break-all;
+}
+.fnm .cd{color:var(--mx-text-3);font-weight:450}
+.fmeta{display:flex;gap:10px;margin-top:5px;font-size:var(--fs-caption);color:var(--mx-text-3);
+  font-variant-numeric:tabular-nums}
+.fbadge{
+  position:absolute;top:12px;right:12px;display:inline-flex;align-items:center;
+  height:19px;padding:0 8px;border-radius:var(--mx-radius-full);
+  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
+  font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+}
+.fact{
+  display:flex;gap:4px;margin-top:8px;opacity:0;transform:translateY(2px);
+  transition:opacity var(--mx-dur-med) var(--mx-ease),transform var(--mx-dur-med) var(--mx-ease);
+}
+.fcard:hover .fact,.fcard:focus-visible .fact,.fcard:focus-within .fact{opacity:1;transform:none}
+@media (hover:none){.fact{opacity:1;transform:none}}
+.fact button,.fact a{
+  width:30px;height:30px;border-radius:10px;display:grid;place-items:center;
+  color:var(--mx-text-2);transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
+}
+.fact button:hover,.fact a:hover{background:var(--mx-hover);color:var(--mx-primary)}
+.fact .ic{width:16px;height:16px;fill:currentColor}
+.ftask{ /* task attribution dot on cards */
+  display:inline-flex;align-items:center;gap:4px;margin-top:5px;
+  font-size:10px;font-weight:650;color:var(--mx-primary);letter-spacing:.3px;
+}
+.ftask .ic{width:11px;height:11px;fill:currentColor}
+/* ---- Pager ------------------------------------------------------ */
+.pager{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  margin-top:18px;
+}
+.pager button{
+  height:36px;min-width:36px;padding:0 14px;border-radius:var(--mx-radius-full);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:var(--fs-label);font-weight:600;
+  background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur) var(--mx-ease),opacity var(--mx-dur) var(--mx-ease);
+}
+.pager button:hover:not(:disabled){transform:translateY(-1px)}
+.pager button:disabled{opacity:.35;cursor:default;box-shadow:none}
+.pager button .ic{width:15px;height:15px;fill:currentColor}
+.pager .pinfo{
+  height:36px;display:inline-flex;align-items:center;padding:0 14px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
+  font-variant-numeric:tabular-nums;
+}
 
-/* Filter chips — MD3 anatomy: leading check when selected, 8dp shape */
-.fchip{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 16px;
-  border-radius:var(--md-shape-s);border:1px solid var(--md-outline);
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  overflow:hidden;position:relative;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    background var(--md-dur-short) var(--md-ease-standard),
-    border-color var(--md-dur-short) var(--md-ease-standard)}
-.fchip svg.ic{width:18px;height:18px}
-.fchip .lead{display:none;color:var(--md-on-secondary-container)}
-.fchip:hover{border-radius:var(--md-shape-m)}
-.fchip.on{background:var(--md-secondary-container);border-color:transparent;
-  color:var(--md-on-secondary-container);border-radius:var(--md-shape-m)}
-.fchip.on .lead{display:block}
-.fchip:active{border-radius:var(--md-shape-xs)}
-.fchip .fnum{font-size:var(--md-fs-label-m);opacity:.75;font-variant-numeric:tabular-nums}
+/* ---- Empty / error / static / loading states -------------------- */
+.empty{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:44px 24px;text-align:center;box-shadow:var(--mx-shadow);
+}
+.empty .e{
+  width:56px;height:56px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;
+}
+.empty .e .ic{width:28px;height:28px;fill:currentColor}
+.empty .t{font-size:var(--fs-card);font-weight:650;color:var(--mx-on-card-2)}
+.empty .h{font-size:var(--fs-label);color:var(--mx-text-3);margin-top:6px;line-height:1.55}
+.empty .btn{margin-top:16px}
+.btn{ /* Miuix Button — filled pill */
+  display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 20px;
+  border-radius:var(--mx-radius-full);background:var(--mx-primary);color:var(--mx-on-primary);
+  font-size:var(--fs-label);font-weight:650;
+  transition:transform var(--mx-dur) var(--mx-ease),filter var(--mx-dur) var(--mx-ease);
+}
+.btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.btn:active{transform:none;filter:brightness(.95)}
+.btn .ic{width:16px;height:16px;fill:currentColor}
+.loadcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:44px 24px;text-align:center;box-shadow:var(--mx-shadow);
+}
+.loadcard p{margin-top:12px;font-size:var(--fs-label);color:var(--mx-text-3)}
+.loadcard .ftile{margin:0 auto}
+.spinner{ /* Miuix ProgressIndicator */
+  width:34px;height:34px;margin:0 auto;border-radius:50%;
+  border:3px solid var(--mx-secondary-container);border-top-color:var(--mx-spinner);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-/* Sort bar — name/size/time headers; click = activate, click again = toggle direction */
-.sortbar{display:inline-flex;align-items:center;height:44px;border:1px solid var(--md-outline);
-  border-radius:var(--md-shape-full);overflow:hidden}
-.sortbtn{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:100%;
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  position:relative;transition:background var(--md-dur-short) var(--md-ease-standard)}
-.sortbtn+.sortbtn::before{content:"";position:absolute;left:0;top:8px;bottom:8px;
-  width:1px;background:var(--md-outline)}
-.sortbtn.on{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.sortbtn .sortarr{width:18px;height:18px;visibility:hidden;
-  transition:transform var(--md-dur-short) var(--md-ease-spring)}
-.sortbtn.on .sortarr{visibility:visible}
-.sortbtn.asc .sortarr{transform:rotate(180deg)}  /* up arrow = A→Z / smallest / oldest */
+/* ---- Dialog (preview) — windowDimming scrim --------------------- */
+.modal{
+  position:fixed;inset:0;z-index:100;display:none;
+  background:var(--mx-scrim);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  align-items:center;justify-content:center;padding:20px;
+}
+.modal.open{display:flex;animation:fadein var(--mx-dur-med) var(--mx-ease)}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.mbox{
+  width:min(920px,100%);max-height:88vh;display:flex;flex-direction:column;
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  box-shadow:var(--mx-shadow-lg);overflow:hidden;
+  animation:mboxin var(--mx-dur-long) var(--mx-ease-spring);
+}
+@keyframes mboxin{from{opacity:0;transform:translateY(26px) scale(.96)}to{opacity:1;transform:none}}
+.mhead{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;flex:none;
+  border-bottom:1px solid var(--mx-divider);
+}
+.micon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none}
+.micon .ic{width:20px;height:20px;fill:currentColor}
+.mnm{min-width:0;flex:1}
+.mnm .nm{font-size:var(--fs-card);font-weight:600;color:var(--mx-on-card-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnm .meta{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:2px}
+.mbody{overflow:auto;padding:16px;min-height:120px}
+.mbody pre{
+  font-family:var(--mx-mono);font-size:12px;line-height:1.6;color:var(--mx-on-card-2);
+  white-space:pre-wrap;word-break:break-word;
+}
+.mbody img{max-width:100%;border-radius:var(--mx-radius-m);display:block;margin:0 auto}
+.mbody iframe{width:100%;height:70vh;border:0;border-radius:var(--mx-radius-m)}
+.mbody .k{color:var(--mx-primary)}
+.mbody .s2{color:var(--t-data-fg)}
+.mbody .n{color:var(--t-office-fg)}
+.mbody .b2{color:var(--t-img-fg)}
+.md{font-size:var(--fs-body);line-height:1.7;color:var(--mx-on-card-2)}
+.md h1,.md h2,.md h3,.md h4{margin:1em 0 .45em;color:var(--mx-on-card-2);line-height:1.3}
+.md h1{font-size:19px}.md h2{font-size:17px}.md h3{font-size:15px}.md h4{font-size:14px}
+.md p{margin:.5em 0}
+.md ul{margin:.5em 0 .5em 1.3em}
+.md li{margin:.25em 0}
+.md code{font-family:var(--mx-mono);font-size:.92em;background:var(--mx-secondary-container);
+  border-radius:6px;padding:1px 6px}
+.md pre{background:var(--mx-secondary-container);border-radius:var(--mx-radius-m);
+  padding:12px;margin:.6em 0;overflow:auto}
+.md blockquote{border-left:3px solid var(--mx-primary);padding-left:12px;color:var(--mx-text-2);margin:.6em 0}
 
-/* Segmented button — view toggle */
-.seg{display:inline-flex;border:1px solid var(--md-outline);border-radius:var(--md-shape-full);
-  overflow:hidden;height:44px}
-.seg button{display:inline-flex;align-items:center;gap:8px;padding:0 16px;
-  color:var(--md-on-surface-variant);font-size:var(--md-fs-label-l);font-weight:500;
-  position:relative;transition:background var(--md-dur-short) var(--md-ease-standard)}
-.seg button+button::before{content:"";position:absolute;left:0;top:8px;bottom:8px;
-  width:1px;background:var(--md-outline)}
-.seg button svg.ic{width:18px;height:18px}
-.seg button.on{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-
-/* Input chip — active task filter */
-.ichip{display:inline-flex;align-items:center;gap:4px;margin:10px 0 2px;height:36px;
-  padding:0 8px 0 14px;background:var(--md-tertiary-container);
-  color:var(--md-on-tertiary-container);border-radius:var(--md-shape-s);
-  font-size:var(--md-fs-label-l);font-weight:500;
-  animation:springin var(--md-dur-med) var(--md-ease-spring)}
-.ichip .x{width:32px;height:32px;border-radius:var(--md-shape-full);display:grid;
-  place-items:center}
-.ichip .x svg.ic{width:16px;height:16px}
-@keyframes springin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
-
-/* ---- Root section + file cards ---------------------------------- */
-.roothead{display:flex;align-items:center;gap:12px;margin:28px 0 12px;flex-wrap:wrap}
-.roothead .rf{width:32px;height:32px;border-radius:var(--md-shape-s);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center}
-.roothead .rf svg.ic{width:18px;height:18px}
-.roothead .rt{font-size:var(--md-fs-title-m);font-weight:500}
-.roothead .path{font-family:var(--md-mono);font-size:var(--md-fs-label-m);
-  color:var(--md-on-surface-variant);background:var(--md-surface-container-high);
-  padding:4px 12px;border-radius:var(--md-shape-xs)}
-.roothead .cnt{font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant)}
-
-.filegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
-.fcard{position:relative;background:var(--md-surface-container-low);border-radius:var(--md-shape-l);
-  padding:16px;cursor:pointer;overflow:hidden;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring),
-    box-shadow var(--md-dur-med) var(--md-ease-standard),
-    background var(--md-dur-short) var(--md-ease-standard);
-  animation:cardin var(--md-dur-long) var(--md-ease-spring) both}
-@keyframes cardin{from{opacity:0;transform:translateY(14px) scale(.96)}
-  to{opacity:1;transform:none}}
-.fcard:hover{border-radius:var(--md-shape-2xl);box-shadow:var(--md-elev-2)}
-.fcard:active{border-radius:var(--md-shape-m)}
-.fcard .fchip40{width:44px;height:44px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;margin-bottom:12px;position:relative;
-  transition:border-radius var(--md-dur-med) var(--md-ease-spring)}
-.fcard:hover .fchip40{border-radius:var(--md-shape-full)}
-.fcard .ext{position:absolute;top:12px;right:12px;font-family:var(--md-mono);
-  font-size:var(--md-fs-label-s);font-weight:500;letter-spacing:.5px;padding:3px 8px;
-  border-radius:var(--md-shape-xs)}
-.fcard .nm{font-size:var(--md-fs-title-s);font-weight:500;line-height:1.35;
-  color:var(--md-on-surface);word-break:break-all;margin-bottom:10px;padding-right:4px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.fcard .meta{display:flex;justify-content:space-between;gap:8px;
-  font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);font-family:var(--md-mono)}
-.fcard .go{position:absolute;bottom:12px;right:12px;color:var(--md-primary);
-  opacity:0;transform:translateX(-6px);
-  transition:opacity var(--md-dur-short) var(--md-ease-standard),
-    transform var(--md-dur-short) var(--md-ease-spring)}
-.fcard:hover .go,.fcard:focus-visible .go{opacity:1;transform:none}
-.fcard .go svg.ic{width:20px;height:20px}
-
-/* Extended tonal per file type */
-.t-doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
-.t-pdf{background:var(--t-pdf-bg);color:var(--t-pdf-fg)}
-.t-img{background:var(--t-img-bg);color:var(--t-img-fg)}
-.t-data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.t-code{background:var(--t-code-bg);color:var(--t-code-fg)}
-.t-pkg{background:var(--t-pkg-bg);color:var(--t-pkg-fg)}
-.t-office{background:var(--t-office-bg);color:var(--t-office-fg)}
-.t-other{background:var(--t-other-bg);color:var(--t-other-fg)}
-
-/* List view — list item MD3 (flat + divider) */
-.filegrid--list{display:block}
-.filegrid--list .fcard{display:flex;align-items:center;gap:14px;padding:8px 16px;
-  border-radius:var(--md-shape-m);animation:none}
-.filegrid--list .fcard+.fcard{margin-top:2px}
-.filegrid--list .fcard .fchip40{width:40px;height:40px;margin:0;flex:none}
-.filegrid--list .fcard .ext{position:static;order:5;flex:none}
-.filegrid--list .fcard .nm{flex:1;margin:0;padding:0;-webkit-line-clamp:1}
-.filegrid--list .fcard .meta{flex:none}
-.filegrid--list .fcard .go{position:static;opacity:.55;transform:none}
-
-/* Empty state */
-.empty{grid-column:1/-1;text-align:center;padding:48px 16px}
-.empty .e{width:88px;height:88px;margin:0 auto 16px;border-radius:var(--md-shape-2xl);
-  background:var(--md-surface-container);color:var(--md-on-surface-variant);
-  display:grid;place-items:center;transition:border-radius var(--md-dur-long) var(--md-ease-spring)}
-.empty:hover .e{border-radius:var(--md-shape-full)}
-.empty .e svg.ic{width:40px;height:40px}
-.empty .t{font-size:var(--md-fs-title-m);font-weight:500;color:var(--md-on-surface)}
-.empty .h{font-size:var(--md-fs-body-s);color:var(--md-on-surface-variant);margin-top:4px}
-
-/* FAB — scroll to top */
-.fab{position:fixed;right:24px;bottom:24px;z-index:65;width:48px;height:48px;
-  border-radius:var(--md-shape-m);background:var(--md-primary-container);
-  color:var(--md-on-primary-container);display:grid;place-items:center;
-  box-shadow:var(--md-elev-2);opacity:0;transform:translateY(72px);pointer-events:none;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    transform var(--md-dur-med) var(--md-ease-spring),
-    opacity var(--md-dur-med) var(--md-ease-standard)}
-.fab.show{opacity:1;transform:none;pointer-events:auto}
-.fab:active{border-radius:var(--md-shape-s)}
-
-/* Footer */
-footer{border-top:1px solid var(--md-outline-variant);margin-top:44px;padding:24px 20px 28px;
-  text-align:center;font-size:var(--md-fs-label-m);color:var(--md-on-surface-variant);line-height:1.8}
-footer b{color:var(--md-on-surface);font-weight:500}
-
-/* ---- Dialog (preview modal) ------------------------------------- */
-.modal{position:fixed;inset:0;z-index:100;background:var(--md-scrim);
-  backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;
-  padding:20px;opacity:0;pointer-events:none;
-  transition:opacity var(--md-dur-med) var(--md-ease-standard)}
-.modal.open{opacity:1;pointer-events:auto}
-.mbox{background:var(--md-surface-container-high);border-radius:var(--md-shape-2xl);
-  max-width:960px;width:100%;max-height:88vh;max-height:88dvh;display:flex;flex-direction:column;
-  overflow:hidden;box-shadow:var(--md-elev-3);transform:scale(.92);
-  transition:transform var(--md-dur-med) var(--md-ease-emph-decel)}
-.modal.open .mbox{transform:scale(1)}
-.mhead{display:flex;align-items:center;gap:12px;padding:14px 18px;flex-wrap:wrap;
-  border-bottom:1px solid var(--md-outline-variant)}
-.mhead .micon{width:40px;height:40px;border-radius:var(--md-shape-m);display:grid;
-  place-items:center;flex:none}
-.mhead .micon svg.ic{width:22px;height:22px}
-.mhead .nm{font-size:var(--md-fs-title-m);font-weight:500;word-break:break-all;
-  flex:1;min-width:160px}
-.mhead .meta{color:var(--md-on-surface-variant);font-size:var(--md-fs-label-m);
-  font-family:var(--md-mono)}
-.btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 22px;
-  border-radius:var(--md-shape-full);font-size:var(--md-fs-label-l);font-weight:500;
-  text-decoration:none;position:relative;overflow:hidden;
-  transition:border-radius var(--md-dur-short) var(--md-ease-spring),
-    box-shadow var(--md-dur-short) var(--md-ease-standard)}
-.btn:active{border-radius:var(--md-shape-s)}
-.btn svg.ic{width:18px;height:18px}
-.btn--filled{background:var(--md-primary);color:var(--md-on-primary)}
-.btn--filled:hover{box-shadow:var(--md-elev-1)}
-.btn--tonal{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
-.btn--tonal:hover{box-shadow:var(--md-elev-1)}
-.btn--text{color:var(--md-primary);padding:0 14px}
-.mbody{overflow:auto;padding:18px;flex:1}
-.mbody img{max-width:100%;border-radius:var(--md-shape-m);display:block;margin:0 auto;
-  box-shadow:var(--md-elev-2)}
-.mbody iframe{width:100%;height:74vh;height:74dvh;border:0;border-radius:var(--md-shape-m);background:#fff}
-.mbody pre{font-family:var(--md-mono);font-size:var(--md-fs-body-s);line-height:1.6;
-  white-space:pre-wrap;word-break:break-word;color:var(--md-on-surface)}
-.loadcard{text-align:center;padding:40px 16px}
-.loadcard p{color:var(--md-on-surface-variant);font-size:var(--md-fs-body-s);margin:14px 0 18px}
-.loadcard .lic{width:56px;height:56px;margin:0 auto;border-radius:var(--md-shape-l);
-  background:var(--md-primary-container);color:var(--md-on-primary-container);
-  display:grid;place-items:center;animation:breathe 1.2s var(--md-ease-standard) infinite}
-@keyframes breathe{50%{transform:scale(1.08)}}
-
-/* Markdown preview — roles MD3 */
-.md h1{font-size:var(--md-fs-title-l);font-weight:400;margin:16px 0 8px}
-.md h2{font-size:var(--md-fs-title-m);font-weight:500;margin:14px 0 7px}
-.md h3,.md h4{font-size:var(--md-fs-title-s);font-weight:500;margin:12px 0 6px}
-.md p{margin:8px 0;line-height:1.65;font-size:var(--md-fs-body-m)}
-.md code{font-family:var(--md-mono);background:var(--md-surface-container-highest);
-  padding:2px 6px;border-radius:var(--md-shape-xs);font-size:var(--md-fs-body-s)}
-.md pre{background:var(--md-surface-container-lowest);border:1px solid var(--md-outline-variant);
-  border-radius:var(--md-shape-m);padding:14px;overflow:auto;margin:10px 0}
-.md pre code{background:none;padding:0}
-.md ul,.md ol{margin:8px 0 8px 22px}
-.md li{margin:4px 0;font-size:var(--md-fs-body-m);line-height:1.55}
-.md a{color:var(--md-primary)}
-.md hr{border:0;border-top:1px solid var(--md-outline-variant);margin:14px 0}
-.md blockquote{border-left:3px solid var(--md-tertiary);padding:2px 14px;
-  color:var(--md-on-surface-variant);margin:10px 0}
-.k{color:var(--md-primary)} .s2{color:var(--t-data-fg)}
-.n{color:var(--t-office-fg)} .b2{color:var(--t-pkg-fg)}
-
-/* ---- Snackbar ---------------------------------------------------- */
-.snackbar{position:fixed;left:50%;bottom:24px;z-index:110;transform:translate(-50%,80px);
-  display:flex;align-items:center;gap:12px;min-height:48px;max-width:90vw;padding:8px 10px 8px 16px;
-  background:var(--md-inverse-surface);color:var(--md-inverse-on-surface);
-  border-radius:var(--md-shape-s);box-shadow:var(--md-elev-3);font-size:var(--md-fs-body-m);
-  opacity:0;pointer-events:none;
-  transition:transform var(--md-dur-med) var(--md-ease-spring),
-    opacity var(--md-dur-med) var(--md-ease-standard)}
+/* ---- Snackbar --------------------------------------------------- */
+.snackbar{
+  position:fixed;left:50%;bottom:26px;z-index:120;transform:translate(-50%,80px);
+  display:flex;align-items:center;gap:12px;max-width:min(560px,92vw);
+  padding:0 8px 0 18px;height:46px;border-radius:var(--mx-radius-full);
+  background:var(--mx-on-card-2);color:var(--mx-page);
+  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;
+  transition:transform var(--mx-dur-long) var(--mx-ease-spring),opacity var(--mx-dur-med) var(--mx-ease);
+}
 .snackbar.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
-.snackbar .act{color:var(--md-inverse-primary);font-weight:500;height:40px;
-  padding:0 12px;border-radius:var(--md-shape-s)}
+.snackbar span{font-size:var(--fs-label);font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snackbar .act{
+  height:34px;padding:0 14px;border-radius:var(--mx-radius-full);flex:none;
+  font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.snackbar .act:hover{background:var(--mx-hover)}
 
-/* ---- Responsive — desktop ⇒ tablet ⇒ phone ------------------------ */
-/* Tablet */
-@media(max-width:900px){
-  .statgrid{grid-template-columns:1fr 1fr}
-  main{padding:20px 16px 28px}
+/* ---- FAB -------------------------------------------------------- */
+.fab{
+  position:fixed;right:22px;bottom:24px;z-index:80;width:48px;height:48px;border-radius:16px;
+  display:grid;place-items:center;background:var(--mx-primary);color:var(--mx-on-primary);
+  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;transform:translateY(14px) scale(.9);
+  transition:all var(--mx-dur-med) var(--mx-ease-spring);
 }
-/* Phone */
-@media(max-width:640px){
-  .appbar{padding:8px 12px;gap:10px}
-  .brand{gap:10px}
-  .brand .bt{font-size:var(--md-fs-title-m)}
-  .clockchip{display:none}               /* save space — live info remains in the footer */
-  main{padding:16px 12px 24px}
-  .statgrid{grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  .statcard{padding:12px 14px}
-  .statcard .v{font-size:clamp(26px,8vw,32px)}
-  .sechead{margin:24px 0 10px}
-  .sechead .tag{display:none}
-  .search{min-width:0}
-  .search input{font-size:16px}          /* prevent iOS Safari auto-zoom */
-  .toolbar{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
-  .toolrow{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none;
-    -webkit-overflow-scrolling:touch;padding-bottom:2px}
-  .toolrow::-webkit-scrollbar{display:none}
-  .toolrow>*{flex:none}
-  .taskrail{-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none}
-  .taskrail::-webkit-scrollbar{display:none}
-  .tcard{min-width:260px;scroll-snap-align:start}
-  .filegrid{gap:10px}
-  .empty{padding:32px 12px}
-  .fab{right:16px;bottom:calc(16px + env(safe-area-inset-bottom))}
-  .snackbar{bottom:calc(84px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
-  footer{padding:18px 14px 22px}
-  /* The dialog becomes a bottom sheet */
-  .modal{padding:0;align-items:flex-end}
-  .modal .mbox{transform:translateY(64px)}
-  .modal.open .mbox{transform:none}
-  .mbox{max-width:100%;max-height:92vh;max-height:92dvh;
-    border-radius:var(--md-shape-2xl) var(--md-shape-2xl) 0 0;
-    padding-bottom:env(safe-area-inset-bottom)}
-  .mhead{padding:12px 14px}
-  .mhead .nm{font-size:var(--md-fs-title-s);min-width:120px}
-  .mbody{padding:14px}
+.fab.show{opacity:1;pointer-events:auto;transform:none}
+.fab .ic{width:22px;height:22px;fill:currentColor}
+
+/* ---- Footer ----------------------------------------------------- */
+footer{
+  max-width:1280px;margin:0 auto;padding:6px var(--pad) 34px;
+  font-size:var(--fs-caption);color:var(--mx-text-3);line-height:1.7;text-align:center;
 }
-/* Narrow phone */
-@media(max-width:380px){
-  .statgrid{grid-template-columns:1fr}
-  .badge-live{padding:0 8px;letter-spacing:.6px}
-  .brand .bt{font-size:var(--md-fs-title-s)}
+footer b{color:var(--mx-text-2);font-weight:600}
+
+/* ---- Responsive -------------------------------------------------- */
+@media (max-width:640px){
+  .appbar-sub{display:none}
+  .statgrid{grid-template-columns:repeat(2,1fr)}
+  .filegrid{grid-template-columns:1fr}
+  .toolrow{gap:6px}
 }
-/* Landscape compact — phone rotated: scarce height, ample width.
-   Stats back to 4 columns, slim app bar, modal nearly full-screen. */
-@media(orientation:landscape) and (max-height:520px){
-  .appbar{min-height:56px;padding:6px 16px}
-  main{padding:12px 16px 20px}
-  .statgrid{grid-template-columns:repeat(4,minmax(140px,1fr));margin-top:12px;gap:10px}
-  .statcard{padding:12px 14px}
-  .sechead{margin:16px 0 8px}
-  .roothead{margin:18px 0 10px}
-  .toolbar{margin:12px 0 4px}
-  .mbox{max-height:96vh;max-height:96dvh}
-  .mbody iframe{height:62vh;height:62dvh}
-  .fab{bottom:12px}
-  .snackbar{bottom:calc(12px + env(safe-area-inset-bottom))}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
-/* LARGE (≥1240px) — canonical MD3 list-detail pattern:
-   the task rail rises into a sticky vertical navigation rail on the left;
-   stats stay full-width; filter + file content sits on the right. */
-@media(min-width:1240px){
-  main{display:grid;grid-template-columns:296px minmax(0,1fr);
-    grid-template-areas:"stats stats" "tasks tools" "tasks roots";
-    column-gap:32px;align-items:start}
-  #stats{grid-area:stats}
-  main>section[aria-labelledby="secTask"]{grid-area:tasks;position:sticky;top:84px}
-  main>section[aria-label="Filter and search"]{grid-area:tools}
-  #roots{grid-area:roots}
-  main>section[aria-labelledby="secTask"] .sechead{margin:24px 0 10px}
-  .taskrail{flex-direction:column;overflow-x:hidden;overflow-y:auto;
-    max-height:calc(100dvh - 150px);padding:2px 8px 10px 2px;
-    mask-image:none;-webkit-mask-image:none;scroll-snap-type:none;
-    scrollbar-width:thin;overscroll-behavior:contain}
-  .tcard{min-width:0;max-width:none;width:100%;scroll-snap-align:none}
-  .tcard .tt{-webkit-line-clamp:4}
-}
-/* EXTRA-LARGE (≥1600px) — extra breathing room for large desktops */
-@media(min-width:1600px){
-  main{max-width:1480px;padding:28px 28px 36px}
-  .filegrid{grid-template-columns:repeat(auto-fill,minmax(min(100%,264px),1fr))}
-  .statcard{padding:18px 20px}
-}
-/* Touch: no-hover affordance + larger targets */
-@media(hover:none){
-  .fcard .go{opacity:.55;transform:none}  /* tap affordance always visible */
-  .fcard:hover{border-radius:var(--md-shape-l)}
-}
-@media(pointer:coarse){
-  .iconbtn,.fchip-btn{width:48px;height:48px}
-  .fchip{min-height:44px}
-  .ichip .x{width:40px;height:40px}
-}
-/* Reduced motion — respect user preference */
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
-    transition-duration:.01ms!important}
-  html{scroll-behavior:auto}
-  .wavy svg{animation:none;transform:translate(-25%,-50%)}
-}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:var(--md-shape-full)}
-::-webkit-scrollbar-track{background:transparent}
-/* ---- v2.2 additions: per-card quick-download + Guardian card --------------- */
-.fdl{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:var(--md-shape-full);
-  display:flex;align-items:center;justify-content:center;text-decoration:none;
-  background:var(--md-surface-container-high,rgba(128,128,128,.22));color:var(--md-on-surface-variant,inherit);
-  opacity:0;transform:scale(.85);transition:opacity var(--md-dur-short) var(--md-ease-standard),transform var(--md-dur-short) var(--md-ease-spring)}
-.fcard:hover .fdl,.fdl:focus-visible{opacity:1;transform:scale(1)}
-.fdl:active{transform:scale(.92)}
-.gdot{display:inline-block;width:8px;height:8px;border-radius:var(--md-shape-full);margin-right:2px;vertical-align:middle}
-.gdot.on{background:#4caf50;box-shadow:0 0 6px #4caf5088}
-.gdot.off{background:#f44336}
-.statcard--guardian .v{font-variant-numeric:tabular-nums}
-@media (hover:none){.fdl{opacity:.9}}
-/* ---- breadcrumb, per-card copy-path, lazy render, error states ---- */
-/* ---- English UI · guard/resets stat tiles · task cards ---- */
-/* ----   task-card font scale-back (14/12/11px, 16px tick) · compact search (40px, 12px) ·
-   tile icons = official Google Material Icons (classic filled 24px) ------------ */
-.fcard .nm .cd{color:var(--md-on-surface-variant);font-weight:400;   /* directory segment */
-  font-size:var(--md-fs-label-m)}
-.fcpy{position:absolute;top:48px;right:8px;width:34px;height:34px;
-  border-radius:var(--md-shape-full);display:flex;align-items:center;justify-content:center;
-  background:var(--md-surface-container-high,rgba(128,128,128,.22));
-  color:var(--md-on-surface-variant,inherit);opacity:0;transform:scale(.85);
-  transition:opacity var(--md-dur-short) var(--md-ease-standard),
-    transform var(--md-dur-short) var(--md-ease-spring)}
-.fcpy svg.ic{width:18px;height:18px}
-.fcard:hover .fcpy,.fcpy:focus-visible{opacity:1;transform:scale(1)}
-.fcpy:active{transform:scale(.92)}
-.filegrid--list .fcard .fdl,.filegrid--list .fcard .fcpy{position:static;width:36px;height:36px;
-  opacity:.6;transform:none}
-.filegrid--list .fcard .fdl:focus-visible,.filegrid--list .fcard .fcpy:focus-visible{opacity:1}
-.morewrap{display:flex;justify-content:center;padding:14px 0 4px}
-.morewrap .btn{justify-content:center;min-width:230px}
-.errcard .btn{margin-top:16px}
-@media (hover:none){.fcpy{opacity:.9}}
 </style>
 </head>
 <body>
-<!-- Inline SVG icon library (emoji replacement — no CDN).
-     Tile glyphs i-release / i-restart / i-restore / i-backup are OFFICIAL Google
-     Material Icons (classic filled 24px) fetched verbatim from
-     google/material-design-icons (Apache 2.0) — not hand-drawn. -->
+<!-- ================= TopAppBar (frosted) ================= -->
+<header class="topappbar" id="appbar">
+  <span class="appbar-logo" aria-hidden="true"><svg class="ic"><use href="#i-logo"/></svg></span>
+  <div>
+    <div class="appbar-title">Task Files Explorer</div>
+    <div class="appbar-sub">Miuix · download/ + archive/ dashboard</div>
+  </div>
+  <div class="appbar-spacer"></div>
+  <span class="chip chip--primary" id="verChip" title="stellar-trail version"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">v?</span></span>
+  <span class="chip" id="clock" title="local time"><svg class="ic"><use href="#i-clock"/></svg>--:--:--</span>
+  <button class="iconbtn" id="themeBtn" title="Toggle dark / light theme" aria-label="Toggle theme">
+    <svg class="ic" id="themeIcon"><use href="#i-moon"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- Stats -->
+  <section aria-label="Release health">
+    <div class="smalltitle"><svg class="ic"><use href="#i-spark"/></svg>Release Health</div>
+    <div class="statgrid" id="stats"></div>
+  </section>
+
+  <!-- Task history -->
+  <section aria-labelledby="secTask">
+    <div class="smalltitle"><svg class="ic"><use href="#i-task"/></svg><span id="secTask">Task History</span>
+      <span class="note">parsed from worklog.md — click a card to filter its related files</span></div>
+    <div class="taskrail" id="taskRail" role="list"></div>
+  </section>
+
+  <!-- Toolbar -->
+  <section aria-label="Filter and search">
+    <div class="toolbar">
+      <div class="searchbar" role="search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input id="q" type="search" placeholder="Search files… (name / extension / path)" aria-label="Search files">
+        <button class="iconbtn" id="qClear" hidden title="Clear search" aria-label="Clear search">
+          <svg class="ic"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="toolrow">
+        <button class="fchip on" data-type="all">All <span class="fnum"></span></button>
+        <button class="fchip" data-type="doc">Documents <span class="fnum"></span></button>
+        <button class="fchip" data-type="pdf">PDF <span class="fnum"></span></button>
+        <button class="fchip" data-type="img">Images <span class="fnum"></span></button>
+        <button class="fchip" data-type="data">Data <span class="fnum"></span></button>
+        <button class="fchip" data-type="pkg">Archives <span class="fnum"></span></button>
+        <button class="fchip" data-type="code">Code <span class="fnum"></span></button>
+        <button class="fchip" data-type="office">Office <span class="fnum"></span></button>
+        <button class="fchip" data-type="other">Other <span class="fnum"></span></button>
+        <div class="seg" role="group" aria-label="Location">
+          <button data-root="all" class="on">All</button>
+          <button data-root="download">Downloads</button>
+          <button data-root="archive">Archive</button>
+        </div>
+        <div class="seg" role="group" aria-label="Sort the file list">
+          <button class="sortbtn on" data-col="mtime" aria-pressed="true" title="Sort by time">Time <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button class="sortbtn" data-col="name" aria-pressed="false" title="Sort by name">Name <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button class="sortbtn" data-col="size" aria-pressed="false" title="Sort by size">Size <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
+        <div class="seg" role="group" aria-label="View mode">
+          <button id="vGrid" class="on" title="Grid view" aria-label="Grid view" aria-pressed="true">
+            <svg class="ic"><use href="#i-grid"/></svg>Grid
+          </button>
+          <button id="vList" title="List view" aria-label="List view" aria-pressed="false">
+            <svg class="ic"><use href="#i-list"/></svg>List
+          </button>
+        </div>
+      </div>
+      <div id="activeFilter"></div>
+    </div>
+  </section>
+
+  <!-- File list -->
+  <section id="listwrap" aria-label="Files">
+    <div id="listhead"></div>
+    <div id="listbody">
+      <div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>
+    </div>
+    <div class="pager" id="pager" hidden></div>
+  </section>
+</main>
+
+<footer>
+  Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
+  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.5) · zero-dependency · <span id="ftInfo">loading…</span>
+</footer>
+
+<!-- FAB scroll-to-top -->
+<button class="fab" id="fabTop" title="Back to top" aria-label="Back to top">
+  <svg class="ic"><use href="#i-up"/></svg>
+</button>
+
+<!-- Dialog preview -->
+<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mName">
+  <div class="mbox">
+    <div class="mhead">
+      <span class="micon t-doc" id="mIconWrap"><svg class="ic" id="mIcon"><use href="#i-file"/></svg></span>
+      <div class="mnm">
+        <div class="nm" id="mName"></div>
+        <div class="meta" id="mMeta"></div>
+      </div>
+      <button class="iconbtn" id="mCopy" title="Copy the file path on the server" aria-label="Copy the file path on the server">
+        <svg class="ic"><use href="#i-copy"/></svg>
+      </button>
+      <a class="btn" id="mDl" download>
+        <svg class="ic"><use href="#i-down"/></svg>Download
+      </a>
+      <button class="iconbtn" id="mClose" aria-label="Close preview">
+        <svg class="ic"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="mbody" id="mBody"></div>
+  </div>
+</div>
+
+<!-- Snackbar -->
+<div class="snackbar" id="snack" role="status" aria-live="polite">
+  <span id="snackMsg"></span>
+  <button class="act" id="snackAct" hidden></button>
+</div>
+
+<!-- Icon sprite — official Google Material Icons (classic filled 24px),
+     fetched verbatim from google/material-design-icons (Apache 2.0) — not
+     hand-drawn. Tile glyphs i-release / i-restart / i-restore / i-backup
+     and the banner glyph i-open are from the same official set. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.5 13.5-7 3 3-7 7-3-3 7z"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
@@ -669,133 +664,13 @@ footer b{color:var(--md-on-surface);font-weight:500}
   <symbol id="i-info" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l2.1 5.9L20 10l-5.9 2.1L12 18l-2.1-5.9L4 10l5.9-2.1L12 2zm7 12 .9 2.5L22.5 17l-2.6.9L19 20.5l-.9-2.6-2.6-.9 2.6-.9L19 14z"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></symbol>
-  <!-- Stat-tile glyphs — official Google Material Icons (classic filled 24px),
-       fetched verbatim from google/material-design-icons (Apache 2.0):
-       new_releases (av) · restart_alt (device) · restore (action) · backup (action) -->
   <symbol id="i-release" viewBox="0 0 24 24"><path d="m23 12-2.44-2.78.34-3.68-3.61-.82-1.89-3.18L12 3 8.6 1.54 6.71 4.72l-3.61.81.34 3.68L1 12l2.44 2.78-.34 3.69 3.61.82 1.89 3.18L12 21l3.4 1.46 1.89-3.18 3.61-.82-.34-3.68L23 12zm-10 5h-2v-2h2v2zm0-4h-2V7h2v6z"/></symbol>
   <symbol id="i-restart" viewBox="0 0 24 24"><path d="M12,5V2L8,6l4,4V7c3.31,0,6,2.69,6,6c0,2.97-2.17,5.43-5,5.91v2.02c3.95-0.49,7-3.85,7-7.93C20,8.58,16.42,5,12,5z"/><path d="M6,13c0-1.65,0.67-3.15,1.76-4.24L6.34,7.34C4.9,8.79,4,10.79,4,13c0,4.08,3.05,7.44,7,7.93v-2.02 C8.17,18.43,6,15.97,6,13z"/></symbol>
   <symbol id="i-restore" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
   <symbol id="i-backup" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></symbol>
-  <!-- static-banner button glyph — same official set, fetched verbatim:
-       open_in_new (action) -->
   <symbol id="i-open" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></symbol>
 </svg>
 
-<!-- Wavy progress indeterminate — signature Material 3 Expressive -->
-<div class="wavy wavy--pagebar" id="pageWave" aria-hidden="true">
-  <svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg>
-  <svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg>
-</div>
-
-<!-- Top app bar -->
-<header class="appbar">
-  <div class="brand">
-    <div class="mark"><svg class="ic"><use href="#i-logo"/></svg></div>
-    <div class="bt">Task Files <b>Explorer</b></div>
-  </div>
-  <span class="badge-live"><span class="dot"></span>LIVE</span>
-  <div class="spacer"></div>
-  <button class="iconbtn state" id="themeBtn" title="Switch light/dark theme" aria-label="Switch light or dark theme">
-    <svg class="ic" id="themeIcon"><use href="#i-moon"/></svg>
-  </button>
-  <span class="clockchip" id="clock">--:--:--</span>
-</header>
-
-<main>
-  <!-- Stats -->
-  <section class="statgrid" id="stats" aria-label="File statistics"></section>
-
-  <!-- Task history -->
-  <section aria-labelledby="secTask">
-    <div class="sechead">
-      <span class="sic"><svg class="ic"><use href="#i-task"/></svg></span>
-      <h2 id="secTask">Task History</h2>
-      <span class="tag">parsed automatically from worklog.md — click a card to filter its related files</span>
-    </div>
-    <div class="taskrail" id="taskRail" role="list"></div>
-  </section>
-
-  <!-- Toolbar -->
-  <section aria-label="Filter and search">
-    <div class="toolbar">
-      <div class="search" role="search">
-        <svg class="ic" style="width:18px;height:18px"><use href="#i-search"/></svg>
-        <input id="q" type="search" placeholder="Search files… (name / extension)" aria-label="Search files">
-        <button class="fchip-btn state" id="qClear" hidden title="Clear search" aria-label="Clear search">
-          <svg class="ic"><use href="#i-close"/></svg>
-        </button>
-      </div>
-      <div class="toolrow">
-        <button class="fchip state on" data-type="all"><svg class="ic lead"><use href="#i-check"/></svg>All <span class="fnum"></span></button>
-        <button class="fchip state" data-type="doc"><svg class="ic lead"><use href="#i-check"/></svg>Documents <span class="fnum"></span></button>
-        <button class="fchip state" data-type="img"><svg class="ic lead"><use href="#i-check"/></svg>Images <span class="fnum"></span></button>
-        <button class="fchip state" data-type="data"><svg class="ic lead"><use href="#i-check"/></svg>Data <span class="fnum"></span></button>
-        <button class="fchip state" data-type="pkg"><svg class="ic lead"><use href="#i-check"/></svg>Archives <span class="fnum"></span></button>
-        <button class="fchip state" data-type="code"><svg class="ic lead"><use href="#i-check"/></svg>Code <span class="fnum"></span></button>
-        <button class="fchip state" data-type="office"><svg class="ic lead"><use href="#i-check"/></svg>Office <span class="fnum"></span></button>
-        <button class="fchip state" data-type="other"><svg class="ic lead"><use href="#i-check"/></svg>Other <span class="fnum"></span></button>
-        <div class="sortbar" role="group" aria-label="Sort the file list">
-          <button class="sortbtn state on" data-col="mtime" aria-pressed="true" title="Sort by time">Time <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button class="sortbtn state" data-col="name" aria-pressed="false" title="Sort by name">Name <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button class="sortbtn state" data-col="size" aria-pressed="false" title="Sort by size">Size <svg class="ic sortarr" aria-hidden="true"><use href="#i-chev"/></svg></button>
-        </div>
-        <div class="seg" role="group" aria-label="View mode">
-          <button id="vGrid" class="state on" title="Grid view" aria-label="Grid view" aria-pressed="true">
-            <svg class="ic"><use href="#i-grid"/></svg>Grid
-          </button>
-          <button id="vList" class="state" title="List view" aria-label="List view" aria-pressed="false">
-            <svg class="ic"><use href="#i-list"/></svg>List
-          </button>
-        </div>
-      </div>
-    </div>
-    <div id="activeFilter"></div>
-  </section>
-
-  <!-- File list per root (initial loading state — replaced by renderFiles when data arrives) -->
-  <section id="roots" aria-label="Files by location">
-    <div class="loadcard"><div class="lic"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg></div>
-      <p>loading file inventory…</p>
-      <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>
-  </section>
-</main>
-
-<footer>
-  Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
-  <b>Material Design 3 Expressive</b> interface · adaptive desktop &amp; mobile (MD3 window size classes) · system-adaptive theme · live search · chunked rendering · zero-dependency · <span id="ftInfo">loading…</span>
-</footer>
-
-<!-- FAB scroll-to-top -->
-<button class="fab state" id="fabTop" title="Back to top" aria-label="Back to top">
-  <svg class="ic"><use href="#i-up"/></svg>
-</button>
-
-<!-- Dialog preview -->
-<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mName">
-  <div class="mbox">
-    <div class="mhead">
-      <span class="micon t-doc" id="mIconWrap"><svg class="ic" id="mIcon"><use href="#i-file"/></svg></span>
-      <div class="nm" id="mName"></div>
-      <span class="meta" id="mMeta"></span>
-      <button class="iconbtn state" id="mCopy" title="Copy the file path on the server" aria-label="Copy the file path on the server">
-        <svg class="ic"><use href="#i-copy"/></svg>
-      </button>
-      <a class="btn btn--tonal state" id="mDl" download>
-        <svg class="ic"><use href="#i-down"/></svg>Download
-      </a>
-      <button class="iconbtn state" id="mClose" aria-label="Close preview">
-        <svg class="ic"><use href="#i-close"/></svg>
-      </button>
-    </div>
-    <div class="mbody" id="mBody"></div>
-  </div>
-</div>
-
-<!-- Snackbar -->
-<div class="snackbar" id="snack" role="status" aria-live="polite">
-  <span id="snackMsg"></span>
-  <button class="act state" id="snackAct" hidden></button>
-</div>
 <script>
 /* ================= util ================= */
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -805,176 +680,217 @@ const fmtSize=n=>{if(n<1024)return n+" B";const u=["KB","MB","GB"];let i=-1;do{n
 const fmtDate=t=>new Date(t*1000).toLocaleString("en-US",{dateStyle:"medium",timeStyle:"short"});
 const fmtRel=t=>{const d=Date.now()/1000-t;if(d<60)return"just now";if(d<3600)return Math.floor(d/60)+" min ago";if(d<86400)return Math.floor(d/3600)+" h ago";if(d<604800)return Math.floor(d/86400)+" d ago";return fmtDate(t)};
 const fmtDur=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+"h ":"")+(m?m+"m ":"")+x+"s"};
-const TYPESET={doc:["doc","pdf"],img:["img"],data:["data"],pkg:["pkg"],code:["code"],office:["office"],other:["other"]};
+const TYPES=["doc","pdf","img","data","pkg","code","office","other"];
 
 /* ================= state ================= */
-const S={q:"",type:"all",sort:{col:"mtime",dir:"desc"},task:null,view:"grid"};
-let DATA=null,lastHash="",firstLoadDone=false,lastFocus=null;
-const CHUNK=100;                        /* chunked render: item count per chunk */
-let shown={};                           /* root label -> cards shown */
-function resetChunks(){shown={}}        /* called when the filtered set changes entirely */
+const S={q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1};
+const PER_PAGE=100;
+let META=null,PAGE=null,PAGE_MAP={},lastBuilt="",firstLoadDone=false,lastFocus=null;
 
-/* ================= icon & tonal color mapping ================== */
+/* ================= icon & tile mapping ================= */
 const EXTICON={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
   tsv:"data",xlsx:"data",xls:"data",png:"img",jpg:"img",jpeg:"img",gif:"img",svg:"img",webp:"img",
   bmp:"img",ico:"img",skill:"pkg",zip:"pkg",tar:"pkg",gz:"pkg",whl:"pkg",py:"code",sh:"code",
   js:"code",ts:"code",css:"code",docx:"office",doc:"office",pptx:"office",ppt:"office"};
-const EXTCLASS={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
-  tsv:"data",xlsx:"data",xls:"data",png:"img",jpg:"img",jpeg:"img",gif:"img",svg:"img",webp:"img",
-  bmp:"img",ico:"img",skill:"pkg",zip:"pkg",tar:"pkg",gz:"pkg",whl:"pkg",py:"code",sh:"code",
-  js:"code",ts:"code",css:"code",docx:"office",doc:"office",pptx:"office",ppt:"office"};
 const TYPEICON={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",office:"office",other:"file"};
-const TYPECLS={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",office:"office",other:"other"};
 const iconFor=f=>EXTICON[f.ext?.toLowerCase()]||TYPEICON[f.type]||"file";
-const classFor=f=>EXTCLASS[f.ext?.toLowerCase()]||TYPECLS[f.type]||"other";
+const classFor=f=>EXTICON[f.ext?.toLowerCase()]||f.type||"other";
 
-/* ================= render ================= */
-function renderStats(){const g=DATA.guard||{},rs=DATA.resets||{};
+/* ================= meta (slim poll) ================= */
+function renderStats(){
+  const g=META.guard||{},rs=META.resets||{},st=META.stats||{};
   const syncTxt=!g||!g.installed?"skill not installed"
     :g.in_sync?"in sync with canonical"
-    :g.canonical_present===false?"no canonical yet — run bootstrap --ensure"   /* Task 19: name the remedy, not a bare ? */
+    :g.canonical_present===false?"no canonical yet — run bootstrap --ensure"
     :"drift vs canonical "+(g.canonical_version||"?");
   const wTxt=g&&g.watcher_alive?"watcher alive":"watcher down";
+  $("#verTxt").textContent="v"+((g&&g.live_version)||"?");
   const cell=(o,label,cls,icon)=>{const c=(o&&o.count!=null)?o.count:0;
     const last=(o&&o.last)?o.last:"never";
-    return `<div class="statcard"><div class="top"><span class="chip40 chip40--${cls}">${I(icon)}</span><span class="k">${label}</span></div><div class="v">${c}</div><div class="s">last: ${esc(last)}</div></div>`};
+    return `<div class="statcard"><div class="top"><span class="tile40 tile40--${cls}">${I(icon)}</span><span class="k">${label}</span></div><div class="v">${c}</div><div class="s">last: ${esc(last)}</div></div>`};
   $("#stats").innerHTML=
-  `<div class="statcard statcard--hero"><div class="top"><span class="chip40 chip40--primary">${I("release")}</span><span class="k">Skill Version</span></div><div class="v">v${esc((g&&g.live_version)||"?")}</div><div class="s"><span class="gdot${g&&g.watcher_alive?" on":" off"}"></span>${esc(syncTxt)} · ${wTxt}</div></div>`+
-  cell(rs.boot&&rs.boot.boots,"Boot Resets","secondary","restart")+
-  cell(rs.boot&&rs.boot.skill_restores,"Skill Restores","tertiary","restore")+
-  cell(rs.boot&&rs.boot.archive_applies,"Snapshot Restores","data","backup")}
-
-function renderTasks(){const rail=$("#taskRail");
-  const ts=[...DATA.tasks].slice(-14).reverse();
+  `<div class="statcard"><div class="top"><span class="tile40 tile40--primary">${I("release")}</span><span class="k">Skill Version</span></div><div class="v">v${esc((g&&g.live_version)||"?")}</div><div class="s"><span class="gdot${g&&g.watcher_alive?" on":" off"}"></span>${esc(syncTxt)} · ${wTxt}</div></div>`+
+  cell(rs.boot&&rs.boot.boots,"Boot Resets","doc","restart")+
+  cell(rs.boot&&rs.boot.skill_restores,"Skill Restores","data","restore")+
+  cell(rs.boot&&rs.boot.archive_applies,"Snapshot Restores","img","backup");
+}
+function renderTasks(){
+  const rail=$("#taskRail");
+  const ts=[...(META.tasks||[])].slice(-14).reverse();
   if(!ts.length){rail.innerHTML=`<div class="rail-empty">worklog.md has no Task section yet — this rail fills in automatically once one exists.</div>`}
   else{rail.innerHTML=ts.map(t=>
-    `<div class="tcard state${S.task===t.id?" active":""}" data-id="${esc(t.id)}" role="listitem" tabindex="0">
-      <div class="th">${I("check","ic tick")}<span class="tid">TASK ${esc(t.id)}</span></div>
+    `<div class="tcard${S.task===t.id?" active":""}" data-id="${esc(t.id)}" role="listitem" tabindex="0">
+      <div class="th">${I("check","tick")}<span class="tid">TASK ${esc(t.id)}</span></div>
       <div class="tt">${esc(t.title)}</div>
-      <div class="tc">${t.count} related files</div></div>`).join("");
+      <div class="tc"><span>${t.count} related files</span>${I("chevr")}</div></div>`).join("");
     $$(".tcard").forEach(c=>{
-      const go=()=>{const id=c.dataset.id;S.task=S.task===id?null:id;renderTasks();resetChunks();renderFiles()};
+      const go=()=>{const id=c.dataset.id;S.task=S.task===id?null:id;S.page=1;renderTasks();renderPill();loadList()};
       c.onclick=go;
-      c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};
-    })}}
-
-function filtered(files){let out=files.filter(f=>{
-    if(S.type!=="all"&&!TYPESET[S.type].includes(f.type))return false;
-    if(S.task&&f.task!==S.task)return false;
-    if(S.q&&!(f.rel+" "+f.name+(f.task?" task "+f.task:"")).toLowerCase().includes(S.q.toLowerCase()))return false;
-    return true});
-  const c=S.sort.col,m=S.sort.dir==="asc"?1:-1;
-  out.sort((a,b)=>c==="size"?(a.size-b.size)*m:c==="name"?a.name.localeCompare(b.name)*m:(a.mtime-b.mtime)*m);
-  return out}
-
-function crumbHTML(f){const i=f.rel.lastIndexOf("/");   /* breadcrumb: dimmed directory + file name */
-  return i<0?`<span>${esc(f.rel)}</span>`
-    :`<span class="cd">${esc(f.rel.slice(0,i+1))}</span><span>${esc(f.name)}</span>`}
-function cardHTML(f,i){const cls=classFor(f);return`<div class="fcard state" data-key="${esc(f.key)}"
-  tabindex="0" role="button" aria-label="Preview ${esc(f.name)}" style="animation-delay:${Math.min(i*22,380)}ms">
-  <span class="ext t-${cls}">${esc(f.ext||f.type)}</span>
-  <span class="fchip40 t-${cls}">${I(iconFor(f))}</span>
-  <div class="nm">${crumbHTML(f)}</div>
-  <div class="meta"><span>${fmtSize(f.size)}</span><span title="${fmtDate(f.mtime)}">${fmtRel(f.mtime)}</span></div>
-  <button class="fcpy state" data-copy="${esc(f.key)}" title="Copy the server path" aria-label="Copy the path of ${esc(f.name)}">${I("copy")}</button>
-  <a class="fdl state" href="${f.href}?dl=1" download="${esc(f.name)}" title="Download ${esc(f.name)}" aria-label="Download ${esc(f.name)}">${I("down")}</a>
-  <span class="go">${I("eye")}</span></div>`}
-
-function renderPill(){const el=$("#activeFilter");
-  if(!S.task){el.innerHTML="";return}
-  const t=DATA.tasks.find(x=>x.id===S.task);
-  el.innerHTML=`<span class="ichip">Active filter — TASK ${esc(t?t.id:S.task)}: ${esc(t?t.title:"")}
-    <button class="x state" id="clearTask" title="Remove filter" aria-label="Remove the task filter">${I("close")}</button></span>`;
-  $("#clearTask").onclick=()=>{S.task=null;renderTasks();resetChunks();renderFiles()}}
-
-const cssId=l=>String(l).replace(/[^a-zA-Z0-9_-]/g,"");
-function loadingHTML(){return `<div class="loadcard"><div class="lic">${I("folder")}</div><p>loading file inventory…</p>
-  <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>`}
-function renderError(){const wrap=$("#roots");
-  wrap.innerHTML=`<div class="empty errcard"><div class="e" style="background:var(--md-error-container);color:var(--md-on-error-container)">${I("warn")}</div>
-  <div class="t">Failed to load data from explorer.py</div>
-  <div class="h">server not responding — the connection may be temporarily down</div>
-  <button class="btn btn--filled state" id="retryBtn">${I("down")}Retry</button></div>`;
-  pageWaveDone();
-  $("#retryBtn").onclick=()=>{wrap.innerHTML=loadingHTML();setWave(wrap);load()}}
-
-function renderStatic(live){const wrap=$("#roots");   /* static-copy mode — the page is opened
-                                                     without its server (platform file preview,
-                                                     downloaded copy): an informational banner,
-                                                     not an error state.
-                                                     manual live-recovery — when the
-                                                     probe (RECOVER_MS after detection, then the
-                                                     10 s loop) finds explorer.py on this origin,
-                                                     the banner gains an "Open live view" button;
-                                                     the page NEVER auto-navigates (user choice) */
-  wrap.innerHTML=`<div class="empty staticcard"><div class="e" style="background:var(--md-primary-container);color:var(--md-on-primary-container)">${I("info")}</div>
-  <div class="t">${live?"Static copy — live explorer reachable":"Static copy — live data unavailable"}</div>
-  ${live?`<div class="h">explorer.py answered from this origin — the live Task Files Explorer is one click away</div>
-  <button class="btn btn--filled state" id="openLiveBtn">${I("open")}Open live view</button>`
-  :`<div class="h">this page was opened as a plain file, without explorer.py — the /api/files feed behind the file inventory, tiles, and search does not exist on this origin</div>
-  <div class="h">the live Task Files Explorer is served at the preview URL root while a session is running</div>`}</div>`;
-  pageWaveDone();
-  if(live)$("#openLiveBtn").onclick=goLive}
-
-function renderFiles(){renderPill();
-  const wrap=$("#roots");
-  if(!DATA){wrap.innerHTML=loadingHTML();setWave(wrap);return}
-  let html="",total=0;
-  for(const r of DATA.roots){const fs=filtered(r.files);total+=fs.length;
-    const id=cssId(r.label);
-    html+=`<div class="roothead"><span class="rf">${I("folder")}</span><span class="rt">${esc(r.label==="download"?"Downloads":"Archive")}</span><span class="path">${esc(r.path)}</span><span class="cnt">${fs.length} of ${r.files.length} files</span></div>`;
-    if(!fs.length){html+=`<div class="empty"><div class="e">${I("pkg")}</div><div class="t">No matching files in this location</div></div>`;continue}
-    if(!(r.label in shown))shown[r.label]=CHUNK;      /* chunked render: first chunk */
-    const n=Math.min(shown[r.label],fs.length);
-    html+=`<div class="filegrid${S.view==="list"?" filegrid--list":""}" id="grid-${id}">`+
-      fs.slice(0,n).map((f,i)=>cardHTML(f,i)).join("")+`</div>`;
-    if(n<fs.length)html+=`<div class="morewrap" id="more-${id}"><button class="loadmore btn btn--tonal state" data-root="${esc(r.label)}">${I("chev")}Load ${Math.min(CHUNK,fs.length-n)} more · ${fs.length-n} files left</button></div>`}
-  if(!total)html=`<div class="empty"><div class="e">${I("search")}</div><div class="t">No files match the active filters</div><div class="h">try changing the keyword, type filter, or task</div></div>`;
-  wrap.innerHTML=html;
-  observeMores()}
-
-function loadMore(label){                    /* append the next chunk without a full re-render */
-  const r=DATA&&DATA.roots.find(x=>x.label===label);if(!r)return;
-  const list=filtered(r.files);
-  const prev=shown[label]||CHUNK,next=Math.min(prev+CHUNK,list.length);
-  if(next<=prev)return;
-  const grid=$("#grid-"+cssId(label));
-  if(grid)grid.insertAdjacentHTML("beforeend",list.slice(prev,next).map((f,i)=>cardHTML(f,i)).join(""));
-  shown[label]=next;
-  const row=$("#more-"+cssId(label));if(!row)return;
-  const sisa=list.length-next;
-  if(sisa<=0){row.hidden=true;return}
-  row.hidden=false;
-  row.querySelector(".loadmore").innerHTML=`${I("chev")}Load ${Math.min(CHUNK,sisa)} more · ${sisa} files left`}
-
-let io=null;
-function observeMores(){                    /* auto-load when the button nears the viewport */
-  if(!("IntersectionObserver" in window))return;  /* fallback: the button stays manually clickable */
-  if(!io)io=new IntersectionObserver(es=>{for(const en of es){
-    if(!en.isIntersecting||en.target.hidden)continue;
-    const b=en.target.querySelector(".loadmore");
-    if(b)loadMore(b.dataset.root)}},{rootMargin:"480px"});
-  io.disconnect();
-  $$(".morewrap").forEach(w=>{if(!w.hidden)io.observe(w)})}
-
-function renderChips(){                     /* dynamic type chips: counts + hide zeros */
-  const counts={all:0};
-  for(const r of DATA.roots)for(const f of r.files){counts.all++;counts[f.type]=(counts[f.type]||0)+1}
-  if(S.type!=="all"&&!counts[S.type])S.type="all";   /* graceful degradation when a type disappears */
-  $$(".fchip[data-type]").forEach(c=>{const t=c.dataset.type,n=t==="all"?counts.all:(counts[t]||0);
+      c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};})}
+}
+function renderChips(){
+  const tc=(META.stats&&META.stats.type_counts)||{};
+  const total=(META.stats&&META.stats.total_files)||0;
+  if(S.type!=="all"&&!tc[S.type])S.type="all";   /* graceful when a type disappears */
+  $$(".fchip[data-type]").forEach(c=>{const t=c.dataset.type,n=t==="all"?total:(tc[t]||0);
     c.classList.toggle("on",t===S.type);
     c.hidden=t!=="all"&&n===0;
-    c.querySelector(".fnum").textContent=n})}
+    c.querySelector(".fnum").textContent=n});
+}
+function renderPill(){
+  const el=$("#activeFilter");
+  if(!S.task){el.innerHTML="";return}
+  const t=(META.tasks||[]).find(x=>x.id===S.task);
+  el.innerHTML=`<span class="ichip"><span>Active filter — TASK ${esc(t?t.id:S.task)}: ${esc(t?t.title:"")}</span>
+    <button class="x" id="clearTask" title="Remove filter" aria-label="Remove the task filter">${I("close")}</button></span>`;
+  $("#clearTask").onclick=()=>{S.task=null;S.page=1;renderTasks();renderPill();loadList()}
+}
 
-async function copyPath(f){if(!f)return;    /* navigator.clipboard + execCommand fallback */
-  const r=DATA.roots.find(x=>x.files.includes(f));
-  const p=(r?r.path+"/":"")+f.rel;let ok=true;
+/* ================= list (server-paged) ================= */
+function rootPaths(){
+  if(!META||!META.roots)return"download/ + archive/";
+  return S.root==="all"
+    ?META.roots.map(r=>r.label+"/").join(" + ")
+    :(META.roots.find(r=>r.label===S.root)||{}).path||S.root+"/";
+}
+function crumbHTML(f){const i=f.rel.lastIndexOf("/");
+  return i<0?`<span>${esc(f.rel)}</span>`
+    :`<span class="cd">${esc(f.rel.slice(0,i+1))}</span><span>${esc(f.name)}</span>`}
+function cardHTML(f,i){const cls=classFor(f);
+  return`<div class="fcard" data-key="${esc(f.key)}" tabindex="0" role="button"
+  aria-label="Preview ${esc(f.name)}" style="animation-delay:${Math.min(i*16,280)}ms">
+  <span class="fbadge">${esc(f.ext||f.type)}</span>
+  <span class="ftile t-${cls}">${I(iconFor(f))}</span>
+  <div class="fbody">
+    <div class="fnm">${crumbHTML(f)}</div>
+    <div class="fmeta"><span>${fmtSize(f.size)}</span><span title="${fmtDate(f.mtime)}">${fmtRel(f.mtime)}</span></div>
+    ${f.task?`<span class="ftask">${I("check")}TASK ${esc(f.task)}</span>`:""}
+    <div class="fact">
+      <button class="fcpy" data-copy="${esc(f.key)}" title="Copy the server path" aria-label="Copy the path of ${esc(f.name)}">${I("copy")}</button>
+      <a href="${f.href}?dl=1" download="${esc(f.name)}" title="Download ${esc(f.name)}" aria-label="Download ${esc(f.name)}">${I("down")}</a>
+    </div>
+  </div></div>`}
+function renderList(){
+  const head=$("#listhead"),body=$("#listbody"),pager=$("#pager");
+  if(!PAGE){body.innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;pager.hidden=true;head.innerHTML="";return}
+  const from=PAGE.total?(PAGE.page-1)*PAGE.per_page+1:0,to=Math.min(PAGE.page*PAGE.per_page,PAGE.total);
+  const loc={all:"All locations",download:"Downloads",archive:"Archive"}[S.root]||S.root;
+  head.innerHTML=`<div class="rootline">${I("folder")}<b>${esc(loc)}</b><span class="mono">${esc(rootPaths())}</span>
+    <span class="cnt">showing ${from}–${to} of ${PAGE.total} files${PAGE.pages>1?" · page "+PAGE.page+" / "+PAGE.pages:""}</span></div>`;
+  if(!PAGE.total){
+    body.innerHTML=`<div class="empty"><div class="e t-other">${I("search")}</div>
+      <div class="t">No files match the active filters</div>
+      <div class="h">try changing the keyword, type, task, or location</div></div>`;
+    pager.hidden=true;return}
+  body.innerHTML=`<div class="filegrid${S.view==="list"?" filegrid--list":""}">`+
+    PAGE.files.map((f,i)=>cardHTML(f,i)).join("")+`</div>`;
+  if(PAGE.pages>1){
+    pager.hidden=false;
+    pager.innerHTML=
+      `<button id="pgFirst" title="First page" ${PAGE.page<=1?"disabled":""}>${I("chevr","ic")}<span style="transform:scaleX(-1);display:inline-flex">${I("chevr")}</span></button>`+
+      `<button id="pgPrev" title="Previous page" ${PAGE.page<=1?"disabled":""}>${I("chev")}</button>`+
+      `<span class="pinfo">${PAGE.page} / ${PAGE.pages}</span>`+
+      `<button id="pgNext" title="Next page" ${PAGE.page>=PAGE.pages?"disabled":""}>${I("chev")}</button>`+
+      `<button id="pgLast" title="Last page" ${PAGE.page>=PAGE.pages?"disabled":""}><span style="transform:scaleX(-1);display:inline-flex">${I("chevr")}</span>${I("chevr")}</button>`;
+    $("#pgFirst").onclick=()=>{S.page=1;loadList()};
+    $("#pgPrev").onclick=()=>{S.page=Math.max(1,S.page-1);loadList()};
+    $("#pgNext").onclick=()=>{S.page=Math.min(PAGE.pages,S.page+1);loadList()};
+    $("#pgLast").onclick=()=>{S.page=PAGE.pages;loadList()};
+  }else pager.hidden=true;
+}
+function listURL(){
+  const p=new URLSearchParams({root:S.root,sort:S.sort.col,dir:S.sort.dir,
+    page:String(S.page),per_page:String(PER_PAGE)});
+  if(S.q)p.set("q",S.q);
+  if(S.type!=="all")p.set("type",S.type);
+  if(S.task)p.set("task",S.task);
+  return "/api/list?"+p.toString();
+}
+async function loadList(silent){
+  try{
+    const d=await(await fetch(listURL(),{cache:"no-store"})).json();
+    PAGE=d;PAGE_MAP={};d.files.forEach(f=>PAGE_MAP[f.key]=f);
+    if(d.page<S.page)S.page=d.page;              /* server clamped the page */
+    renderList();
+    if(!firstLoadDone&&!STATIC){firstLoadDone=true}
+  }catch(e){
+    if(!silent&&!STATIC&&firstLoadDone)snack("Connection to explorer.py lost — retrying…","Retry",()=>loadList());
+    if(!PAGE&&!STATIC)renderError();
+  }
+}
+async function loadMeta(){
+  try{
+    const d=await(await fetch("/api/files?max=0",{cache:"no-store"})).json();
+    if(STATIC){   /* live feed reachable from this origin — offer manual recovery */
+      if(d&&d.server&&d.server.pid){
+        if(!STATIC_LIVE){STATIC_LIVE=true;renderStatic(true);
+          $("#ftInfo").textContent="live explorer reachable on this origin — click Open live view"}
+      }
+      return;
+    }
+    META=d;
+    renderStats();renderTasks();renderChips();renderPill();
+    const sv=d.server,up=Date.now()/1000-sv.started_epoch;
+    $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · inventory built ${d.inventory_built}`;
+    if(lastBuilt&&d.inventory_built&&d.inventory_built!==lastBuilt&&firstLoadDone){
+      loadList(true);                            /* files changed — silently refresh the page */
+    }
+    lastBuilt=d.inventory_built||"";
+    firstLoadDone=true;
+  }catch(e){
+    if(e instanceof SyntaxError)STATIC=true;     /* origin answered, but not explorer.py JSON */
+    $("#ftInfo").textContent=STATIC?"static copy — explorer.py is not serving this page":"connection to explorer.py lost";
+    if(STATIC){
+      if(STATIC_LIVE){STATIC_LIVE=false;renderStatic(false)}
+      else if(!firstLoadDone)renderStatic(false);
+      if(!RECOVER_ARMED&&location.protocol!=="file:"){RECOVER_ARMED=true;setTimeout(loadMeta,RECOVER_MS)}
+    }else{
+      if(!firstLoadDone)renderError();
+      snack("Connection to explorer.py lost — retrying…","Retry",loadMeta);
+    }
+  }
+}
+
+/* ================= states ================= */
+function renderError(){
+  $("#listbody").innerHTML=`<div class="empty">
+    <div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div>
+    <div class="t">Failed to load data from explorer.py</div>
+    <div class="h">server not responding — the connection may be temporarily down</div>
+    <button class="btn" id="retryBtn">${I("down")}Retry</button></div>`;
+  $("#pager").hidden=true;
+  $("#retryBtn").onclick=()=>{$("#listbody").innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;loadMeta();loadList()};
+}
+function renderStatic(live){  /* static-copy mode — informational banner, never an error;
+                                 manual live-recovery: probe finds explorer.py on this origin ->
+                                 "Open live view" button; the page NEVER auto-navigates */
+  $("#listbody").innerHTML=`<div class="empty">
+    <div class="e" style="background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)">${I("info")}</div>
+    <div class="t">${live?"Static copy — live explorer reachable":"Static copy — live data unavailable"}</div>
+    ${live?`<div class="h">explorer.py answered from this origin — the live Task Files Explorer is one click away</div>
+    <button class="btn" id="openLiveBtn">${I("open")}Open live view</button>`
+    :`<div class="h">this page was opened as a plain file, without explorer.py — the /api feeds behind the tiles, task rail, and search do not exist on this origin</div>
+    <div class="h">the live Task Files Explorer is served at the preview URL root while a session is running</div>`}</div>`;
+  $("#pager").hidden=true;$("#listhead").innerHTML="";
+  if(live)$("#openLiveBtn").onclick=goLive;
+}
+
+/* ================= copy path ================= */
+async function copyPath(f){
+  if(!f)return;
+  let base="";
+  if(META&&META.roots){
+    const lbl=f.key.split("/")[0];
+    const r=META.roots.find(x=>x.label===lbl);
+    if(r&&r.path)base=r.path.replace(/\/+$/,"")+"/";
+  }
+  const p=base?base+f.rel:f.key;   /* f.key = "<label>/<rel>" — the server-side label path */
+  let ok=true;
   try{await navigator.clipboard.writeText(p)}catch(e){ok=false;
     try{const ta=document.createElement("textarea");ta.value=p;ta.style.position="fixed";ta.style.opacity="0";
       document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok=true}catch(e2){}}
-  snack(ok?"Path copied: "+p:"Failed to copy the path")}
-
-function findFile(key){for(const r of DATA.roots){const f=r.files.find(x=>x.key===key);if(f)return f}return null}
+  snack(ok?"Path copied: "+p:"Failed to copy the path");
+}
 
 /* ================= markdown mini-renderer ================= */
 function md(src){const lines=src.split("\n");const out=[];let inCode=false,cb=[],inList=false;
@@ -993,7 +909,6 @@ function md(src){const lines=src.split("\n");const out=[];let inCode=false,cb=[]
     out.push("<p>"+inline(l)+"</p>")}
   if(inList)out.push("</ul>");if(inCode)out.push("<pre>"+esc(cb.join("\n"))+"</pre>");
   return out.join("\n")}
-
 function hlJSON(src){try{src=JSON.stringify(JSON.parse(src),null,2)}catch(e){}
   return esc(src)
     .replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g,(m,s,c)=>c?`<span class="k">${s}</span>${c}`:`<span class="s2">${s}</span>`)
@@ -1005,7 +920,6 @@ function openModal(){lastFocus=document.activeElement;
   $("#modal").classList.add("open");$("#mClose").focus()}
 function closeModal(){$("#modal").classList.remove("open");
   if(lastFocus&&lastFocus.focus)lastFocus.focus()}
-
 async function openPreview(f){
   const cls=classFor(f);
   $("#mIconWrap").className="micon t-"+cls;
@@ -1015,24 +929,22 @@ async function openPreview(f){
   $("#mDl").href=f.href+"?dl=1";$("#mDl").setAttribute("download",f.name);
   $("#mCopy").onclick=()=>copyPath(f);
   const b=$("#mBody");
-  b.innerHTML=`<div class="loadcard"><div class="lic">${I("down")}</div><p>loading preview…</p>
-    <div class="wavy wavy--mini"><svg class="w1" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p1"/></svg><svg class="w2" viewBox="0 0 240 12" preserveAspectRatio="none"><path class="p2"/></svg></div></div>`;
-  setWave(b);
+  b.innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading preview…</p></div>`;
   openModal();
   const e=f.ext?.toLowerCase()||"";
   try{
     if(f.type==="img"){b.innerHTML=`<img src="${f.href}" alt="${esc(f.name)}">`;return}
     if(e==="pdf"){b.innerHTML=`<iframe src="${f.href}" title="pdf"></iframe>`;return}
     if(["docx","pptx","xlsx","xls","doc","ppt","skill","zip","tar","gz"].includes(e)||f.type==="office"||f.type==="pkg"){
-      b.innerHTML=`<div class="loadcard"><div class="lic t-${cls}">${I(iconFor(f))}</div>
+      b.innerHTML=`<div class="loadcard"><div class="ftile t-${cls}">${I(iconFor(f))}</div>
       <p>Format <b>${esc((e||f.type).toUpperCase())}</b> has no direct browser preview.<br>
       .skill = skill package (zip) · office = open in the respective application.</p>
-      <a class="btn btn--filled state" href="${f.href}" download="${esc(f.name)}">${I("down")}Download ${esc(f.name)}</a></div>`;return}
+      <a class="btn" href="${f.href}" download="${esc(f.name)}">${I("down")}Download ${esc(f.name)}</a></div>`;return}
     const t=await(await fetch(f.href,{cache:"no-store"})).text();
     if(e==="md"){b.innerHTML=`<div class="md">${md(t)}</div>`;return}
     if(e==="json"){b.innerHTML=`<pre>${hlJSON(t)}</pre>`;return}
     b.innerHTML=`<pre>${esc(t.slice(0,200000))}</pre>`;
-  }catch(err){b.innerHTML=`<div class="loadcard"><div class="lic" style="background:var(--md-error-container);color:var(--md-on-error-container)">${I("warn")}</div><p>Failed to load the preview: ${esc(err.message)}</p></div>`}}
+  }catch(err){b.innerHTML=`<div class="loadcard"><div class="ftile" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div><p>Failed to load the preview: ${esc(err.message)}</p></div>`}}
 
 /* ================= snackbar ================= */
 let snackTimer=null;
@@ -1044,62 +956,43 @@ function snack(msg,actLabel,actFn){const el=$("#snack");
   el.classList.add("show");
   clearTimeout(snackTimer);snackTimer=setTimeout(()=>el.classList.remove("show"),5000)}
 
-/* ================= ripple engine ================= */
-document.addEventListener("pointerdown",e=>{
-  const host=e.target.closest(".state");
-  if(!host||!host.style)return;
-  const r=host.getBoundingClientRect(),d=Math.max(r.width,r.height)*2;
-  const s=document.createElement("span");s.className="ripple";
-  s.style.cssText=`width:${d}px;height:${d}px;left:${e.clientX-r.left-d/2}px;top:${e.clientY-r.top-d/2}px`;
-  host.appendChild(s);setTimeout(()=>s.remove(),600)},{passive:true});
-
-/* ================= wavy progress ================= */
-function makeWave(amp){return "M0 6 "+Array.from({length:4},(_,i)=>
-  `q30 ${(i%2?-amp:amp)} 60 0`).join(" ")}
-function setWave(root){root.querySelectorAll(".wavy svg path").forEach(p=>p.setAttribute("d",makeWave(9)))}
-setWave(document);
-function pageWaveDone(){const w=$("#pageWave");if(!w)return;
-  w.classList.add("done");setTimeout(()=>w.remove(),600)}
-
 /* ================= controls ================= */
-let qTimer=null;                    /* ~200 ms search debounce */
+let qTimer=null;                    /* ~200 ms search debounce (server-side) */
 $("#q").oninput=e=>{const v=e.target.value;
   $("#qClear").hidden=!v;
-  clearTimeout(qTimer);qTimer=setTimeout(()=>{S.q=v;resetChunks();renderFiles()},200)};
+  clearTimeout(qTimer);qTimer=setTimeout(()=>{S.q=v;S.page=1;loadList()},200)};
 $("#qClear").onclick=()=>{clearTimeout(qTimer);S.q="";$("#q").value="";
-  $("#qClear").hidden=true;resetChunks();renderFiles();$("#q").focus()};
-$$(".fchip[data-type]").forEach(c=>c.onclick=()=>{S.type=c.dataset.type;
-  $$(".fchip[data-type]").forEach(x=>x.classList.toggle("on",x.dataset.type===S.type));
-  resetChunks();renderFiles()});
+  $("#qClear").hidden=true;S.page=1;loadList();$("#q").focus()};
+$$(".fchip[data-type]").forEach(c=>c.onclick=()=>{S.type=c.dataset.type;S.page=1;renderChips();loadList()});
+$$(".seg[data-root] button, .seg[aria-label='Location'] button").forEach(b=>b.onclick=()=>{
+  S.root=b.dataset.root;S.page=1;
+  $$(".seg[aria-label='Location'] button").forEach(x=>x.classList.toggle("on",x.dataset.root===S.root));
+  loadList()});
 function updateSortUI(){$$(".sortbtn").forEach(b=>{const on=b.dataset.col===S.sort.col;
   b.classList.toggle("on",on);b.classList.toggle("asc",on&&S.sort.dir==="asc");
-  b.setAttribute("aria-pressed",on?"true":"false");
-  b.title="Sort by "+({name:"name",size:"size",mtime:"time"})[b.dataset.col]+
-    " — "+(on?(S.sort.dir==="asc"?"ascending":"descending"):"click to activate")})}
+  b.setAttribute("aria-pressed",on?"true":"false")})}
 $$(".sortbtn").forEach(b=>b.onclick=()=>{
   const col=b.dataset.col;
   if(S.sort.col===col)S.sort.dir=S.sort.dir==="asc"?"desc":"asc";
   else S.sort={col:col,dir:col==="mtime"?"desc":"asc"};
-  updateSortUI();renderFiles()});
+  S.page=1;updateSortUI();loadList()});
 updateSortUI();
 $("#vGrid").onclick=()=>{S.view="grid";$("#vGrid").classList.add("on");$("#vGrid").setAttribute("aria-pressed","true");
-  $("#vList").classList.remove("on");$("#vList").setAttribute("aria-pressed","false");renderFiles()};
+  $("#vList").classList.remove("on");$("#vList").setAttribute("aria-pressed","false");renderList()};
 $("#vList").onclick=()=>{S.view="list";$("#vList").classList.add("on");$("#vList").setAttribute("aria-pressed","true");
-  $("#vGrid").classList.remove("on");$("#vGrid").setAttribute("aria-pressed","false");renderFiles()};
-/* #roots event delegation — one handler for hundreds of cards (memory & listener efficient) */
-$("#roots").addEventListener("click",e=>{
+  $("#vGrid").classList.remove("on");$("#vGrid").setAttribute("aria-pressed","false");renderList()};
+/* event delegation for the file list */
+$("#listbody").addEventListener("click",e=>{
   const cp=e.target.closest(".fcpy");
-  if(cp){copyPath(findFile(cp.dataset.copy));return}
-  if(e.target.closest(".fdl"))return;                 /* let the download link do its job */
-  const lm=e.target.closest(".loadmore");
-  if(lm){loadMore(lm.dataset.root);return}
+  if(cp){copyPath(PAGE_MAP[cp.dataset.copy]);return}
+  if(e.target.closest(".fact a"))return;          /* let the download link do its job */
   const c=e.target.closest(".fcard");
-  if(c){const f=findFile(c.dataset.key);if(f)openPreview(f)}});
-$("#roots").addEventListener("keydown",e=>{
+  if(c){const f=PAGE_MAP[c.dataset.key];if(f)openPreview(f)}});
+$("#listbody").addEventListener("keydown",e=>{
   if(e.key!=="Enter"&&e.key!==" ")return;
-  if(e.target.closest("button,a,input,select"))return; /* child controls have their own behavior */
+  if(e.target.closest("button,a,input,select"))return;
   const c=e.target.closest(".fcard");
-  if(c){e.preventDefault();const f=findFile(c.dataset.key);if(f)openPreview(f)}});
+  if(c){e.preventDefault();const f=PAGE_MAP[c.dataset.key];if(f)openPreview(f)}});
 $("#mClose").onclick=closeModal;
 $("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};
 document.addEventListener("keydown",e=>{
@@ -1108,21 +1001,21 @@ document.addEventListener("keydown",e=>{
 /* theme — adaptive: follow the system until the user picks manually (persisted) */
 function applyTheme(t,persist){document.documentElement.dataset.theme=t;
   $("#themeIcon").innerHTML=`<use href="#i-${t==="dark"?"moon":"sun"}"/>`;
-  if(persist!==false){try{localStorage.setItem("md3-theme",t)}catch(e){}}}
+  if(persist!==false){try{localStorage.setItem("miuix-theme",t);
+    localStorage.removeItem("md3-theme")}catch(e){}}}
 $("#themeBtn").onclick=()=>{
   applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true)};
 applyTheme(document.documentElement.dataset.theme,false);
 try{const mq=window.matchMedia("(prefers-color-scheme: light)");
-  const onSys=e=>{let saved=null;try{saved=localStorage.getItem("md3-theme")}catch(_){}
+  const onSys=e=>{let saved=null;try{saved=localStorage.getItem("miuix-theme")}catch(_){}
     if(saved!=="dark"&&saved!=="light")applyTheme(e.matches?"light":"dark",false)};
   if(mq.addEventListener)mq.addEventListener("change",onSys);
   else if(mq.addListener)mq.addListener(onSys)}catch(_){}
 
-/* FAB + app bar elevation on scroll (MD3 top app bar behavior) */
-const APPBAR=document.querySelector(".appbar");
+/* FAB + app bar elevation on scroll */
 window.addEventListener("scroll",()=>{
   $("#fabTop").classList.toggle("show",window.scrollY>600);
-  APPBAR.classList.toggle("scrolled",window.scrollY>8)},{passive:true});
+  $("#appbar").classList.toggle("scrolled",window.scrollY>8)},{passive:true});
 $("#fabTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
 
 /* ================= data loop ================= */
@@ -1131,42 +1024,24 @@ $("#fabTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
    an origin that answers /api/files with non-JSON (platform file preview,
    downloaded copy) means the page is a static copy running without its server. */
 let STATIC=(location.protocol==="file:")||(location.pathname!=="/"&&location.pathname!=="/index.html");
-/* manual live-recovery — a static copy on an http(s) origin probes /api/files
-   once RECOVER_MS after detection (then rides the 10 s loop); an explorer.py JSON answer
-   upgrades the static banner with an "Open live view" button. Never auto-navigates. */
+/* manual live-recovery — a static copy on an http(s) origin probes the api
+   once RECOVER_MS after detection (then rides the 10 s loop); an explorer.py
+   JSON answer upgrades the static banner with an "Open live view" button. Never auto-navigates. */
 const RECOVER_MS=1000;
 let STATIC_LIVE=false,RECOVER_ARMED=false;
 function goLive(){const u=new URL("/",location.href).href;   /* absolute: the top window may be another origin */
   try{top.location.replace(u)}   /* platform file preview at top level: recover the whole window */
   catch(e){try{location.replace(u)}catch(_){}}}   /* sandboxed/cross-origin frame: at least recover this frame */
-async function load(){try{
-    const d=await(await fetch("/api/files",{cache:"no-store"})).json();
-    if(STATIC){   /* live feed reachable from this origin — offer manual recovery instead of rendering a half-live copy at a preview path */
-      if(d&&d.server&&d.server.pid){
-        if(!STATIC_LIVE){STATIC_LIVE=true;renderStatic(true);
-          $("#ftInfo").textContent="live explorer reachable on this origin — click Open live view"}
-        if(!firstLoadDone){firstLoadDone=true;pageWaveDone()}}
-      else if(!firstLoadDone)renderStatic(false);   /* JSON, but not explorer.py — keep the informational banner */
-      return}
-    const h=JSON.stringify(d);
-    if(h!==lastHash){lastHash=h;DATA=d;renderStats();renderTasks();renderChips();renderFiles()}
-    if(!firstLoadDone){firstLoadDone=true;pageWaveDone()}
-    const sv=d.server,up=Date.now()/1000-sv.started_epoch;
-    $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · built ${d.generated}`;
-  }catch(e){
-    if(e instanceof SyntaxError)STATIC=true;   /* origin answered, but not with explorer.py JSON -> static host */
-    $("#ftInfo").textContent=STATIC?"static copy — explorer.py is not serving this page":"connection to explorer.py lost";
-    if(STATIC){                                    /* manage the manual-recovery banner */
-      if(STATIC_LIVE){STATIC_LIVE=false;renderStatic(false)}   /* live went away — drop the button, never leave it dead */
-      else if(!firstLoadDone)renderStatic(false);               /* never succeeded -> informational banner */
-      if(!RECOVER_ARMED&&location.protocol!=="file:"){RECOVER_ARMED=true;setTimeout(load,RECOVER_MS)}}  /* the one late probe */
-    else{
-      if(!firstLoadDone)renderError();             /* never succeeded on a live-looking path -> error state */
-      snack("Connection to explorer.py lost — retrying…","Retry",load)}}}  /* no snackbar loop in static mode */
-setInterval(load,10000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
+
+setInterval(loadMeta,10000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){loadMeta();if(firstLoadDone&&!STATIC)loadList(true)}});
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
-load();
+loadMeta();
+if(!STATIC)loadList();else renderStatic(false);
+
 </script>
 </body>
 </html>
+
+
+

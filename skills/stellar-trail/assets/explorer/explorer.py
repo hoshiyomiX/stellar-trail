@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.4 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.5 (preview-popup replacement)
 =========================================================================
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
@@ -13,12 +13,29 @@ Endpoints:
                              skill block (stellar-trail version, watcher),
                              a "guard" block (live vs canonical version,
                              watcher liveness, and THIS process's code
-                             freshness — stamp vs the deployed source, the
-                             same content-exact check explorer.sh uses) and
-                             a "resets" block (boot resets + restore
-                             counters parsed from .zscripts/boot.log and
-                             .zscripts/explorer.log; missing logs = empty
-                             counters, never an error)
+                             freshness) and a "resets" block (boot resets +
+                             restore counters; missing logs = empty
+                             counters, never an error).
+                             v1.5: the per-root "files" arrays are CAPPED
+                             at ?max= entries per root (default 1000) —
+                             each root also carries files_total +
+                             files_truncated so a client can page. ?max=0
+                             omits the arrays entirely (slim poll mode);
+                             stats carries type_counts; roots carry
+                             files_total regardless of the cap.
+  GET /api/list              v1.5: paginated file list with SERVER-SIDE
+                             filter + sort — the scalable browsing path for
+                             large inventories (the UI polls a slim
+                             /api/files?max=0 for tiles and pages through
+                             /api/list for the cards):
+                               root=download|archive|all   (default all)
+                               q=<substring>               (name/path)
+                               type=doc|pdf|img|data|pkg|code|office|other|all
+                               task=<task id>              (worklog mapping)
+                               sort=mtime|name|size        (default mtime)
+                               dir=asc|desc                (default desc)
+                               page=1..                    (1-based)
+                               per_page=1..500             (default 100)
   GET /api/tasks             JSON: the Session Task list parsed from
                              memory/SESSION-STATE.md (Active + Sealed
                              tables + checkpoint line; missing file =
@@ -27,6 +44,21 @@ Endpoints:
                              add ?dl=1 to send it as an ATTACHMENT
                              (forced download via Content-Disposition: attachment)
   GET /healthz               health check for explorer.sh / watcher.sh
+
+v1.5 scalability contract (Task 30, evidence 2026-10-23 — v1.4 paid
+~420 ms + 4.9 MB PER /api/files hit at 22k files, re-paid every 10 s poll;
+parse_tasks alone scaled at ~44 ms per task-section per 22k files):
+  - ONE cached inventory shared by /api/files + /api/list; at most one
+    rebuild per CACHE_TTL (single-builder lock — a burst of requests
+    shares one rebuild, never queues one rebuild per request).
+  - parse_tasks uses a token index (O(worklog + files x tasks) set
+    lookups) instead of per-(file, task) substring scans. Semantics
+    note: a file maps to a task when its name or label/rel path appears
+    as a whole token in the task section (how names appear in the
+    markdown) — the old substring scan also caught names glued inside
+    longer words, which does not occur in the real format.
+  - /healthz and /file/ never touch the inventory — they stay O(1) and
+    responsive even while a rebuild is in flight.
 
 At startup the server writes .zscripts/explorer.code-stamp (md5 of its own
 source) — the freshness anchor explorer.sh compares. The guardian block
@@ -40,6 +72,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote
@@ -52,7 +85,7 @@ STAMP = os.path.join(ZDIR, "explorer.code-stamp")  # v1.4: md5 of the RUNNING se
 WORKLOG = os.path.join(PROJECT, "worklog.md")
 SESSION_STATE = os.path.join(PROJECT, "memory", "SESSION-STATE.md")
 
-# label -> absolute path (the label is used in /file/<label>/... URLs)
+# label -> absolute path (the label is used in /file/<label>/ URLs)
 ROOTS = [
     ("download", os.path.join(PROJECT, "download")),
     ("archive", os.path.join(PROJECT, "archive")),
@@ -66,6 +99,11 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
 STARTED = time.time()
 
 MAX_DEPTH = 4  # walk depth limit per root
+
+# v1.5 scalability knobs
+CACHE_TTL = 3.0                 # seconds an inventory is served before a rebuild
+API_FILES_DEFAULT_MAX = 1000    # default per-root cap on /api/files arrays
+API_LIST_MAX_PER_PAGE = 500     # hard ceiling for /api/list per_page
 
 
 def ftype(ext: str) -> str:
@@ -135,9 +173,23 @@ def walk_root(label: str, root: str):
     return files
 
 
+# v1.5: filename-candidate tokenizer — keep the chars that occur in real
+# artifact names; markdown structure (spaces, backticks, parens, commas,
+# pipes, quotes) is the delimiter set.
+_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9_./@+-]+")
+
+
 def parse_tasks(roots):
     """Parse 'Task ID: n / Task: ...' sections from worklog.md, then map each
-    file to the LAST task that mentions its file name."""
+    file to the LAST task that mentions its file name.
+
+    v1.5 token-index algorithm (was: per-(file, task) substring scans —
+    O(tasks x files x section-bytes), ~44 ms per task per 22k files, so an
+    un-rotated 30-section worklog paid ~1.3 s per /api/files request):
+    tokenize each section once (O(worklog bytes)), then one O(1) set
+    lookup per (file, task). A file maps when its name or label/rel path
+    appears as a WHOLE TOKEN in the section — exactly how file names occur
+    in the worklog's markdown (bullets, backticks, parens)."""
     try:
         with open(WORKLOG, encoding="utf-8", errors="replace") as f:
             text = f.read()
@@ -150,13 +202,14 @@ def parse_tasks(roots):
         if m_id and m_ti:
             title = m_ti.group(1).strip()
             title = re.sub(r"\s+", " ", title)[:90]
-            tasks.append({"id": m_id.group(1), "title": title, "sec": sec})
+            tasks.append({"id": m_id.group(1), "title": title,
+                          "sec": sec, "tokens": None})
     all_files = [f for r in roots for f in r["files"]]
     mapping = {}
     for t in tasks:  # chronological order; the later task overwrites -> wins
+        t["tokens"] = set(m for m in _TOKEN_SPLIT.split(t["sec"]) if len(m) > 2)
         hits = [f["key"] for f in all_files
-                if os.path.basename(f["key"]) in t["sec"]
-                or f["key"] in t["sec"]]
+                if f["name"] in t["tokens"] or f["key"] in t["tokens"]]
         t["count"] = len(hits)
         for k in hits:
             mapping[k] = t["id"]
@@ -371,17 +424,80 @@ def session_tasks():
     return out
 
 
-def build_api():
+def build_inventory():
+    """v1.5: the expensive part — full walk + task mapping + type counts —
+    built ONCE per CACHE_TTL and shared by every /api/files and /api/list
+    request. The returned dict is treated as READ-ONLY by all consumers
+    (handlers copy/slice; they never mutate)."""
     roots = []
     total_n = total_s = 0
     last_m = 0
+    type_counts = {}
     for label, path in ROOTS:
         files = walk_root(label, path)
-        roots.append({"label": label, "path": path, "files": files})
+        roots.append({"label": label, "path": path, "files": files,
+                      "files_total": len(files)})
         total_n += len(files)
         total_s += sum(f["size"] for f in files)
-        last_m = max([last_m] + [f["mtime"] for f in files])
+        if files:
+            last_m = max([last_m] + [f["mtime"] for f in files])
+        for f in files:
+            type_counts[f["type"]] = type_counts.get(f["type"], 0) + 1
     tasks = parse_tasks(roots)
+    return {
+        "built": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "built_epoch": time.time(),
+        "stats": {
+            "total_files": total_n,
+            "total_size": total_s,
+            "roots": len(roots),
+            "last_modified": last_m or None,
+            "type_counts": type_counts,
+        },
+        "roots": roots,
+        "tasks": tasks,
+    }
+
+
+_cache = {"data": None, "built_at": 0.0}
+_cache_lock = threading.Lock()
+
+
+def get_inventory():
+    """v1.5: cached inventory accessor — at most ONE rebuild per CACHE_TTL.
+    A request inside the TTL gets the cached copy instantly; concurrent
+    requests after expiry share a single rebuild (single-builder lock —
+    no rebuild stampede, no per-request re-walk). The first build ever
+    (cold cache) is the only synchronous wait."""
+    now = time.time()
+    c = _cache["data"]
+    if c is not None and now - _cache["built_at"] < CACHE_TTL:
+        return c
+    with _cache_lock:
+        if _cache["data"] is not None and time.time() - _cache["built_at"] < CACHE_TTL:
+            return _cache["data"]  # another thread rebuilt it while we waited
+        data = build_inventory()
+        _cache["data"] = data
+        _cache["built_at"] = time.time()
+        return data
+
+
+def api_files_payload(inv, max_per_root):
+    """/api/files response — shape-compatible with v1.4 plus the v1.5 cap
+    fields. max_per_root < 0 = the default cap; 0 = omit the arrays."""
+    if max_per_root is None:
+        max_per_root = API_FILES_DEFAULT_MAX
+    roots_out = []
+    for r in inv["roots"]:
+        entry = {"label": r["label"], "path": r["path"],
+                 "files_total": r["files_total"]}
+        if max_per_root > 0:
+            entry["files"] = r["files"][:max_per_root]
+            entry["files_truncated"] = r["files_total"] > max_per_root
+        else:
+            entry["files"] = []
+            entry["files_truncated"] = r["files_total"] > 0
+        roots_out.append(entry)
     return {
         "server": {
             "pid": os.getpid(),
@@ -390,17 +506,73 @@ def build_api():
             "port": PORT,
         },
         "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "stats": {
-            "total_files": total_n,
-            "total_size": total_s,
-            "roots": len(roots),
-            "last_modified": last_m or None,
-        },
-        "roots": roots,
-        "tasks": tasks,
+        "inventory_built": inv["built"],
+        "stats": inv["stats"],
+        "roots": roots_out,
+        "tasks": inv["tasks"],
         "skill": skill_info(),   # v1.3 compat (kept); the UI tiles read "guard"
         "guard": guard_info(),   # v1.4: Guard Status tile
         "resets": reset_restore_info(),  # v1.4: Session Reset & Restore tile
+    }
+
+
+def _int_arg(query, key, default, lo, hi):
+    try:
+        v = int(query.get(key, [str(default)])[0])
+    except (KeyError, ValueError):
+        v = default
+    return max(lo, min(hi, v))
+
+
+_SORT_KEYS = {
+    "name": lambda f: (f["name"].lower(), f["mtime"]),
+    "size": lambda f: (f["size"], f["name"].lower()),
+    "mtime": lambda f: (f["mtime"], f["name"].lower()),
+}
+
+
+def api_list_payload(inv, query):
+    """v1.5: /api/list — paginated, filtered, sorted file list served from
+    the shared cached inventory. This is the scalable browsing path: the
+    response is bounded by per_page (<= 500), never by the inventory size."""
+    root = query.get("root", ["all"])[0]
+    if root not in ROOTMAP and root != "all":
+        root = "all"
+    q = query.get("q", [""])[0].strip().lower()
+    type_f = query.get("type", ["all"])[0]
+    if type_f not in ("doc", "pdf", "img", "data", "pkg", "code", "office", "other"):
+        type_f = "all"
+    task = query.get("task", [""])[0].strip()
+    sort_col = query.get("sort", ["mtime"])[0]
+    if sort_col not in _SORT_KEYS:
+        sort_col = "mtime"
+    sort_dir = query.get("dir", ["desc"])[0]
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
+    per_page = _int_arg(query, "per_page", 100, 1, API_LIST_MAX_PER_PAGE)
+
+    files = [f for r in inv["roots"] if root == "all" or r["label"] == root
+             for f in r["files"]]
+    if type_f != "all":
+        files = [f for f in files if f["type"] == type_f]
+    if task:
+        files = [f for f in files if f.get("task") == task]
+    if q:
+        files = [f for f in files
+                 if q in f["rel"].lower() or q in f["name"].lower()]
+    files.sort(key=_SORT_KEYS[sort_col], reverse=(sort_dir == "desc"))
+
+    total = len(files)
+    pages = max(1, -(-total // per_page))
+    page = _int_arg(query, "page", 1, 1, pages)
+    start = (page - 1) * per_page
+    return {
+        "root": root, "q": q, "type": type_f, "task": task,
+        "sort": sort_col, "dir": sort_dir,
+        "page": page, "per_page": per_page, "pages": pages, "total": total,
+        "files": files[start:start + per_page],
+        "inventory_built": inv["built"],
+        "server_pid": os.getpid(),
     }
 
 
@@ -443,6 +615,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         path, _, query = self.path.partition("?")
+        q = parse_qs(query, keep_blank_values=True)
         if path == "/healthz":
             self._send(200, "ok")
             return
@@ -454,7 +627,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, "UI index.html not found")
             return
         if path == "/api/files":
-            self._send(200, json.dumps(build_api(), ensure_ascii=False),
+            max_per_root = _int_arg(q, "max", API_FILES_DEFAULT_MAX, 0, 100000)
+            inv = get_inventory()
+            self._send(200, json.dumps(api_files_payload(inv, max_per_root),
+                                       ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+        if path == "/api/list":
+            inv = get_inventory()
+            self._send(200, json.dumps(api_list_payload(inv, q),
+                                       ensure_ascii=False),
                        "application/json; charset=utf-8")
             return
         if path == "/api/tasks":

@@ -21,7 +21,7 @@ Stellar Trail 🌠 is a mandatory six-phase execution protocol and persistent me
 
 ## Skill Version(s):
 
-5.4.0 (source: release metadata)
+5.4.1 (source: release metadata)
 
 ## Ethical Considerations:
 
