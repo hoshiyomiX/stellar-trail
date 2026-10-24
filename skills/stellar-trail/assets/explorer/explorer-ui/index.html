@@ -13,7 +13,7 @@ if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-co
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MIUIX (HyperOS) — Task Files Explorer UI v4.3 · zero-dependency
+   MIUIX (HyperOS) — Task Files Explorer UI v4.3.1 · zero-dependency
    (no CDN, no web font)
    Design system ported from compose-miuix-ui/miuix (Apache-2.0):
    the color roles below are VERBATIM from miuix-ui
@@ -529,7 +529,7 @@ footer b{color:var(--mx-text-2);font-weight:600}
     <div class="appbar-sub">Miuix · download/ + archive/ dashboard</div>
   </div>
   <div class="appbar-spacer"></div>
-  <span class="chip chip--primary" id="verChip" title="stellar-trail version"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">v?</span></span>
+  <span class="chip chip--primary" id="verChip" title="UI build — shows the stellar-trail version once explorer.py answers"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">UI 4.3.1</span></span>
   <span class="chip" id="clock" title="local time"><svg class="ic"><use href="#i-clock"/></svg>--:--:--</span>
   <span class="chip chip--warn" id="connChip" hidden title="explorer.py connection state"><svg class="ic"><use href="#i-restart"/></svg><span id="connTxt">reconnecting…</span></span>
   <button class="iconbtn" id="scanBtn" title="Rescan now — refresh the file inventory from the server" aria-label="Rescan now">
@@ -609,7 +609,7 @@ footer b{color:var(--mx-text-2);font-weight:600}
 
 <footer>
   Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
-  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.3 · zero-dependency · <span id="ftInfo">loading…</span>
+  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.3.1 · zero-dependency · <span id="ftInfo">loading…</span>
 </footer>
 
 <!-- FAB scroll-to-top -->
@@ -700,7 +700,7 @@ const TYPES=["doc","pdf","img","data","pkg","code","office","other"];
 /* ================= state ================= */
 const S={q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1};
 const PER_PAGE=100;
-let META=null,PAGE=null,PAGE_MAP={},lastSig="",firstLoadDone=false,lastFocus=null,TASKS_DONE=false;
+let META=null,PAGE=null,PAGE_MAP={},lastSig="",firstLoadDone=false,lastFocus=null,TASKS_DONE=false,bootWatchdogFired=false;
 
 /* ================= icon & tile mapping ================= */
 const EXTICON={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",json:"data",csv:"data",
@@ -711,26 +711,49 @@ const TYPEICON={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",
 const iconFor=f=>EXTICON[f.ext?.toLowerCase()]||TYPEICON[f.type]||"file";
 const classFor=f=>EXTICON[f.ext?.toLowerCase()]||f.type||"other";
 
-/* ================= v4.3 fetch resilience =================
+/* ================= v4.3 fetch resilience · v4.3.1 engine-proof deadlines =================
    The freeze class (Task 37, evidence 2026-10-24): a suspended sandbox
    answers NEITHER data NOR errors, so v4.2's no-timeout polls stacked
    until the browser's per-origin connection pool exhausted (HTTP/1.1
    ~6) and the popup froze totally — no error, no banner, no recovery
    until the next chat message woke the sandbox. v4.3: every fetch
-   carries an AbortController deadline, the poll loop is in-flight-
-   guarded and self-scheduling with failure backoff, an honest
-   reconnecting state replaces the silent hang, and visibility/focus
-   wake probes restore full-speed scanning the moment the sandbox
-   answers again (the file scan re-enables itself). */
+   carries a deadline, the poll loop is in-flight-guarded and self-
+   scheduling with failure backoff, an honest reconnecting state
+   replaces the silent hang, and visibility/focus wake probes restore
+   full-speed scanning the moment the sandbox answers again (the file
+   scan re-enables itself).
+   v4.3.1 (owner retest 2026-10-24: "masih hang saat startup — hanya
+   time di header yang masih jalan"): v4.3's deadline existed ONLY via
+   AbortController, so engines without it (the older Android WebView
+   class) hung the two boot fetches FOREVER — the clock kept ticking
+   (it is independent), the spinner spun eternally, no error, no chip:
+   the freeze reborn at STARTUP, on exactly the engine class the
+   retest used. v4.3.1 makes the deadline ENGINE-INDEPENDENT: a
+   Promise.race backstop rejects at ms+250 even when abort() is
+   impossible, engines that cannot abort stop auto-polling after 3
+   failures (each unabortable poll holds a socket — the 6-slot pool
+   must survive for the wake probes), and a boot watchdog guarantees
+   the honest reconnecting state within 8 s no matter what the engine
+   does to the fetches. */
 const FETCH_TIMEOUT_MS=5000;                    /* per-request deadline */
 const POLL_BASE_MS=10000;                       /* normal scan cadence (the v1.x server contract) */
 const POLL_BACKOFF=[10000,20000,40000,60000];   /* consecutive-failure backoff, 60 s cap */
+const CAN_ABORT=(typeof AbortController!=="undefined");  /* v4.3.1: engine capability, probed once */
 let pollTimer=null,metaInFlight=false,connFails=0,lastScanTxt="—";
-function fetchT(url,ms){                        /* timeout-wrapped fetch (degrades silently on ancient engines) */
-  const ctl=(typeof AbortController!=="undefined")?new AbortController():null;
-  const t=ctl?setTimeout(()=>ctl.abort(),ms||FETCH_TIMEOUT_MS):null;
-  return fetch(url,{cache:"no-store",signal:ctl?ctl.signal:undefined})
+function fetchT(url,ms){                        /* timeout-wrapped fetch — deadline on EVERY engine (v4.3.1) */
+  ms=ms||FETCH_TIMEOUT_MS;
+  const ctl=CAN_ABORT?new AbortController():null;
+  const t=ctl?setTimeout(()=>ctl.abort(),ms):null;
+  const p=fetch(url,{cache:"no-store",signal:ctl?ctl.signal:undefined})
     .finally(()=>{if(t)clearTimeout(t)});
+  /* v4.3.1: never TRUST AbortController alone — engines without it, or
+     with a signal that fails to abort a hung fetch, got NO deadline in
+     v4.3 (the silent-degradation trap). The race backstop rejects at
+     ms+250 regardless of engine; when abort works it fires first and
+     actually frees the socket, making the backstop a no-op. */
+  const bs=new Promise((_,rej)=>{setTimeout(()=>{const e=new Error("signal timed out");e.name="AbortError";rej(e)},ms+250)});
+  bs.catch(()=>{});                             /* rejection owned by the race below — never unhandled */
+  return Promise.race([p,bs]);
 }
 function connUI(state,nextMs){                  /* live | reconnecting — the honest state surface */
   const chip=$("#connChip");
@@ -894,6 +917,8 @@ async function loadMeta(){
     $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · scanned ${st} files · inventory built ${d.inventory_built}`;
     if(changed&&firstLoadDone){
       loadList(true);                            /* data actually changed — silent refresh, no animation replay */
+    }else if(PAGE===null&&bootWatchdogFired){
+      loadList(true);                            /* v4.3.1: cold start into a dead origin — the boot list never completed (on engines that cannot abort, its fetch is STILL pending forever); the first successful meta must (re)load the list or the UI stays on the error card with a healthy footer — caught live by hangtest phase 10 */
     }
     lastSig=sig;
     firstLoadDone=true;
@@ -915,7 +940,8 @@ async function loadMeta(){
     $("#ftInfo").textContent="explorer.py not answering — reconnecting every "+Math.round(ms/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
     if(!firstLoadDone)renderError();
     if(connFails===1)snack("Connection to explorer.py lost — reconnecting…","Retry now",probeNow);   /* first failure announces; the chip carries the state after */
-    schedulePoll(ms);
+    if(CAN_ABORT||connFails<3)schedulePoll(ms);  /* v4.3.1: engines that cannot abort stop auto-polling after 3 failures — every unabortable poll leaves a socket held, and the 6-slot HTTP/1.1 pool must stay alive for the wake probes + Rescan (both still fire: they are the recovery path, and they run when the origin can actually answer) */
+    else connUI("reconnecting",0);               /* chip: 'reconnecting…' — probing continues on focus/visibility/online */
     return false;
   }
 }
@@ -925,7 +951,7 @@ function renderError(){
   $("#listbody").innerHTML=`<div class="empty">
     <div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div>
     <div class="t">Failed to load data from explorer.py</div>
-    <div class="h">server not responding — the connection may be temporarily down</div>
+    <div class="h">server not responding — the connection may be temporarily down · UI v4.3.1</div>
     <button class="btn" id="retryBtn">${I("down")}Retry</button></div>`;
   $("#pager").hidden=true;
   $("#retryBtn").onclick=()=>{$("#listbody").innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;probeNow();loadList()};
@@ -1116,6 +1142,25 @@ window.addEventListener("online",()=>probeNow());     /* v4.3: network is back a
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
 pollOnce();                                           /* v4.3: guarded boot poll — starts the resilient loop */
 if(!STATIC)loadList(true);else renderStatic(false);   /* v4.2: first load renders SILENT — no entrance burst at open (the burst re-fires only on explicit user actions) */
+
+/* v4.3.1: boot watchdog — the ABSOLUTE anti-silent-freeze guarantee.
+   Whatever the engine does to the boot fetches (no AbortController, a
+   signal that refuses to abort, throttled timers — anything), a first
+   load still uncompleted after BOOT_WATCHDOG_MS flips the UI to the
+   honest reconnecting state, un-wedges a stuck in-flight guard, and
+   keeps the probe loop alive. The header clock proves timers run in
+   the foreground — this watchdog is a timer, so it runs too. */
+const BOOT_WATCHDOG_MS=8000;
+setTimeout(()=>{
+  if(bootWatchdogFired||STATIC||firstLoadDone)return;
+  bootWatchdogFired=true;
+  if(metaInFlight)metaInFlight=false;           /* un-wedge the guard so probing can continue */
+  if(!connFails)connFails=1;
+  connUI("reconnecting",POLL_BASE_MS);
+  renderError();
+  $("#ftInfo").textContent="explorer.py not answering — reconnecting every "+Math.round(POLL_BASE_MS/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
+  if(CAN_ABORT||connFails<3)schedulePoll(POLL_BASE_MS);
+},BOOT_WATCHDOG_MS);
 
 /* v4.3: manual Rescan — the owner-visible file-scan switch. Forces a full
    poll (bypassing any backoff), silently refreshes the visible page, and
