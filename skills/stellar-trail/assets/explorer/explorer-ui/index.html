@@ -13,7 +13,7 @@ if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-co
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MIUIX (HyperOS) — Task Files Explorer UI v4.2 · zero-dependency
+   MIUIX (HyperOS) — Task Files Explorer UI v4.3 · zero-dependency
    (no CDN, no web font)
    Design system ported from compose-miuix-ui/miuix (Apache-2.0):
    the color roles below are VERBATIM from miuix-ui
@@ -170,6 +170,8 @@ input{font:inherit;color:inherit}
 }
 .chip .ic{width:14px;height:14px;fill:currentColor;flex:none}
 .chip--primary{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.chip--warn{background:var(--mx-error-container);color:var(--mx-on-error-container)}
+.ic.spinning{animation:spin .8s linear infinite}
 .iconbtn{
   width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
   color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
@@ -529,6 +531,10 @@ footer b{color:var(--mx-text-2);font-weight:600}
   <div class="appbar-spacer"></div>
   <span class="chip chip--primary" id="verChip" title="stellar-trail version"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">v?</span></span>
   <span class="chip" id="clock" title="local time"><svg class="ic"><use href="#i-clock"/></svg>--:--:--</span>
+  <span class="chip chip--warn" id="connChip" hidden title="explorer.py connection state"><svg class="ic"><use href="#i-restart"/></svg><span id="connTxt">reconnecting…</span></span>
+  <button class="iconbtn" id="scanBtn" title="Rescan now — refresh the file inventory from the server" aria-label="Rescan now">
+    <svg class="ic" id="scanIcon"><use href="#i-restart"/></svg>
+  </button>
   <button class="iconbtn" id="themeBtn" title="Toggle dark / light theme" aria-label="Toggle theme">
     <svg class="ic" id="themeIcon"><use href="#i-moon"/></svg>
   </button>
@@ -603,7 +609,7 @@ footer b{color:var(--mx-text-2);font-weight:600}
 
 <footer>
   Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
-  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.1 · zero-dependency · <span id="ftInfo">loading…</span>
+  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.3 · zero-dependency · <span id="ftInfo">loading…</span>
 </footer>
 
 <!-- FAB scroll-to-top -->
@@ -704,6 +710,43 @@ const EXTICON={pdf:"pdf",md:"doc",txt:"doc",rtf:"doc",html:"code",htm:"code",jso
 const TYPEICON={doc:"doc",pdf:"pdf",img:"img",data:"data",pkg:"pkg",code:"code",office:"office",other:"file"};
 const iconFor=f=>EXTICON[f.ext?.toLowerCase()]||TYPEICON[f.type]||"file";
 const classFor=f=>EXTICON[f.ext?.toLowerCase()]||f.type||"other";
+
+/* ================= v4.3 fetch resilience =================
+   The freeze class (Task 37, evidence 2026-10-24): a suspended sandbox
+   answers NEITHER data NOR errors, so v4.2's no-timeout polls stacked
+   until the browser's per-origin connection pool exhausted (HTTP/1.1
+   ~6) and the popup froze totally — no error, no banner, no recovery
+   until the next chat message woke the sandbox. v4.3: every fetch
+   carries an AbortController deadline, the poll loop is in-flight-
+   guarded and self-scheduling with failure backoff, an honest
+   reconnecting state replaces the silent hang, and visibility/focus
+   wake probes restore full-speed scanning the moment the sandbox
+   answers again (the file scan re-enables itself). */
+const FETCH_TIMEOUT_MS=5000;                    /* per-request deadline */
+const POLL_BASE_MS=10000;                       /* normal scan cadence (the v1.x server contract) */
+const POLL_BACKOFF=[10000,20000,40000,60000];   /* consecutive-failure backoff, 60 s cap */
+let pollTimer=null,metaInFlight=false,connFails=0,lastScanTxt="—";
+function fetchT(url,ms){                        /* timeout-wrapped fetch (degrades silently on ancient engines) */
+  const ctl=(typeof AbortController!=="undefined")?new AbortController():null;
+  const t=ctl?setTimeout(()=>ctl.abort(),ms||FETCH_TIMEOUT_MS):null;
+  return fetch(url,{cache:"no-store",signal:ctl?ctl.signal:undefined})
+    .finally(()=>{if(t)clearTimeout(t)});
+}
+function connUI(state,nextMs){                  /* live | reconnecting — the honest state surface */
+  const chip=$("#connChip");
+  if(state==="live"){connFails=0;chip.hidden=true;return}
+  chip.hidden=false;
+  $("#connTxt").textContent="reconnecting"+(nextMs?" in "+Math.round(nextMs/1000)+" s":"…");
+}
+function schedulePoll(ms){clearTimeout(pollTimer);pollTimer=setTimeout(pollOnce,ms)}
+async function pollOnce(){                      /* in-flight guarded — polls NEVER stack */
+  if(metaInFlight)return null;
+  metaInFlight=true;
+  try{return await loadMeta()}
+  catch(_){schedulePoll(POLL_BASE_MS);return false}   /* insurance — the loop can never die */
+  finally{metaInFlight=false}
+}
+function probeNow(){clearTimeout(pollTimer);return pollOnce()}   /* bypasses backoff — the user is watching */
 
 /* ================= meta (slim poll) ================= */
 function renderStats(){
@@ -819,7 +862,7 @@ function listURL(){
 }
 async function loadList(silent){
   try{
-    const d=await(await fetch(listURL(),{cache:"no-store"})).json();
+    const d=await(await fetchT(listURL())).json();
     PAGE=d;PAGE_MAP={};d.files.forEach(f=>PAGE_MAP[f.key]=f);
     if(d.page<S.page)S.page=d.page;              /* server clamped the page */
     renderList(!silent);    /* v4.1: animate on first load + user actions; silent when background-refreshed */
@@ -831,13 +874,14 @@ async function loadList(silent){
 }
 async function loadMeta(){
   try{
-    const d=await(await fetch("/api/files?max=0",{cache:"no-store"})).json();
+    const d=await(await fetchT("/api/files?max=0")).json();
     if(STATIC){   /* live feed reachable from this origin — offer manual recovery */
       if(d&&d.server&&d.server.pid){
         if(!STATIC_LIVE){STATIC_LIVE=true;renderStatic(true);
           $("#ftInfo").textContent="live explorer reachable on this origin — click Open live view"}
       }
-      return;
+      schedulePoll(POLL_BASE_MS);                 /* v4.3: static probes ride the resilient loop */
+      return true;
     }
     META=d;
     const sig=d.content_sig||d.inventory_built||"";   /* v4.1: content signature (old servers fall back to the timestamp) */
@@ -845,23 +889,34 @@ async function loadMeta(){
     renderStats();renderChips();                     /* cheap per-poll tiles/chips keep guard+version fresh */
     if(changed||!TASKS_DONE){renderTasks();renderPill();TASKS_DONE=true}   /* rail: only on real change — preserves scroll position */
     const sv=d.server,up=Date.now()/1000-sv.started_epoch;
-    $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · inventory built ${d.inventory_built}`;
+    const st=(d.stats&&d.stats.total_files!=null)?d.stats.total_files:"?";
+    lastScanTxt=st+" files @ "+new Date().toLocaleTimeString("en-US");   /* v4.3: the shared scan record (footer + rescan feedback) */
+    $("#ftInfo").textContent=`PID ${sv.pid} · up ${fmtDur(up)} · auto-refresh every 10 s · scanned ${st} files · inventory built ${d.inventory_built}`;
     if(changed&&firstLoadDone){
       loadList(true);                            /* data actually changed — silent refresh, no animation replay */
     }
     lastSig=sig;
     firstLoadDone=true;
+    connUI("live");schedulePoll(POLL_BASE_MS);   /* v4.3: healthy — full-speed scanning re-enabled */
+    return true;
   }catch(e){
     if(e instanceof SyntaxError)STATIC=true;     /* origin answered, but not explorer.py JSON */
-    $("#ftInfo").textContent=STATIC?"static copy — explorer.py is not serving this page":"connection to explorer.py lost";
     if(STATIC){
+      $("#ftInfo").textContent="static copy — explorer.py is not serving this page";
       if(STATIC_LIVE){STATIC_LIVE=false;renderStatic(false)}
       else if(!firstLoadDone)renderStatic(false);
-      if(!RECOVER_ARMED&&location.protocol!=="file:"){RECOVER_ARMED=true;setTimeout(loadMeta,RECOVER_MS)}
-    }else{
-      if(!firstLoadDone)renderError();
-      snack("Connection to explorer.py lost — retrying…","Retry",loadMeta);
+      if(!RECOVER_ARMED&&location.protocol!=="file:"){RECOVER_ARMED=true;setTimeout(pollOnce,RECOVER_MS)}
+      schedulePoll(POLL_BASE_MS);                /* v4.3: bounded static probes — a hung origin cannot stack them */
+      return false;
     }
+    connFails++;                                 /* v4.3: honest reconnecting state + backoff replaces the silent hang */
+    const ms=POLL_BACKOFF[Math.min(connFails-1,POLL_BACKOFF.length-1)];
+    connUI("reconnecting",ms);
+    $("#ftInfo").textContent="explorer.py not answering — reconnecting every "+Math.round(ms/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
+    if(!firstLoadDone)renderError();
+    if(connFails===1)snack("Connection to explorer.py lost — reconnecting…","Retry now",probeNow);   /* first failure announces; the chip carries the state after */
+    schedulePoll(ms);
+    return false;
   }
 }
 
@@ -873,7 +928,7 @@ function renderError(){
     <div class="h">server not responding — the connection may be temporarily down</div>
     <button class="btn" id="retryBtn">${I("down")}Retry</button></div>`;
   $("#pager").hidden=true;
-  $("#retryBtn").onclick=()=>{$("#listbody").innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;loadMeta();loadList()};
+  $("#retryBtn").onclick=()=>{$("#listbody").innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;probeNow();loadList()};
 }
 function renderStatic(live){  /* static-copy mode — informational banner, never an error;
                                  manual live-recovery: probe finds explorer.py on this origin ->
@@ -954,11 +1009,14 @@ async function openPreview(f){
       <p>Format <b>${esc((e||f.type).toUpperCase())}</b> has no direct browser preview.<br>
       .skill = skill package (zip) · office = open in the respective application.</p>
       <a class="btn" href="${f.href}" download="${esc(f.name)}">${I("down")}Download ${esc(f.name)}</a></div>`;return}
-    const t=await(await fetch(f.href,{cache:"no-store"})).text();
+    const t=await(await fetchT(f.href,10000)).text();
     if(e==="md"){b.innerHTML=`<div class="md">${md(t)}</div>`;return}
     if(e==="json"){b.innerHTML=`<pre>${hlJSON(t)}</pre>`;return}
     b.innerHTML=`<pre>${esc(t.slice(0,200000))}</pre>`;
-  }catch(err){b.innerHTML=`<div class="loadcard"><div class="ftile" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div><p>Failed to load the preview: ${esc(err.message)}</p></div>`}}
+  }catch(err){const msg=(err&&err.name==="AbortError")
+      ?"preview timed out — the sandbox may be asleep; tap Rescan or reopen after it wakes"
+      :"Failed to load the preview: "+esc(err.message);
+    b.innerHTML=`<div class="loadcard"><div class="ftile" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div><p>${msg}</p></div>`}}
 
 /* ================= snackbar ================= */
 let snackTimer=null;
@@ -1047,11 +1105,36 @@ function goLive(){const u=new URL("/",location.href).href;   /* absolute: the to
   try{top.location.replace(u)}   /* platform file preview at top level: recover the whole window */
   catch(e){try{location.replace(u)}catch(_){}}}   /* sandboxed/cross-origin frame: at least recover this frame */
 
-setInterval(loadMeta,10000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadMeta()});   /* v4.1: loadMeta's sig check triggers loadList only on real change */
+/* v4.3: the interval is GONE — the loop is self-scheduling (pollOnce ->
+   schedulePoll) with failure backoff; visibility/focus/online wake probes
+   bypass the backoff because the user is actively watching (refocusing the
+   popup right after sending a chat message is exactly when the sandbox
+   has woken). */
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)probeNow()});
+window.addEventListener("focus",()=>probeNow());      /* v4.3: refocus = the user returned — probe immediately */
+window.addEventListener("online",()=>probeNow());     /* v4.3: network is back after offline */
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
-loadMeta();
+pollOnce();                                           /* v4.3: guarded boot poll — starts the resilient loop */
 if(!STATIC)loadList(true);else renderStatic(false);   /* v4.2: first load renders SILENT — no entrance burst at open (the burst re-fires only on explicit user actions) */
+
+/* v4.3: manual Rescan — the owner-visible file-scan switch. Forces a full
+   poll (bypassing any backoff), silently refreshes the visible page, and
+   reports the scan result. While disconnected it doubles as "try now". */
+let scanBusy=false;
+$("#scanBtn").onclick=async()=>{
+  if(scanBusy)return;
+  scanBusy=true;$("#scanIcon").classList.add("spinning");
+  try{
+    const ok=await probeNow();
+    if(ok===null){snack("A scan is already in progress…")}
+    else if(ok&&!STATIC){
+      await loadList(true);                         /* silent refresh — no animation replay */
+      snack("Scan complete — "+lastScanTxt);
+    }else if(!STATIC){
+      snack("Scan failed — explorer.py is not answering; retrying automatically");
+    }                                                /* static copies: the probe result speaks through the banner */
+  }finally{$("#scanIcon").classList.remove("spinning");scanBusy=false}
+};
 
 </script>
 </body>
