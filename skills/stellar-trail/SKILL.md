@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.6); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.4.7); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.4.6 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.6 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.4.7 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.4.7 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -108,13 +108,13 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 5. **Triage the task table** (section 4): only ACTIVE/WAITING/BLOCKED rows are work-eligible — an ACTIVE or WAITING row resumes via the Resume Protocol (R1–R5, section 4); STALE rows need user reconfirmation; sealed rows are context, never todos.
 6. Run the **Recall Check** — answer the 7 manifest questions from the files (task identity / decisions / artifacts / profile / trajectory / pending / environment). Below 95% → gap-fill (handoff archives → worklog tail → actual files), re-verify, then proceed. Never fabricate an answer to pass the count; an answer quotable only from a summary is contaminated, not restored.
 7. Run the arms (rules 4–5): `bootstrap-sandbox.sh --ensure` (reset-prone sandboxes) → `update-skill.sh --ensure`.
-8. Emit the marker, present restored context briefly, **confirm the restored plan with the user before executing new work**.
+8. Emit the marker — it reports the summary-quarantine verdict (`summary: consistent|stale|empty|none · conflicts: y/n`, v5.4.7) so per-session summary handling is auditable, not assumed — present restored context briefly, **confirm the restored plan with the user before executing new work**.
 
 ```
-[MEMORY | RESTORED] sources: SESSION-STATE + MEMORY (+ handoff) — n/7 manifest categories · active task: __ · next step: __
+[MEMORY | RESTORED] sources: SESSION-STATE + MEMORY (+ handoff) — n/7 manifest categories · active task: __ · next step: __ · summary: consistent|stale|empty|none · conflicts: y/n
 ```
 
-**M1 — Checkpoint.** Rewrite `SESSION-STATE.md` atomically (full snapshot, never append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records DONE/CANCELLED must **seal it in the same write** — delete the Active row, append the Sealed line (H3) — then complete the Seal Ritual (S1–S4, section 4). **Write-order rule (F1+F2, incident 2026-09-29):** the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted ONLY when the snapshot already reflects its milestone. **Pre-append guard** (10 seconds): before any worklog append, verify this task's verdict/artifacts/decisions are ALREADY reflected in SESSION-STATE; if not, rewrite first. Append worklog only for major milestones (with Task ID). **Task-seal snapshot (reset-prone sandboxes):** the M1 that seals a task — and every M3 handoff — also runs `bash scripts/snapshot-repo.sh --apply-auto` (debounced). At major checkpoints run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses (the watcher also runs it on a ~6 h schedule, duty 8; its `silent-work` check greps the unlogged-work class).
+**M1 — Checkpoint.** Rewrite `SESSION-STATE.md` atomically (full snapshot, never append) whenever material state changes: task started/finished, decision locked, artifact delivered, blocker found, plan changed. A checkpoint that records DONE/CANCELLED must **seal it in the same write** — delete the Active row, append the Sealed line (H3) — then complete the Seal Ritual (S1–S4, section 4). **Write-order rule (F1+F2, incident 2026-09-29):** the SESSION-STATE rewrite comes FIRST and the worklog append LAST — an append is permitted ONLY when the snapshot already reflects its milestone. **Pre-append guard** (10 seconds): before any worklog append, verify this task's verdict/artifacts/decisions are ALREADY reflected in SESSION-STATE; if not, rewrite first. Append worklog only for major milestones (with Task ID). **Checkpoint snapshot (v5.4.7; reset-prone sandboxes):** EVERY M1 — and every M3 handoff — also runs `bash scripts/snapshot-repo.sh --apply-auto` (debounced: the ~15-min cooldown + material-change gate make repeat calls a cheap no-op). The restore archive must never lag the ledger by more than one checkpoint — a session that dies between seals costs at most the current checkpoint's delta, never the whole inter-seal stretch (rollback-loss class, measured 2026-10-23; practiced 3x as forced snapshots in sessions 35-37 before promotion to protocol text). At major checkpoints run `scripts/audit-compliance.sh` when available — an external audit catches drift the model's discipline misses (the watcher also runs it on a ~6 h schedule, duty 8; its `silent-work` check greps the unlogged-work class).
 
 ```
 [MEMORY | CHECKPOINT] task __ — SESSION-STATE updated (phase · status · artifact)
@@ -246,7 +246,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.4.6 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.4.7 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A
@@ -263,10 +263,10 @@ MEMORY · M0-M3 — defies context pressure & summary loss
                   (newest tag hash vs ledger · tree checksums — dead-session
                   debt, disk is the arbiter) → artifact-freshness
                   sweep + ALERT lift (unlogged work = rule-6 posture) →
-                  recall ≥95% → arms → confirm plan
+                  recall ≥95% → arms → confirm plan · marker carries the summary verdict (v5.4.7)
   M1 CHECKPOINT : atomic SESSION-STATE rewrite (task · artifact ·
                   decision) — snapshot FIRST, ledger LAST; one artifact
-                  = one M1; task-seal → snapshot-repo --apply-auto
+                  = one M1; EVERY M1 → snapshot-repo --apply-auto (debounced)
   M2 COMPRESS   : pressure signal → write NOW, CRITICAL first
   M3 HANDOFF    : ANY exit signal → archive (7 sections) + MEMORY
                   promotion + final SESSION-STATE (Active ACTIVE-only)
