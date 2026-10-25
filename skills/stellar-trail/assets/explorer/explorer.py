@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.6 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.7 (preview-popup replacement)
 =========================================================================
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
@@ -106,6 +106,19 @@ ROOTS = [
     ("archive", os.path.join(PROJECT, "archive")),
 ]
 ROOTMAP = dict(ROOTS)
+# v1.7: per-root TOP-LEVEL directory exclusions — a listed subtree is skipped
+# by the scan entirely (never walked, never stat'd, never listed, never mapped
+# to tasks). The skill's own canonical copy under download/stellar-trail/ is
+# restore infrastructure, not a task deliverable — the owner ordered it hidden
+# from the explorer view (2026-10-25: 20 files, 48% of the download listing).
+# Direct /file/<label>/<rel> links into an excluded subtree STILL WORK
+# (safe_path never consults this list), so tooling and shared links are
+# unaffected; only the listing drops them. Depth-below-root scoping keeps
+# fixture trees (task30/task37) that happen to carry the same directory name
+# at a deeper level unaffected.
+ROOT_EXCLUDES = {
+    "download": ("stellar-trail",),
+}
 SKILL_DIR = os.path.join(PROJECT, "skills", "stellar-trail")
 WATCHER_PID = os.path.join(ZDIR, "watcher.pid")
 
@@ -159,12 +172,17 @@ def walk_root(label: str, root: str):
     files = []
     if not os.path.isdir(root):
         return files
+    skip_top = set(ROOT_EXCLUDES.get(label, ()))  # v1.7: root-level prune only
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = os.path.relpath(dirpath, root)
         depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
         if depth >= MAX_DEPTH:
             dirnames[:] = []
-        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        if rel_dir == ".":  # v1.7: the root's own children — apply exclusions
+            dirnames[:] = sorted(d for d in dirnames
+                                 if not d.startswith(".") and d not in skip_top)
+        else:
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
         for fn in sorted(filenames):
             if fn.startswith("."):
                 continue
