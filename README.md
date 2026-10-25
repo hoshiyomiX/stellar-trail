@@ -53,7 +53,7 @@ The shipped frontmatter description is the best activation captor ever measured 
 | `scripts/enforce-gates.sh` | Terminal-track gate checks (artifact, lint, check-skill, check-worklog) |
 | `scripts/snapshot-repo.sh` | Restore-archive refresh: backup-first, verify-before-swap, anti-traversal audit, gated `--apply-auto` |
 | `scripts/audit-compliance.sh` | External compliance audit from on-disk artifacts: PASS/WARN/FAIL + exit code |
-| `assets/explorer/` | Task Files Explorer (server v1.7, launcher v1.5, UI v4.3.1 — content-signature change detection, silent first paint + offscreen card skip (boot render diet), fetch resilience (engine-independent deadlines + boot watchdog + in-flight guard + backoff + honest reconnecting state + manual rescan), full-text sideways task rail): the built-in dashboard on the preview URL |
+| `assets/explorer/` | Task Files Explorer (server v1.7, launcher v1.5, UI v4.4 — content-signature change detection, silent first paint + offscreen card skip (boot render diet), fetch resilience (engine-independent deadlines + boot watchdog + in-flight guard + steady 10 s retry + manual rescan — reconnect machinery removed), full-text sideways task rail, two-row mobile app bar): the built-in dashboard on the preview URL |
 | `assets/harness-hooks/` | CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files |
 | `references/` | Four on-demand references: memory-hygiene, ground-base-knowledge, environment-resilience, task-files-explorer |
 

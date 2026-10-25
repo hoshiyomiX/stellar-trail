@@ -13,7 +13,7 @@ if(t!=="dark"&&t!=="light"){t=(window.matchMedia&&window.matchMedia("(prefers-co
 document.documentElement.dataset.theme=t}catch(e){}})();</script>
 <style>
 /* ================================================================
-   MIUIX (HyperOS) — Task Files Explorer UI v4.3.1 · zero-dependency
+   MIUIX (HyperOS) — Task Files Explorer UI v4.4 · zero-dependency
    (no CDN, no web font)
    Design system ported from compose-miuix-ui/miuix (Apache-2.0):
    the color roles below are VERBATIM from miuix-ui
@@ -514,6 +514,21 @@ footer b{color:var(--mx-text-2);font-weight:600}
   .statgrid{grid-template-columns:repeat(2,1fr)}
   .filegrid{grid-template-columns:1fr}
   .toolrow{gap:6px}
+  /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
+     hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
+     and overflowed sideways. The bar now wraps to TWO rows: logo + title +
+     actions on top, the version + clock chips below; the title truncates. */
+  .topappbar{flex-wrap:wrap;height:auto;min-height:var(--appbar-h);padding:8px var(--pad);row-gap:8px}
+  .appbar-logo{order:1}
+  .topappbar>div:first-of-type{order:2;min-width:0}
+  .appbar-spacer{order:3}
+  #scanBtn{order:4}
+  #themeBtn{order:5}
+  #verChip{order:6}
+  #clock{order:7}
+  .appbar-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{height:28px;padding:0 10px}
+  .iconbtn{width:34px;height:34px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
@@ -529,9 +544,8 @@ footer b{color:var(--mx-text-2);font-weight:600}
     <div class="appbar-sub">Miuix · download/ + archive/ dashboard</div>
   </div>
   <div class="appbar-spacer"></div>
-  <span class="chip chip--primary" id="verChip" title="UI build — shows the stellar-trail version once explorer.py answers"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">UI 4.3.1</span></span>
+  <span class="chip chip--primary" id="verChip" title="UI build — shows the stellar-trail version once explorer.py answers"><svg class="ic"><use href="#i-release"/></svg><span id="verTxt">UI 4.4</span></span>
   <span class="chip" id="clock" title="local time"><svg class="ic"><use href="#i-clock"/></svg>--:--:--</span>
-  <span class="chip chip--warn" id="connChip" hidden title="explorer.py connection state"><svg class="ic"><use href="#i-restart"/></svg><span id="connTxt">reconnecting…</span></span>
   <button class="iconbtn" id="scanBtn" title="Rescan now — refresh the file inventory from the server" aria-label="Rescan now">
     <svg class="ic" id="scanIcon"><use href="#i-restart"/></svg>
   </button>
@@ -609,7 +623,7 @@ footer b{color:var(--mx-text-2);font-weight:600}
 
 <footer>
   Served by the <b>dev.sh</b> boot hook → <b>explorer.py</b> at 127.0.0.1:3000 — upstream of the platform preview ingress.<br>
-  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.3.1 · zero-dependency · <span id="ftInfo">loading…</span>
+  <b>Miuix (HyperOS)</b> interface · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme · server-side search &amp; pagination (v1.6) · UI v4.4 · zero-dependency · <span id="ftInfo">loading…</span>
 </footer>
 
 <!-- FAB scroll-to-top -->
@@ -734,10 +748,19 @@ const classFor=f=>EXTICON[f.ext?.toLowerCase()]||f.type||"other";
    failures (each unabortable poll holds a socket — the 6-slot pool
    must survive for the wake probes), and a boot watchdog guarantees
    the honest reconnecting state within 8 s no matter what the engine
-   does to the fetches. */
+   does to the fetches.
+   v4.4 (owner order, Task 45 / v5.4.9 — after the Task 44 audit proved
+   the 3-29 s stalls are platform-edge session load, NOT explorer code):
+   the reconnect MACHINERY is removed — no failure backoff, no
+   reconnecting chip, no visibility/focus/online wake probes. One steady
+   self-scheduling loop retries every 10 s win or lose (recovery is
+   simply the next successful poll); the manual Rescan button and the
+   error-card Retry stay as the user-driven paths. KEPT (the freeze
+   fixes — removing these would resurrect the v4.2 total freeze):
+   engine-independent deadlines, the in-flight guard, the no-abort
+   3-failure auto-poll breaker, and the 8 s boot watchdog. */
 const FETCH_TIMEOUT_MS=5000;                    /* per-request deadline */
-const POLL_BASE_MS=10000;                       /* normal scan cadence (the v1.x server contract) */
-const POLL_BACKOFF=[10000,20000,40000,60000];   /* consecutive-failure backoff, 60 s cap */
+const POLL_BASE_MS=10000;                       /* normal scan cadence (the v1.x server contract) — v4.4: the ONLY cadence, failure or not */
 const CAN_ABORT=(typeof AbortController!=="undefined");  /* v4.3.1: engine capability, probed once */
 let pollTimer=null,metaInFlight=false,connFails=0,lastScanTxt="—";
 function fetchT(url,ms){                        /* timeout-wrapped fetch — deadline on EVERY engine (v4.3.1) */
@@ -755,12 +778,6 @@ function fetchT(url,ms){                        /* timeout-wrapped fetch — dea
   bs.catch(()=>{});                             /* rejection owned by the race below — never unhandled */
   return Promise.race([p,bs]);
 }
-function connUI(state,nextMs){                  /* live | reconnecting — the honest state surface */
-  const chip=$("#connChip");
-  if(state==="live"){connFails=0;chip.hidden=true;return}
-  chip.hidden=false;
-  $("#connTxt").textContent="reconnecting"+(nextMs?" in "+Math.round(nextMs/1000)+" s":"…");
-}
 function schedulePoll(ms){clearTimeout(pollTimer);pollTimer=setTimeout(pollOnce,ms)}
 async function pollOnce(){                      /* in-flight guarded — polls NEVER stack */
   if(metaInFlight)return null;
@@ -769,7 +786,7 @@ async function pollOnce(){                      /* in-flight guarded — polls N
   catch(_){schedulePoll(POLL_BASE_MS);return false}   /* insurance — the loop can never die */
   finally{metaInFlight=false}
 }
-function probeNow(){clearTimeout(pollTimer);return pollOnce()}   /* bypasses backoff — the user is watching */
+function probeNow(){clearTimeout(pollTimer);return pollOnce()}   /* v4.4 manual retry — Rescan / error-card Retry / snack action (the automatic wake probes are gone; the steady 10 s loop is the only scheduler) */
 
 /* ================= meta (slim poll) ================= */
 function renderStats(){
@@ -891,7 +908,7 @@ async function loadList(silent){
     renderList(!silent);    /* v4.1: animate on first load + user actions; silent when background-refreshed */
     if(!firstLoadDone&&!STATIC){firstLoadDone=true}
   }catch(e){
-    if(!silent&&!STATIC&&firstLoadDone)snack("Connection to explorer.py lost — retrying…","Retry",()=>loadList());
+    if(!silent&&!STATIC&&firstLoadDone)snack("Connection to explorer.py lost — retrying every 10 s","Retry",()=>loadList());
     if(!PAGE&&!STATIC)renderError();
   }
 }
@@ -922,7 +939,7 @@ async function loadMeta(){
     }
     lastSig=sig;
     firstLoadDone=true;
-    connUI("live");schedulePoll(POLL_BASE_MS);   /* v4.3: healthy — full-speed scanning re-enabled */
+    connFails=0;schedulePoll(POLL_BASE_MS);     /* v4.4: healthy — reset the no-abort breaker, steady cadence resumes */
     return true;
   }catch(e){
     if(e instanceof SyntaxError)STATIC=true;     /* origin answered, but not explorer.py JSON */
@@ -934,14 +951,15 @@ async function loadMeta(){
       schedulePoll(POLL_BASE_MS);                /* v4.3: bounded static probes — a hung origin cannot stack them */
       return false;
     }
-    connFails++;                                 /* v4.3: honest reconnecting state + backoff replaces the silent hang */
-    const ms=POLL_BACKOFF[Math.min(connFails-1,POLL_BACKOFF.length-1)];
-    connUI("reconnecting",ms);
-    $("#ftInfo").textContent="explorer.py not answering — reconnecting every "+Math.round(ms/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
+    connFails++;                                 /* v4.4: steady cadence — no backoff, no reconnecting chip (owner order, Task 45) */
+    const paused=!(CAN_ABORT||connFails<3);      /* v4.3.1 breaker KEPT: engines that cannot abort stop auto-polling after 3 failures — every unabortable poll leaves a socket held, and the 6-slot HTTP/1.1 pool must survive for the manual Rescan (the recovery path on that engine class) */
+    $("#ftInfo").textContent=(paused
+      ?"explorer.py not answering — automatic retry paused on this engine (tap Rescan to retry)"
+      :"explorer.py not answering — retrying automatically every "+Math.round(POLL_BASE_MS/1000)+" s")
+      +" · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
     if(!firstLoadDone)renderError();
-    if(connFails===1)snack("Connection to explorer.py lost — reconnecting…","Retry now",probeNow);   /* first failure announces; the chip carries the state after */
-    if(CAN_ABORT||connFails<3)schedulePoll(ms);  /* v4.3.1: engines that cannot abort stop auto-polling after 3 failures — every unabortable poll leaves a socket held, and the 6-slot HTTP/1.1 pool must stay alive for the wake probes + Rescan (both still fire: they are the recovery path, and they run when the origin can actually answer) */
-    else connUI("reconnecting",0);               /* chip: 'reconnecting…' — probing continues on focus/visibility/online */
+    if(connFails===1)snack("Connection to explorer.py lost — retrying every 10 s","Retry now",probeNow);   /* first failure announces once; the footer carries the state after */
+    if(!paused)schedulePoll(POLL_BASE_MS);       /* steady retry — the next successful poll IS the recovery */
     return false;
   }
 }
@@ -951,7 +969,7 @@ function renderError(){
   $("#listbody").innerHTML=`<div class="empty">
     <div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container)">${I("warn")}</div>
     <div class="t">Failed to load data from explorer.py</div>
-    <div class="h">server not responding — the connection may be temporarily down · UI v4.3.1</div>
+    <div class="h">server not responding — the connection may be temporarily down · UI v4.4</div>
     <button class="btn" id="retryBtn">${I("down")}Retry</button></div>`;
   $("#pager").hidden=true;
   $("#retryBtn").onclick=()=>{$("#listbody").innerHTML=`<div class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>`;probeNow();loadList()};
@@ -1131,14 +1149,11 @@ function goLive(){const u=new URL("/",location.href).href;   /* absolute: the to
   try{top.location.replace(u)}   /* platform file preview at top level: recover the whole window */
   catch(e){try{location.replace(u)}catch(_){}}}   /* sandboxed/cross-origin frame: at least recover this frame */
 
-/* v4.3: the interval is GONE — the loop is self-scheduling (pollOnce ->
-   schedulePoll) with failure backoff; visibility/focus/online wake probes
-   bypass the backoff because the user is actively watching (refocusing the
-   popup right after sending a chat message is exactly when the sandbox
-   has woken). */
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)probeNow()});
-window.addEventListener("focus",()=>probeNow());      /* v4.3: refocus = the user returned — probe immediately */
-window.addEventListener("online",()=>probeNow());     /* v4.3: network is back after offline */
+/* v4.4: the reconnect machinery is GONE (owner order, Task 45) — no backoff,
+   no reconnecting chip, no visibility/focus/online wake probes. One steady
+   self-scheduling loop (pollOnce -> schedulePoll) polls every 10 s win or
+   lose; recovery is simply the next successful poll, and the manual Rescan
+   button is the user-driven path. */
 setInterval(()=>{$("#clock").textContent=new Date().toLocaleTimeString("en-US")},1000);
 pollOnce();                                           /* v4.3: guarded boot poll — starts the resilient loop */
 if(!STATIC)loadList(true);else renderStatic(false);   /* v4.2: first load renders SILENT — no entrance burst at open (the burst re-fires only on explicit user actions) */
@@ -1147,24 +1162,26 @@ if(!STATIC)loadList(true);else renderStatic(false);   /* v4.2: first load render
    Whatever the engine does to the boot fetches (no AbortController, a
    signal that refuses to abort, throttled timers — anything), a first
    load still uncompleted after BOOT_WATCHDOG_MS flips the UI to the
-   honest reconnecting state, un-wedges a stuck in-flight guard, and
-   keeps the probe loop alive. The header clock proves timers run in
-   the foreground — this watchdog is a timer, so it runs too. */
+   honest error state (v4.4: footer note + error card — the reconnecting
+   chip is gone), un-wedges a stuck in-flight guard, and keeps the steady
+   loop alive. The header clock proves timers run in the foreground —
+   this watchdog is a timer, so it runs too. */
 const BOOT_WATCHDOG_MS=8000;
 setTimeout(()=>{
   if(bootWatchdogFired||STATIC||firstLoadDone)return;
   bootWatchdogFired=true;
   if(metaInFlight)metaInFlight=false;           /* un-wedge the guard so probing can continue */
   if(!connFails)connFails=1;
-  connUI("reconnecting",POLL_BASE_MS);
   renderError();
-  $("#ftInfo").textContent="explorer.py not answering — reconnecting every "+Math.round(POLL_BASE_MS/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
+  $("#ftInfo").textContent="explorer.py not answering — retrying automatically every "+Math.round(POLL_BASE_MS/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+lastScanTxt;
   if(CAN_ABORT||connFails<3)schedulePoll(POLL_BASE_MS);
 },BOOT_WATCHDOG_MS);
 
 /* v4.3: manual Rescan — the owner-visible file-scan switch. Forces a full
-   poll (bypassing any backoff), silently refreshes the visible page, and
-   reports the scan result. While disconnected it doubles as "try now". */
+   poll (v4.4: the only bypass of the steady cadence left), silently
+   refreshes the visible page, and reports the scan result. While
+   disconnected it doubles as "try now" — on no-abort engines it is THE
+   recovery path (the 3-failure breaker pauses auto-polling there). */
 let scanBusy=false;
 $("#scanBtn").onclick=async()=>{
   if(scanBusy)return;
