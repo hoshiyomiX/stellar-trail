@@ -49,6 +49,18 @@
 #   memory-activation-hooks  the activation hook line is present at the head
 #                            of BOTH always-read memory files (SESSION-STATE
 #                            + MEMORY — R1 scope extension)
+#   sealed-shield (v5.5.0)   one-ID-one-table: no Sealed Task ID appears as an
+#                            Active row — the duplicate-execution class (a
+#                            sealed task picked back up and re-run by the LLM);
+#                            ref mentions in descriptions stay legal (H4)
+#   sealed-shield (v5.5.0)   one-ID-one-table: no Sealed Task ID appears as an
+#                            Active row — the duplicate-execution class (a
+#                            sealed task picked back up and re-run by the LLM);
+#                            ref mentions in descriptions stay legal (H4)
+#   sealed-shield (v5.5.0)   one-ID-one-table: no Sealed Task ID appears as an
+#                            Active row — the duplicate-execution class (a
+#                            sealed task picked back up and re-run by the LLM);
+#                            ref mentions in descriptions stay legal (H4)
 #
 # FRESH-INSTALL NOTE: on a CLI-only installation without the persistence
 #   layer, memory-foundation FAIL and worklog-activation-hook WARN are the
@@ -106,6 +118,27 @@ if [ -f "$SS" ]; then
         res FAIL "active-table-hygiene" "terminal row (DONE/CANCELLED/...) inside the Active table — finished work displayed as pending, stale-pickup risk"
     else
         res PASS "active-table-hygiene" "active table holds only ACTIVE/WAITING/BLOCKED/STALE rows ($(echo "$ACTIVE_ROWS" | wc -l) rows)"
+    fi
+fi
+
+# --- sealed-shield (v5.5.0; Max shield) --------------------------------------
+# One-ID-one-table law: a Task ID exists in exactly ONE of Active/Sealed —
+# never both. A sealed ID sitting in the Active table as a row ID is the
+# duplicate-execution class the owner ordered killed: the LLM picking sealed
+# work back up and re-running it. Ref mentions in descriptions ("ref: #oldID")
+# are LEGAL revisits (H4); only an ID-column collision is the violation.
+if [ -f "$SS" ]; then
+    SEALED_IDS="$(awk '/^## Sealed Tasks/{f=1;next} /^## /{f=0} f && /^\|/ {print $2}' "$SS" 2>/dev/null | grep -oE '^[0-9]+' | sort -u || true)"
+    SSH_BAD=""
+    if [ -n "$SEALED_IDS" ] && [ -n "${ACTIVE_ROWS:-}" ]; then
+        for SSH_ID in $SEALED_IDS; do
+            printf '%s\n' "$ACTIVE_ROWS" | grep -qE "^\| *${SSH_ID} *\|" && SSH_BAD="$SSH_BAD $SSH_ID"
+        done
+    fi
+    if [ -n "$SSH_BAD" ]; then
+        res FAIL "sealed-shield" "sealed Task ID(s) present as Active row(s):$SSH_BAD — one-ID-one-table violation (duplicate-execution class); quarantine per H7, re-run"
+    else
+        res PASS "sealed-shield" "Active∩Sealed = ∅ — no sealed ID picked up as work (ref mentions legal)"
     fi
 fi
 
