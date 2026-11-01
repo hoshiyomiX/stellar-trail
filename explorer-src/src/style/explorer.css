@@ -52,7 +52,7 @@
   --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
   --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
   --mx-page:#242424;                 /* background */
-  --mx-card:#000000;                 /* surface — HyperOS black cards */
+  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; now a lifted gray above the #242424 page) */
   --mx-on-card:rgba(255,255,255,.90);/* onBackground */
   --mx-on-card-2:#F2F2F2;            /* onSurface */
   --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */

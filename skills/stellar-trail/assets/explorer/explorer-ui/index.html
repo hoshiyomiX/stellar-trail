@@ -17124,8 +17124,8 @@ var z = /* @__PURE__ */ ref(R()), B$1 = /* @__PURE__ */ ref("system");
 typeof window < "u" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
   z.value = e.matches ? "dark" : "light";
 });
-var V = computed(() => B$1.value === "system" ? z.value : B$1.value);
-typeof document < "u" && watch(V, (e) => document.documentElement.classList.toggle(L$1, e === "dark"), { immediate: true });
+var V$1 = computed(() => B$1.value === "system" ? z.value : B$1.value);
+typeof document < "u" && watch(V$1, (e) => document.documentElement.classList.toggle(L$1, e === "dark"), { immediate: true });
 function H(e) {
   B$1.value = e;
 }
@@ -17134,7 +17134,7 @@ function ee(e) {
 }
 function te() {
   return {
-    theme: computed(() => V.value),
+    theme: computed(() => V$1.value),
     mode: computed(() => B$1.value),
     setTheme: ee,
     setThemeMode: H
@@ -17577,6 +17577,12 @@ var u = {
     vh: 1227.6,
     d: "M1022.3 187.8 Q1076.3 215.8 1105.3 270.8 Q1119.3 298.8 1122.3 338.3 Q1125.3 377.8 1125.3 470.8 V655.8 Q1125.3 749.8 1122.3 789.3 Q1119.3 828.8 1105.3 856.8 Q1076.3 910.8 1022.3 939.8 Q994.3 953.8 954.8 956.8 Q915.3 959.8 822.3 959.8 H626.3 Q605.3 959.8 596.3 963.8 Q587.3 967.8 571.3 983.8 L548.3 1007.8 Q523.3 1035.8 510.3 1043.8 Q496.3 1052.8 479.3 1057.8 Q467.3 1060.8 427.3 1060.8 H406.3 Q313.3 1060.8 273.3 1057.3 Q233.3 1053.8 205.3 1039.8 Q151.3 1011.8 122.3 956.8 Q108.3 929.8 105.3 889.8 Q102.3 849.8 102.3 756.8 V470.8 Q102.3 377.8 105.3 338.3 Q108.3 298.8 122.3 270.8 Q151.3 215.8 205.3 187.8 Q233.3 173.8 273.3 170.3 Q313.3 166.8 406.3 166.8 H822.3 Q915.3 166.8 954.8 170.3 Q994.3 173.8 1022.3 187.8 Z M247.3 264.8 Q217.3 278.8 199.3 311.8 Q191.3 328.8 189.3 351.3 Q187.3 373.8 187.3 426.8 V676.8 H1040.3 V426.8 Q1040.3 373.8 1038.3 351.3 Q1036.3 328.8 1028.3 311.8 Q1020.3 296.8 1008.3 284.3 Q996.3 271.8 980.3 264.8 Q964.3 256.8 941.8 254.8 Q919.3 252.8 865.3 252.8 H362.3 Q309.3 252.8 286.3 254.8 Q263.3 256.8 247.3 264.8 Z M199.3 915.8 Q217.3 948.8 247.3 962.8 Q263.3 970.8 286.3 972.8 Q309.3 974.8 362.3 974.8 H424.3 Q440.3 974.8 450.8 970.8 Q461.3 966.8 470.3 956.8 L498.3 925.8 L503.3 919.8 Q513.3 909.8 520.8 902.3 Q528.3 894.8 535.3 890.8 Q547.3 882.8 566.3 877.8 Q578.3 874.8 618.3 874.8 H865.3 Q919.3 874.8 941.8 872.8 Q964.3 870.8 980.3 862.8 Q1013.3 844.8 1028.3 814.8 Q1038.3 796.8 1039.3 761.8 H1038.3 H187.3 V800.8 Q187.3 853.8 189.3 876.3 Q191.3 898.8 199.3 915.8 Z"
   }
+}, V = {
+  regular: {
+    vw: 1196.4,
+    vh: 1196.4,
+    d: "M190.7 186.2 Q167.7 197.2 148.7 216.2 Q129.7 235.2 117.7 258.2 Q105.7 283.2 102.7 317.7 Q99.7 352.2 99.7 434.2 V694.2 H1096.7 V434.2 Q1096.7 352.2 1093.7 317.7 Q1090.7 283.2 1078.7 258.2 Q1066.7 235.2 1047.7 216.2 Q1028.7 197.2 1005.7 186.2 Q980.7 173.2 946.2 170.2 Q911.7 167.2 830.7 167.2 H366.7 Q284.7 167.2 250.2 170.2 Q215.7 173.2 190.7 186.2 Z M99.7 784.2 Q99.7 852.2 102.7 884.2 Q105.7 916.2 117.7 938.2 Q141.7 986.2 190.7 1011.2 Q215.7 1023.2 250.2 1026.2 Q284.7 1029.2 366.7 1029.2 H425.7 Q455.7 1029.2 465.7 1027.2 Q486.7 1024.2 508.7 1009.2 Q516.7 1004.2 538.7 982.2 Q557.7 963.2 564.7 958.2 Q582.7 945.2 601.7 942.2 Q610.7 940.2 637.7 940.2 H830.7 Q911.7 940.2 946.2 937.2 Q980.7 934.2 1005.7 922.2 Q1054.7 897.2 1078.7 850.2 Q1086.7 833.2 1090.2 812.7 Q1093.7 792.2 1095.7 761.2 H99.7 Z"
+  }
 }, U = {
   regular: {
     vw: 1120.8,
@@ -17704,12 +17710,14 @@ const _hoisted_1$7 = {
   "aria-hidden": "true"
 };
 const _hoisted_2$6 = ["id", "viewBox"];
-const _hoisted_3$6 = ["d"];
+const _hoisted_3$6 = ["d", "transform"];
 const _sfc_main$8 = {
   __name: "IconSprite",
   setup(__props) {
     const W2 = (i) => i.regular;
+    const FLIP = (g2) => "matrix(1 0 0 -1 0 " + g2.vh;
     const glyphs = {
+      logo: W2(V),
       search: W2(Be),
       folder: W2(B),
       close: W2(v),
@@ -17745,12 +17753,6 @@ const _sfc_main$8 = {
     };
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("svg", _hoisted_1$7, [
-        _cache[0] || (_cache[0] = createBaseVNode("symbol", {
-          id: "i-logo",
-          viewBox: "0 0 24 24"
-        }, [
-          createBaseVNode("path", { d: "M12 2a10 10 0 1 0 0 20 10 10 0 0 1 0-20zm3.5 13.5-7 3 3-7 7-3-3 7z" })
-        ], -1)),
         (openBlock(), createElementBlock(Fragment, null, renderList(glyphs, (g2, id2) => {
           return createBaseVNode("symbol", {
             key: id2,
@@ -17758,7 +17760,11 @@ const _sfc_main$8 = {
             viewBox: "0 0 " + g2.vw + " " + g2.vh
           }, [
             createBaseVNode("path", {
-              d: g2.d
+              d: g2.d,
+              transform: FLIP(g2),
+              fill: "currentColor",
+              "fill-rule": "nonzero",
+              "clip-rule": "nonzero"
             }, null, 8, _hoisted_3$6)
           ], 8, _hoisted_2$6);
         }), 64))
@@ -19246,7 +19252,7 @@ createApp(_sfc_main).mount("#app");</script>
   --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
   --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
   --mx-page:#242424;                 /* background */
-  --mx-card:#000000;                 /* surface — HyperOS black cards */
+  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; now a lifted gray above the #242424 page) */
   --mx-on-card:rgba(255,255,255,.90);/* onBackground */
   --mx-on-card-2:#F2F2F2;            /* onSurface */
   --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */
