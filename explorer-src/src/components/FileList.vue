@@ -8,17 +8,10 @@ import { md, hlJSON } from '../preview.js'
 
 const emit = defineEmits(['preview'])
 
-const locName = computed(() => ({ all: 'All locations', download: 'Downloads', archive: 'Archive' }[S.root] || S.root))
-const rootPaths = computed(() => {
-  if (!META.value || !META.value.roots) return 'download/ + archive/'
-  return S.root === 'all'
-    ? META.value.roots.map(r => r.label + '/').join(' + ')
-    : (META.value.roots.find(r => r.label === S.root) || {}).path || S.root + '/'
-})
-const from_ = computed(() => PAGE.value && PAGE.value.total ? (PAGE.value.page - 1) * PAGE.value.per_page + 1 : 0)
-const to_ = computed(() => PAGE.value ? Math.min(PAGE.value.page * PAGE.value.per_page, PAGE.value.total) : 0)
-const shown = computed(() => PAGE.value ? `showing ${from_.value}–${to_.value} of ${PAGE.value.total} files${PAGE.value.pages > 1 ? ' · page ' + PAGE.value.page + ' / ' + PAGE.value.pages : ''}` : '')
-
+// Task 61 (owner order "hapus semua button & label"): the listhead rootline
+// (All locations · download/ + archive/ · showing 1–N of N) is RETIRED with the
+// rest of the body labels — the cards speak for themselves; locName/rootPaths/
+// from_/to_/shown died with it.
 function crumb(f){
   const i = f.rel.lastIndexOf('/')
   return i < 0 ? { dir: '', name: f.rel } : { dir: f.rel.slice(0, i + 1), name: f.rel.slice(i + 1) }
@@ -33,10 +26,6 @@ function onCardKey(e, f){
 </script>
 <template>
   <section id="listwrap" aria-label="Files">
-    <div id="listhead" v-if="PAGE && !ui.static && !ui.error">
-      <div class="rootline"><svg class="ic"><use href="#i-folder"/></svg><b>{{ locName }}</b><span class="mono">{{ rootPaths }}</span>
-      <span class="cnt">{{ shown }}</span></div>
-    </div>
     <div id="listbody">
       <!-- static-copy graceful mode — informational banner, never an error; manual live-recovery, never auto-navigates -->
       <div v-if="ui.static" class="empty">
@@ -64,7 +53,7 @@ function onCardKey(e, f){
       <div v-else-if="!PAGE.total" class="empty">
         <div class="e t-other"><svg class="ic"><use href="#i-search"/></svg></div>
         <div class="t">No files match the active filters</div>
-        <div class="h">try changing the keyword, type, task, or location</div>
+        <div class="h">no files in download/ + archive/ yet — the list fills in as work produces deliverables</div>
       </div>
       <!-- the grid / list -->
       <div v-else class="filegrid" :class="{ 'filegrid--list': S.view === 'list', noanim: !ui.listAnim }">

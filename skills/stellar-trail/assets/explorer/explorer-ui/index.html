@@ -2314,36 +2314,6 @@ function withCtx(fn, ctx = currentRenderingInstance, isNonScopedSlot) {
   renderFnWithContext._d = true;
   return renderFnWithContext;
 }
-function withDirectives(vnode, directives) {
-  if (currentRenderingInstance === null) {
-    return vnode;
-  }
-  const instance = getComponentPublicInstance(currentRenderingInstance);
-  const bindings = vnode.dirs || (vnode.dirs = []);
-  for (let i = 0; i < directives.length; i++) {
-    let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i];
-    if (dir) {
-      if (isFunction(dir)) {
-        dir = {
-          mounted: dir,
-          updated: dir
-        };
-      }
-      if (dir.deep) {
-        traverse(value);
-      }
-      bindings.push({
-        dir,
-        instance,
-        value,
-        oldValue: void 0,
-        arg,
-        modifiers
-      });
-    }
-  }
-  return vnode;
-}
 function invokeDirectiveHook(vnode, prevVNode, instance, name) {
   const bindings = vnode.dirs;
   const oldBindings = prevVNode && prevVNode.dirs;
@@ -7337,46 +7307,6 @@ function patchClass(el, value, isSVG) {
 }
 const vShowOriginalDisplay = /* @__PURE__ */ Symbol("_vod");
 const vShowHidden = /* @__PURE__ */ Symbol("_vsh");
-const vShow = {
-  // used for prop mismatch check during hydration
-  name: "show",
-  beforeMount(el, { value }, { transition }) {
-    el[vShowOriginalDisplay] = el.style.display === "none" ? "" : el.style.display;
-    if (transition && value) {
-      transition.beforeEnter(el);
-    } else {
-      setDisplay(el, value);
-    }
-  },
-  mounted(el, { value }, { transition }) {
-    if (transition && value) {
-      transition.enter(el);
-    }
-  },
-  updated(el, { value, oldValue }, { transition }) {
-    if (!value === !oldValue) return;
-    if (transition) {
-      if (value) {
-        transition.beforeEnter(el);
-        setDisplay(el, true);
-        transition.enter(el);
-      } else {
-        transition.leave(el, () => {
-          setDisplay(el, false);
-        });
-      }
-    } else {
-      setDisplay(el, value);
-    }
-  },
-  beforeUnmount(el, { value }) {
-    setDisplay(el, value);
-  }
-};
-function setDisplay(el, value) {
-  el.style.display = value ? el[vShowOriginalDisplay] : "none";
-  el[vShowHidden] = !value;
-}
 const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("");
 const displayRE = /(?:^|;)\s*display\s*:/;
 function patchStyle(el, prev, next) {
@@ -7915,84 +7845,6 @@ function hasCSSTransform(el, root, moveClass) {
   container.removeChild(clone);
   return hasTransform2;
 }
-const getModelAssigner = (vnode) => {
-  const fn = vnode.props["onUpdate:modelValue"] || false;
-  return isArray(fn) ? (value) => invokeArrayFns(fn, value) : fn;
-};
-function onCompositionStart(e) {
-  e.target.composing = true;
-}
-function onCompositionEnd(e) {
-  const target = e.target;
-  if (target.composing) {
-    target.composing = false;
-    target.dispatchEvent(new Event("input"));
-  }
-}
-const assignKey = /* @__PURE__ */ Symbol("_assign");
-const initialValueKey = /* @__PURE__ */ Symbol("_initialValue");
-function castValue(value, trim, number2) {
-  if (trim) value = value.trim();
-  if (number2) value = looseToNumber(value);
-  return value;
-}
-const vModelText = {
-  created(el, { modifiers: { lazy, trim, number: number2 } }, vnode) {
-    if (el.parentNode) {
-      if (el.type === "text") {
-        el[initialValueKey] = el.defaultValue.replace(/[\r\n]/g, "");
-      } else if (el.type === "textarea") {
-        el[initialValueKey] = el.defaultValue.replace(/\r\n?/g, "\n");
-      }
-    }
-    el[assignKey] = getModelAssigner(vnode);
-    const castToNumber = number2 || vnode.props && vnode.props.type === "number";
-    addEventListener(el, lazy ? "change" : "input", (e) => {
-      if (e.target.composing) return;
-      el[assignKey](castValue(el.value, trim, castToNumber));
-    });
-    if (trim || castToNumber) {
-      addEventListener(el, "change", () => {
-        el.value = castValue(el.value, trim, castToNumber);
-      });
-    }
-    if (!lazy) {
-      addEventListener(el, "compositionstart", onCompositionStart);
-      addEventListener(el, "compositionend", onCompositionEnd);
-      addEventListener(el, "change", onCompositionEnd);
-    }
-  },
-  // set value on mounted so it's after min/max for type="range"
-  mounted(el, { value, modifiers: { trim, number: number2 } }) {
-    const newValue = value == null ? "" : value;
-    const initialValue = el[initialValueKey];
-    delete el[initialValueKey];
-    if (initialValue !== void 0 && (el.type === "text" || el.type === "textarea") && el.value !== initialValue) {
-      el[assignKey](castValue(el.value, trim, number2));
-    } else {
-      el.value = newValue;
-    }
-  },
-  beforeUpdate(el, { value, oldValue, modifiers: { lazy, trim, number: number2 } }, vnode) {
-    el[assignKey] = getModelAssigner(vnode);
-    if (el.composing) return;
-    const elValue = (number2 || el.type === "number") && !/^0\d/.test(el.value) ? looseToNumber(el.value) : el.value;
-    const newValue = value == null ? "" : value;
-    if (elValue === newValue) {
-      return;
-    }
-    const rootNode = el.getRootNode();
-    if ((rootNode instanceof Document || rootNode instanceof ShadowRoot) && rootNode.activeElement === el && el.type !== "range") {
-      if (lazy && value === oldValue) {
-        return;
-      }
-      if (trim && el.value.trim() === newValue) {
-        return;
-      }
-    }
-    el.value = newValue;
-  }
-};
 const systemModifiers = ["ctrl", "shift", "alt", "meta"];
 const modifierGuards = {
   stop: (e) => e.stopPropagation(),
@@ -17425,26 +17277,6 @@ var Yt = { class: "m-snackbar-host" }, Xt = { class: "m-snackbar__inner" }, Zt =
       _: 1
     })])]));
   }
-}), _n = ["disabled"], vn = /* @__PURE__ */ defineComponent({
-  name: "MiuixFloatingActionButton",
-  __name: "FloatingActionButton",
-  props: { disabled: {
-    type: Boolean,
-    default: false
-  } },
-  emits: ["click"],
-  setup(e, { emit: t }) {
-    let n = e, r = t;
-    function i(e2) {
-      n.disabled || r("click", e2);
-    }
-    return (e2, t2) => (openBlock(), createElementBlock("button", {
-      type: "button",
-      class: normalizeClass(["m-fab", { "m-fab--disabled": n.disabled }]),
-      disabled: n.disabled,
-      onClick: i
-    }, [renderSlot(e2.$slots, "default")], 10, _n));
-  }
 }), yn = { class: "m-top-app-bar__nav" }, bn = {
   key: 0,
   class: "m-top-app-bar__title"
@@ -17704,14 +17536,14 @@ var u = {
     d: "M329.4 209.9 Q329.4 242.9 350.4 267.4 Q371.4 291.9 404.4 295.9 L526.4 313.9 Q541.4 315.9 552.4 318.4 Q563.4 320.9 569.4 324.9 Q582.4 332.9 587.4 344.9 Q590.4 350.9 590.9 362.4 Q591.4 373.9 591.4 388.9 V458.9 Q505.4 474.9 435.9 527.9 Q366.4 580.9 326.9 658.9 Q287.4 736.9 287.4 826.9 V1099.9 Q287.4 1113.9 296.9 1123.4 Q306.4 1132.9 319.4 1132.9 H1005.4 Q1019.4 1132.9 1028.9 1123.4 Q1038.4 1113.9 1038.4 1099.9 V826.9 Q1038.4 734.9 996.4 654.9 Q954.4 574.9 881.9 522.4 Q809.4 469.9 720.4 456.9 V388.9 Q720.4 357.9 724.4 346.9 Q729.4 332.9 742.4 324.9 Q748.4 320.9 759.4 318.4 Q770.4 315.9 785.4 313.9 L908.4 295.9 Q940.4 290.9 961.4 266.4 Q982.4 241.9 982.4 209.9 Q982.4 202.9 977.4 197.4 Q972.4 191.9 965.4 191.9 H347.4 Q340.4 191.9 334.9 196.9 Q329.4 201.9 329.4 209.9 Z M110.4 909.9 V1032.9 Q110.4 1052.9 124.4 1067.4 Q138.4 1081.9 158.4 1081.9 H197.4 Q214.4 1081.9 227.4 1068.9 Q240.4 1055.9 240.4 1037.9 V804.9 Q240.4 799.9 236.9 796.9 Q233.4 793.9 228.4 793.9 Q196.4 793.9 169.4 809.4 Q142.4 824.9 126.4 851.9 Q110.4 878.9 110.4 909.9 Z M1084.4 804.9 V1037.9 Q1084.4 1055.9 1097.4 1068.9 Q1110.4 1081.9 1128.4 1081.9 H1166.4 Q1186.4 1081.9 1200.4 1067.4 Q1214.4 1052.9 1214.4 1032.9 V909.9 Q1214.4 877.9 1198.9 851.4 Q1183.4 824.9 1155.9 809.4 Q1128.4 793.9 1096.4 793.9 Q1091.4 793.9 1087.9 796.9 Q1084.4 799.9 1084.4 804.9 Z M654.4 644.9 H697.4 Q704.4 644.9 708.4 648.9 Q712.4 652.9 712.4 659.9 V969.9 Q712.4 976.9 708.4 980.9 Q704.4 984.9 697.4 984.9 H661.4 Q650.4 984.9 642.4 980.9 L574.4 945.9 Q569.4 942.9 566.4 938.4 Q563.4 933.9 563.4 927.9 V883.9 Q563.4 874.9 568.4 871.9 Q573.4 868.9 581.4 872.9 L639.4 902.9 V659.9 Q639.4 652.9 643.4 648.9 Q647.4 644.9 654.4 644.9 Z"
   }
 };
-const _hoisted_1$7 = {
+const _hoisted_1$3 = {
   style: { "display": "none" },
   xmlns: "http://www.w3.org/2000/svg",
   "aria-hidden": "true"
 };
-const _hoisted_2$6 = ["id", "viewBox"];
-const _hoisted_3$6 = ["d", "transform"];
-const _sfc_main$8 = {
+const _hoisted_2$3 = ["id", "viewBox"];
+const _hoisted_3$3 = ["d", "transform"];
+const _sfc_main$4 = {
   __name: "IconSprite",
   setup(__props) {
     const W2 = (i) => i.regular;
@@ -17752,7 +17584,7 @@ const _sfc_main$8 = {
       open: W2(Z)
     };
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("svg", _hoisted_1$7, [
+      return openBlock(), createElementBlock("svg", _hoisted_1$3, [
         (openBlock(), createElementBlock(Fragment, null, renderList(glyphs, (g2, id2) => {
           return createBaseVNode("symbol", {
             key: id2,
@@ -17765,8 +17597,8 @@ const _sfc_main$8 = {
               fill: "currentColor",
               "fill-rule": "nonzero",
               "clip-rule": "nonzero"
-            }, null, 8, _hoisted_3$6)
-          ], 8, _hoisted_2$6);
+            }, null, 8, _hoisted_3$3)
+          ], 8, _hoisted_2$3);
         }), 64))
       ]);
     };
@@ -17797,7 +17629,6 @@ const fmtDur = (s) => {
   const h2 = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
   return (h2 ? h2 + "h " : "") + (m ? m + "m " : "") + x + "s";
 };
-const TYPES = ["doc", "pdf", "img", "data", "pkg", "code", "office", "other"];
 const EXTICON = {
   pdf: "pdf",
   md: "doc",
@@ -18097,23 +17928,23 @@ function toggleTheme() {
   }
   H(next);
 }
-const _hoisted_1$6 = {
+const _hoisted_1$2 = {
   class: "chip chip--primary",
   id: "verChip",
   title: "UI build — shows the stellar-trail version once explorer.py answers"
 };
-const _hoisted_2$5 = { id: "verTxt" };
-const _hoisted_3$5 = {
+const _hoisted_2$2 = { id: "verTxt" };
+const _hoisted_3$2 = {
   class: "chip",
   id: "clock",
   title: "local time"
 };
-const _hoisted_4$5 = {
+const _hoisted_4$2 = {
   class: "ic",
   id: "themeIcon"
 };
-const _hoisted_5$5 = ["href"];
-const _sfc_main$7 = {
+const _hoisted_5$2 = ["href"];
+const _sfc_main$3 = {
   __name: "TopBar",
   setup(__props) {
     const verTxt = computed(() => META.value ? "v" + (META.value.guard && META.value.guard.live_version || "?") : "…");
@@ -18133,13 +17964,13 @@ const _sfc_main$7 = {
           ], -1)
         ])]),
         actions: withCtx(() => [
-          createBaseVNode("span", _hoisted_1$6, [
+          createBaseVNode("span", _hoisted_1$2, [
             _cache[1] || (_cache[1] = createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-release" })
             ], -1)),
-            createBaseVNode("span", _hoisted_2$5, "UI 5.0 · " + toDisplayString(verTxt.value), 1)
+            createBaseVNode("span", _hoisted_2$2, "UI 5.0 · " + toDisplayString(verTxt.value), 1)
           ]),
-          createBaseVNode("span", _hoisted_3$5, [
+          createBaseVNode("span", _hoisted_3$2, [
             _cache[2] || (_cache[2] = createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-clock" })
             ], -1)),
@@ -18168,10 +17999,10 @@ const _sfc_main$7 = {
             onClick: unref(toggleTheme)
           }, {
             default: withCtx(() => [
-              (openBlock(), createElementBlock("svg", _hoisted_4$5, [
+              (openBlock(), createElementBlock("svg", _hoisted_4$2, [
                 createBaseVNode("use", {
                   href: unref(ui).themeDark ? "#i-moon" : "#i-sun"
-                }, null, 8, _hoisted_5$5)
+                }, null, 8, _hoisted_5$2)
               ]))
             ]),
             _: 1
@@ -18179,368 +18010,6 @@ const _sfc_main$7 = {
         ]),
         _: 1
       });
-    };
-  }
-};
-const _hoisted_1$5 = { "aria-label": "Release health" };
-const _hoisted_2$4 = {
-  class: "statgrid",
-  id: "stats"
-};
-const _hoisted_3$4 = { class: "top" };
-const _hoisted_4$4 = { class: "ic" };
-const _hoisted_5$4 = ["href"];
-const _hoisted_6$4 = { class: "k" };
-const _hoisted_7$4 = { class: "v" };
-const _hoisted_8$4 = { class: "s" };
-const _sfc_main$6 = {
-  __name: "StatsTiles",
-  setup(__props) {
-    const cells = computed(() => {
-      const m = META.value;
-      if (!m) return [];
-      const g2 = m.guard || {}, rs = m.resets || {};
-      const syncTxt = !g2 || !g2.installed ? "skill not installed" : g2.in_sync ? "in sync with canonical" : g2.canonical_present === false ? "no canonical yet — run bootstrap --ensure" : "drift vs canonical " + (g2.canonical_version || "?");
-      const wTxt = g2 && g2.watcher_alive ? "watcher alive" : "watcher down";
-      const cell = (o, label, cls, icon) => {
-        const c = o && o.count != null ? o.count : 0;
-        const last = o && o.last ? o.last : "never";
-        return { k: label, v: String(c), s: "last: " + last, icon, cls };
-      };
-      return [
-        {
-          k: "Skill Version",
-          v: "v" + (g2 && g2.live_version || "?"),
-          s: (g2 && g2.watcher_alive ? " watcher-alive" : "") + " — " + syncTxt + " · " + wTxt,
-          icon: "release",
-          cls: "primary",
-          dot: !!(g2 && g2.watcher_alive)
-        },
-        cell(rs.boot && rs.boot.boots, "Boot Resets", "doc", "restart"),
-        cell(rs.boot && rs.boot.skill_restores, "Skill Restores", "data", "restore"),
-        cell(rs.boot && rs.boot.archive_applies, "Snapshot Restores", "img", "backup")
-      ];
-    });
-    return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$5, [
-        _cache[0] || (_cache[0] = createBaseVNode("div", { class: "smalltitle" }, [
-          createBaseVNode("svg", { class: "ic" }, [
-            createBaseVNode("use", { href: "#i-spark" })
-          ]),
-          createTextVNode("Release Health")
-        ], -1)),
-        createBaseVNode("div", _hoisted_2$4, [
-          (openBlock(true), createElementBlock(Fragment, null, renderList(cells.value, (t, i) => {
-            return openBlock(), createElementBlock("div", {
-              key: i,
-              class: "statcard"
-            }, [
-              createBaseVNode("div", _hoisted_3$4, [
-                createBaseVNode("span", {
-                  class: normalizeClass(["tile40", "tile40--" + t.cls])
-                }, [
-                  (openBlock(), createElementBlock("svg", _hoisted_4$4, [
-                    createBaseVNode("use", {
-                      href: "#i-" + t.icon
-                    }, null, 8, _hoisted_5$4)
-                  ]))
-                ], 2),
-                createBaseVNode("span", _hoisted_6$4, toDisplayString(t.k), 1)
-              ]),
-              createBaseVNode("div", _hoisted_7$4, toDisplayString(t.v), 1),
-              createBaseVNode("div", _hoisted_8$4, [
-                i === 0 ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
-                  createBaseVNode("span", {
-                    class: normalizeClass(["gdot", t.dot ? "on" : "off"])
-                  }, null, 2),
-                  createTextVNode(toDisplayString(t.s), 1)
-                ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-                  createTextVNode(toDisplayString(t.s), 1)
-                ], 64))
-              ])
-            ]);
-          }), 128))
-        ])
-      ]);
-    };
-  }
-};
-const _hoisted_1$4 = { "aria-labelledby": "secTask" };
-const _hoisted_2$3 = {
-  class: "taskrail",
-  id: "taskRail",
-  role: "list",
-  tabindex: "0",
-  "aria-label": "Task history — scroll horizontally with arrow keys"
-};
-const _hoisted_3$3 = {
-  key: 0,
-  class: "rail-empty"
-};
-const _hoisted_4$3 = ["data-id", "onClick", "onKeydown"];
-const _hoisted_5$3 = { class: "th" };
-const _hoisted_6$3 = { class: "tid" };
-const _hoisted_7$3 = { class: "tt" };
-const _hoisted_8$3 = { class: "tc" };
-const _hoisted_9$3 = {
-  key: 0,
-  id: "activeFilter"
-};
-const _hoisted_10$3 = { class: "ichip" };
-const _sfc_main$5 = {
-  __name: "TaskRail",
-  setup(__props) {
-    const ts = computed(() => TASKS.value ? [...TASKS.value].slice(-14).reverse() : []);
-    const activeTask = computed(() => {
-      if (!S.task) return null;
-      const t = (META.value && META.value.tasks || []).find((x) => x.id === S.task);
-      return { id: t ? t.id : S.task, title: t ? t.title : "" };
-    });
-    function go(id2) {
-      S.task = S.task === id2 ? null : id2;
-      S.page = 1;
-    }
-    function onKey(e, id2) {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        go(id2);
-      }
-    }
-    function clearTask() {
-      S.task = null;
-      S.page = 1;
-    }
-    return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$4, [
-        _cache[3] || (_cache[3] = createStaticVNode('<div class="smalltitle"><svg class="ic"><use href="#i-task"></use></svg><span id="secTask">Task History</span><span class="note">parsed from worklog.md — full titles, scroll sideways; click a card to filter its related files</span></div>', 1)),
-        createBaseVNode("div", _hoisted_2$3, [
-          !ts.value.length ? (openBlock(), createElementBlock("div", _hoisted_3$3, "worklog.md has no Task section yet — this rail fills in automatically once one exists.")) : (openBlock(true), createElementBlock(Fragment, { key: 1 }, renderList(ts.value, (t) => {
-            return openBlock(), createElementBlock("div", {
-              key: t.id,
-              class: normalizeClass(["tcard", { active: unref(S).task === t.id }]),
-              role: "listitem",
-              tabindex: "0",
-              "data-id": t.id,
-              onClick: ($event) => go(t.id),
-              onKeydown: (e) => onKey(e, t.id)
-            }, [
-              createBaseVNode("div", _hoisted_5$3, [
-                _cache[0] || (_cache[0] = createBaseVNode("svg", { class: "ic tick" }, [
-                  createBaseVNode("use", { href: "#i-check" })
-                ], -1)),
-                createBaseVNode("span", _hoisted_6$3, "TASK " + toDisplayString(t.id), 1)
-              ]),
-              createBaseVNode("div", _hoisted_7$3, toDisplayString(t.title), 1),
-              createBaseVNode("div", _hoisted_8$3, [
-                createBaseVNode("span", null, toDisplayString(t.count) + " related files", 1),
-                _cache[1] || (_cache[1] = createBaseVNode("svg", { class: "ic" }, [
-                  createBaseVNode("use", { href: "#i-chevr" })
-                ], -1))
-              ])
-            ], 42, _hoisted_4$3);
-          }), 128))
-        ]),
-        activeTask.value ? (openBlock(), createElementBlock("div", _hoisted_9$3, [
-          createBaseVNode("span", _hoisted_10$3, [
-            createBaseVNode("span", null, "Active filter — TASK " + toDisplayString(activeTask.value.id) + ": " + toDisplayString(activeTask.value.title), 1),
-            createBaseVNode("button", {
-              class: "x",
-              onClick: clearTask,
-              title: "Remove filter",
-              "aria-label": "Remove the task filter"
-            }, [..._cache[2] || (_cache[2] = [
-              createBaseVNode("svg", { class: "ic" }, [
-                createBaseVNode("use", { href: "#i-close" })
-              ], -1)
-            ])])
-          ])
-        ])) : createCommentVNode("", true)
-      ]);
-    };
-  }
-};
-const _hoisted_1$3 = { "aria-label": "Filter and search" };
-const _hoisted_2$2 = { class: "toolbar" };
-const _hoisted_3$2 = {
-  class: "searchbar",
-  role: "search"
-};
-const _hoisted_4$2 = { class: "toolrow" };
-const _hoisted_5$2 = ["data-type", "onClick"];
-const _hoisted_6$2 = { class: "fnum" };
-const _hoisted_7$2 = {
-  class: "seg",
-  role: "group",
-  "aria-label": "Location"
-};
-const _hoisted_8$2 = ["data-root", "onClick"];
-const _hoisted_9$2 = {
-  class: "seg",
-  role: "group",
-  "aria-label": "Sort the file list"
-};
-const _hoisted_10$2 = ["data-col", "aria-pressed", "onClick"];
-const _hoisted_11$2 = {
-  class: "seg",
-  role: "group",
-  "aria-label": "View mode"
-};
-const _hoisted_12$2 = ["aria-pressed"];
-const _hoisted_13$2 = ["aria-pressed"];
-const _sfc_main$4 = {
-  __name: "Toolbar",
-  setup(__props) {
-    const q2 = /* @__PURE__ */ ref(""), qClear = /* @__PURE__ */ ref(false), qTimer = { t: null };
-    const typeCounts = /* @__PURE__ */ ref({}), total = /* @__PURE__ */ ref(0);
-    const label = { all: "All", doc: "Documents", pdf: "PDF", img: "Images", data: "Data", pkg: "Archives", code: "Code", office: "Office", other: "Other" };
-    watch(META, (m) => {
-      const tc = m && m.stats && m.stats.type_counts || {};
-      total.value = m && m.stats && m.stats.total_files || 0;
-      typeCounts.value = tc;
-      if (S.type !== "all" && !tc[S.type]) S.type = "all";
-    }, { immediate: true });
-    function onInput(e) {
-      const v2 = e.target.value;
-      qClear.value = !!v2;
-      clearTimeout(qTimer.t);
-      qTimer.t = setTimeout(() => {
-        S.q = v2;
-        S.page = 1;
-        loadList();
-      }, 200);
-    }
-    function clearQ() {
-      clearTimeout(qTimer.t);
-      S.q = "";
-      q2.value = "";
-      qClear.value = false;
-      S.page = 1;
-      loadList();
-    }
-    function pickType(t) {
-      S.type = t;
-      S.page = 1;
-      loadList();
-    }
-    function pickRoot(r) {
-      S.root = r;
-      S.page = 1;
-      loadList();
-    }
-    function pickSort(col) {
-      if (S.sort.col === col) S.sort.dir = S.sort.dir === "asc" ? "desc" : "asc";
-      else S.sort = { col, dir: col === "mtime" ? "desc" : "asc" };
-      S.page = 1;
-      loadList();
-    }
-    function pickView(v2) {
-      S.view = v2;
-    }
-    return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$3, [
-        createBaseVNode("div", _hoisted_2$2, [
-          createBaseVNode("div", _hoisted_3$2, [
-            _cache[4] || (_cache[4] = createBaseVNode("svg", { class: "ic" }, [
-              createBaseVNode("use", { href: "#i-search" })
-            ], -1)),
-            withDirectives(createBaseVNode("input", {
-              id: "q",
-              type: "search",
-              "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => q2.value = $event),
-              onInput,
-              placeholder: "Search files… (name / extension / path)",
-              "aria-label": "Search files"
-            }, null, 544), [
-              [vModelText, q2.value]
-            ]),
-            withDirectives(createBaseVNode("button", {
-              class: "iconbtn",
-              id: "qClear",
-              onClick: clearQ,
-              title: "Clear search",
-              "aria-label": "Clear search"
-            }, [..._cache[3] || (_cache[3] = [
-              createBaseVNode("svg", { class: "ic" }, [
-                createBaseVNode("use", { href: "#i-close" })
-              ], -1)
-            ])], 512), [
-              [vShow, qClear.value]
-            ])
-          ]),
-          createBaseVNode("div", _hoisted_4$2, [
-            (openBlock(true), createElementBlock(Fragment, null, renderList(["all", ...unref(TYPES)], (t) => {
-              return withDirectives((openBlock(), createElementBlock("button", {
-                key: t,
-                class: normalizeClass(["fchip", { on: unref(S).type === t }]),
-                "data-type": t,
-                onClick: ($event) => pickType(t)
-              }, [
-                createTextVNode(toDisplayString(label[t]) + " ", 1),
-                createBaseVNode("span", _hoisted_6$2, toDisplayString(t === "all" ? total.value : typeCounts.value[t] || 0), 1)
-              ], 10, _hoisted_5$2)), [
-                [vShow, t === "all" || (typeCounts.value[t] || 0) > 0]
-              ]);
-            }), 128)),
-            createBaseVNode("div", _hoisted_7$2, [
-              (openBlock(), createElementBlock(Fragment, null, renderList(["all", "download", "archive"], (r) => {
-                return createBaseVNode("button", {
-                  key: r,
-                  "data-root": r,
-                  class: normalizeClass({ on: unref(S).root === r }),
-                  onClick: ($event) => pickRoot(r)
-                }, toDisplayString(r === "all" ? "All" : r === "download" ? "Downloads" : "Archive"), 11, _hoisted_8$2);
-              }), 64))
-            ]),
-            createBaseVNode("div", _hoisted_9$2, [
-              (openBlock(), createElementBlock(Fragment, null, renderList(["mtime", "name", "size"], (c) => {
-                return createBaseVNode("button", {
-                  key: c,
-                  class: normalizeClass(["sortbtn", { on: unref(S).sort.col === c, asc: unref(S).sort.col === c && unref(S).sort.dir === "asc" }]),
-                  "data-col": c,
-                  "aria-pressed": unref(S).sort.col === c ? "true" : "false",
-                  onClick: ($event) => pickSort(c)
-                }, [
-                  createTextVNode(toDisplayString(c === "mtime" ? "Time" : c === "name" ? "Name" : "Size") + " ", 1),
-                  _cache[5] || (_cache[5] = createBaseVNode("svg", {
-                    class: "ic sortarr",
-                    "aria-hidden": "true"
-                  }, [
-                    createBaseVNode("use", { href: "#i-chev" })
-                  ], -1))
-                ], 10, _hoisted_10$2);
-              }), 64))
-            ]),
-            createBaseVNode("div", _hoisted_11$2, [
-              createBaseVNode("button", {
-                id: "vGrid",
-                class: normalizeClass({ on: unref(S).view === "grid" }),
-                title: "Grid view",
-                "aria-label": "Grid view",
-                "aria-pressed": unref(S).view === "grid" ? "true" : "false",
-                onClick: _cache[1] || (_cache[1] = ($event) => pickView("grid"))
-              }, [..._cache[6] || (_cache[6] = [
-                createBaseVNode("svg", { class: "ic" }, [
-                  createBaseVNode("use", { href: "#i-grid" })
-                ], -1),
-                createTextVNode("Grid ", -1)
-              ])], 10, _hoisted_12$2),
-              createBaseVNode("button", {
-                id: "vList",
-                class: normalizeClass({ on: unref(S).view === "list" }),
-                title: "List view",
-                "aria-label": "List view",
-                "aria-pressed": unref(S).view === "list" ? "true" : "false",
-                onClick: _cache[2] || (_cache[2] = ($event) => pickView("list"))
-              }, [..._cache[7] || (_cache[7] = [
-                createBaseVNode("svg", { class: "ic" }, [
-                  createBaseVNode("use", { href: "#i-list" })
-                ], -1),
-                createTextVNode("List ", -1)
-              ])], 10, _hoisted_13$2)
-            ])
-          ])
-        ])
-      ]);
     };
   }
 };
@@ -18609,74 +18078,59 @@ function hlJSON(src) {
   }
   return esc(src).replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g, (m, s, c) => c ? `<span class="k">${s}</span>${c}` : `<span class="s2">${s}</span>`).replace(/\b(-?\d+\.?\d*)\b/g, '<span class="n">$1</span>').replace(/\b(true|false|null)\b/g, '<span class="b2">$1</span>');
 }
-const _hoisted_1$2 = {
+const _hoisted_1$1 = {
   id: "listwrap",
   "aria-label": "Files"
 };
-const _hoisted_2$1 = {
-  key: 0,
-  id: "listhead"
-};
-const _hoisted_3$1 = { class: "rootline" };
-const _hoisted_4$1 = { class: "mono" };
-const _hoisted_5$1 = { class: "cnt" };
-const _hoisted_6$1 = { id: "listbody" };
-const _hoisted_7$1 = {
+const _hoisted_2$1 = { id: "listbody" };
+const _hoisted_3$1 = {
   key: 0,
   class: "empty"
 };
-const _hoisted_8$1 = { class: "t" };
-const _hoisted_9$1 = {
+const _hoisted_4$1 = { class: "t" };
+const _hoisted_5$1 = {
   key: 1,
   class: "empty"
 };
-const _hoisted_10$1 = {
+const _hoisted_6$1 = {
   key: 2,
   class: "loadcard"
 };
-const _hoisted_11$1 = {
+const _hoisted_7$1 = {
   key: 3,
   class: "empty"
 };
-const _hoisted_12$1 = ["aria-label", "onClick", "onKeydown"];
-const _hoisted_13$1 = { class: "fbadge" };
-const _hoisted_14$1 = { class: "ic" };
-const _hoisted_15$1 = ["href"];
-const _hoisted_16$1 = { class: "fbody" };
-const _hoisted_17$1 = { class: "fnm" };
-const _hoisted_18$1 = { class: "cd" };
-const _hoisted_19$1 = { class: "fmeta" };
-const _hoisted_20$1 = ["title"];
-const _hoisted_21$1 = {
+const _hoisted_8$1 = ["aria-label", "onClick", "onKeydown"];
+const _hoisted_9$1 = { class: "fbadge" };
+const _hoisted_10$1 = { class: "ic" };
+const _hoisted_11$1 = ["href"];
+const _hoisted_12$1 = { class: "fbody" };
+const _hoisted_13$1 = { class: "fnm" };
+const _hoisted_14$1 = { class: "cd" };
+const _hoisted_15$1 = { class: "fmeta" };
+const _hoisted_16$1 = ["title"];
+const _hoisted_17$1 = {
   key: 0,
   class: "ftask"
 };
-const _hoisted_22$1 = { class: "fact" };
-const _hoisted_23 = ["aria-label", "onClick"];
-const _hoisted_24 = ["href", "download", "title", "aria-label"];
-const _hoisted_25 = {
-  key: 1,
+const _hoisted_18$1 = { class: "fact" };
+const _hoisted_19$1 = ["aria-label", "onClick"];
+const _hoisted_20$1 = ["href", "download", "title", "aria-label"];
+const _hoisted_21$1 = {
+  key: 0,
   class: "pager",
   id: "pager"
 };
+const _hoisted_22$1 = ["disabled"];
+const _hoisted_23 = ["disabled"];
+const _hoisted_24 = { class: "pinfo" };
+const _hoisted_25 = ["disabled"];
 const _hoisted_26 = ["disabled"];
-const _hoisted_27 = ["disabled"];
-const _hoisted_28 = { class: "pinfo" };
-const _hoisted_29 = ["disabled"];
-const _hoisted_30 = ["disabled"];
-const _sfc_main$3 = {
+const _sfc_main$2 = {
   __name: "FileList",
   emits: ["preview"],
   setup(__props, { emit: __emit }) {
     const emit2 = __emit;
-    const locName = computed(() => ({ all: "All locations", download: "Downloads", archive: "Archive" })[S.root] || S.root);
-    const rootPaths = computed(() => {
-      if (!META.value || !META.value.roots) return "download/ + archive/";
-      return S.root === "all" ? META.value.roots.map((r) => r.label + "/").join(" + ") : (META.value.roots.find((r) => r.label === S.root) || {}).path || S.root + "/";
-    });
-    const from_ = computed(() => PAGE.value && PAGE.value.total ? (PAGE.value.page - 1) * PAGE.value.per_page + 1 : 0);
-    const to_ = computed(() => PAGE.value ? Math.min(PAGE.value.page * PAGE.value.per_page, PAGE.value.total) : 0);
-    const shown = computed(() => PAGE.value ? `showing ${from_.value}–${to_.value} of ${PAGE.value.total} files${PAGE.value.pages > 1 ? " · page " + PAGE.value.page + " / " + PAGE.value.pages : ""}` : "");
     function crumb(f) {
       const i = f.rel.lastIndexOf("/");
       return i < 0 ? { dir: "", name: f.rel } : { dir: f.rel.slice(0, i + 1), name: f.rel.slice(i + 1) };
@@ -18695,20 +18149,10 @@ const _sfc_main$3 = {
       emit2("preview", f);
     }
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$2, [
-        unref(PAGE) && !unref(ui).static && !unref(ui).error ? (openBlock(), createElementBlock("div", _hoisted_2$1, [
-          createBaseVNode("div", _hoisted_3$1, [
-            _cache[7] || (_cache[7] = createBaseVNode("svg", { class: "ic" }, [
-              createBaseVNode("use", { href: "#i-folder" })
-            ], -1)),
-            createBaseVNode("b", null, toDisplayString(locName.value), 1),
-            createBaseVNode("span", _hoisted_4$1, toDisplayString(rootPaths.value), 1),
-            createBaseVNode("span", _hoisted_5$1, toDisplayString(shown.value), 1)
-          ])
-        ])) : createCommentVNode("", true),
-        createBaseVNode("div", _hoisted_6$1, [
-          unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_7$1, [
-            _cache[12] || (_cache[12] = createBaseVNode("div", {
+      return openBlock(), createElementBlock("section", _hoisted_1$1, [
+        createBaseVNode("div", _hoisted_2$1, [
+          unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_3$1, [
+            _cache[11] || (_cache[11] = createBaseVNode("div", {
               class: "e",
               style: { "background": "var(--mx-tertiary-container)", "color": "var(--mx-on-tertiary-container)" }
             }, [
@@ -18716,38 +18160,38 @@ const _sfc_main$3 = {
                 createBaseVNode("use", { href: "#i-info" })
               ])
             ], -1)),
-            createBaseVNode("div", _hoisted_8$1, toDisplayString(unref(ui).staticLive ? "Static copy — live explorer reachable" : "Static copy — live data unavailable"), 1),
+            createBaseVNode("div", _hoisted_4$1, toDisplayString(unref(ui).staticLive ? "Static copy — live explorer reachable" : "Static copy — live data unavailable"), 1),
             unref(ui).staticLive ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
-              _cache[9] || (_cache[9] = createBaseVNode("div", { class: "h" }, "explorer.py answered from this origin — the live Task Files Explorer is one click away", -1)),
+              _cache[8] || (_cache[8] = createBaseVNode("div", { class: "h" }, "explorer.py answered from this origin — the live Task Files Explorer is one click away", -1)),
               createBaseVNode("button", {
                 class: "btn",
                 onClick: _cache[0] || (_cache[0] = ($event) => unref(goLive)())
-              }, [..._cache[8] || (_cache[8] = [
+              }, [..._cache[7] || (_cache[7] = [
                 createBaseVNode("svg", { class: "ic" }, [
                   createBaseVNode("use", { href: "#i-open" })
                 ], -1),
                 createTextVNode("Open live view", -1)
               ])])
             ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-              _cache[10] || (_cache[10] = createBaseVNode("div", { class: "h" }, "this page was opened as a plain file, without explorer.py — the /api feeds behind the tiles, task rail, and search do not exist on this origin", -1)),
-              _cache[11] || (_cache[11] = createBaseVNode("div", { class: "h" }, "the live Task Files Explorer is served at the preview URL root while a session is running", -1))
+              _cache[9] || (_cache[9] = createBaseVNode("div", { class: "h" }, "this page was opened as a plain file, without explorer.py — the /api feeds behind the tiles, task rail, and search do not exist on this origin", -1)),
+              _cache[10] || (_cache[10] = createBaseVNode("div", { class: "h" }, "the live Task Files Explorer is served at the preview URL root while a session is running", -1))
             ], 64))
-          ])) : unref(ui).error ? (openBlock(), createElementBlock("div", _hoisted_9$1, [
-            _cache[14] || (_cache[14] = createStaticVNode('<div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container);"><svg class="ic"><use href="#i-warn"></use></svg></div><div class="t">Failed to load data from explorer.py</div><div class="h">server not responding — the connection may be temporarily down · UI v5.0</div>', 3)),
+          ])) : unref(ui).error ? (openBlock(), createElementBlock("div", _hoisted_5$1, [
+            _cache[13] || (_cache[13] = createStaticVNode('<div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container);"><svg class="ic"><use href="#i-warn"></use></svg></div><div class="t">Failed to load data from explorer.py</div><div class="h">server not responding — the connection may be temporarily down · UI v5.0</div>', 3)),
             createBaseVNode("button", {
               class: "btn",
               onClick: _cache[1] || (_cache[1] = ($event) => unref(resetErrorAndRetry)())
-            }, [..._cache[13] || (_cache[13] = [
+            }, [..._cache[12] || (_cache[12] = [
               createBaseVNode("svg", { class: "ic" }, [
                 createBaseVNode("use", { href: "#i-down" })
               ], -1),
               createTextVNode("Retry", -1)
             ])])
-          ])) : !unref(PAGE) ? (openBlock(), createElementBlock("div", _hoisted_10$1, [..._cache[15] || (_cache[15] = [
+          ])) : !unref(PAGE) ? (openBlock(), createElementBlock("div", _hoisted_6$1, [..._cache[14] || (_cache[14] = [
             createBaseVNode("div", { class: "spinner" }, null, -1),
             createBaseVNode("p", null, "loading file inventory…", -1)
-          ])])) : !unref(PAGE).total ? (openBlock(), createElementBlock("div", _hoisted_11$1, [..._cache[16] || (_cache[16] = [
-            createStaticVNode('<div class="e t-other"><svg class="ic"><use href="#i-search"></use></svg></div><div class="t">No files match the active filters</div><div class="h">try changing the keyword, type, task, or location</div>', 3)
+          ])])) : !unref(PAGE).total ? (openBlock(), createElementBlock("div", _hoisted_7$1, [..._cache[15] || (_cache[15] = [
+            createStaticVNode('<div class="e t-other"><svg class="ic"><use href="#i-search"></use></svg></div><div class="t">No files match the active filters</div><div class="h">no files in download/ + archive/ yet — the list fills in as work produces deliverables</div>', 3)
           ])])) : (openBlock(), createElementBlock("div", {
             key: 4,
             class: normalizeClass(["filegrid", { "filegrid--list": unref(S).view === "list", noanim: !unref(ui).listAnim }])
@@ -18763,44 +18207,44 @@ const _sfc_main$3 = {
                 onClick: ($event) => emit2("preview", f),
                 onKeydown: (e) => onCardKey(e, f)
               }, [
-                createBaseVNode("span", _hoisted_13$1, toDisplayString(f.ext || f.type), 1),
+                createBaseVNode("span", _hoisted_9$1, toDisplayString(f.ext || f.type), 1),
                 createBaseVNode("span", {
                   class: normalizeClass(["ftile", "t-" + unref(classFor)(f)])
                 }, [
-                  (openBlock(), createElementBlock("svg", _hoisted_14$1, [
+                  (openBlock(), createElementBlock("svg", _hoisted_10$1, [
                     createBaseVNode("use", {
                       href: "#i-" + unref(iconFor)(f)
-                    }, null, 8, _hoisted_15$1)
+                    }, null, 8, _hoisted_11$1)
                   ]))
                 ], 2),
-                createBaseVNode("div", _hoisted_16$1, [
-                  createBaseVNode("div", _hoisted_17$1, [
-                    createBaseVNode("span", _hoisted_18$1, toDisplayString(crumb(f).dir), 1),
+                createBaseVNode("div", _hoisted_12$1, [
+                  createBaseVNode("div", _hoisted_13$1, [
+                    createBaseVNode("span", _hoisted_14$1, toDisplayString(crumb(f).dir), 1),
                     createBaseVNode("span", null, toDisplayString(crumb(f).name), 1)
                   ]),
-                  createBaseVNode("div", _hoisted_19$1, [
+                  createBaseVNode("div", _hoisted_15$1, [
                     createBaseVNode("span", null, toDisplayString(unref(fmtSize)(f.size)), 1),
                     createBaseVNode("span", {
                       title: unref(fmtDate)(f.mtime)
-                    }, toDisplayString(unref(fmtRel)(f.mtime)), 9, _hoisted_20$1)
+                    }, toDisplayString(unref(fmtRel)(f.mtime)), 9, _hoisted_16$1)
                   ]),
-                  f.task ? (openBlock(), createElementBlock("span", _hoisted_21$1, [
-                    _cache[17] || (_cache[17] = createBaseVNode("svg", { class: "ic" }, [
+                  f.task ? (openBlock(), createElementBlock("span", _hoisted_17$1, [
+                    _cache[16] || (_cache[16] = createBaseVNode("svg", { class: "ic" }, [
                       createBaseVNode("use", { href: "#i-check" })
                     ], -1)),
                     createTextVNode("TASK " + toDisplayString(f.task), 1)
                   ])) : createCommentVNode("", true),
-                  createBaseVNode("div", _hoisted_22$1, [
+                  createBaseVNode("div", _hoisted_18$1, [
                     createBaseVNode("button", {
                       class: "fcpy",
                       title: "Copy the server path",
                       "aria-label": "Copy the path of " + f.name,
                       onClick: withModifiers(($event) => unref(copyPath)(f), ["stop"])
-                    }, [..._cache[18] || (_cache[18] = [
+                    }, [..._cache[17] || (_cache[17] = [
                       createBaseVNode("svg", { class: "ic" }, [
                         createBaseVNode("use", { href: "#i-copy" })
                       ], -1)
-                    ])], 8, _hoisted_23),
+                    ])], 8, _hoisted_19$1),
                     createBaseVNode("a", {
                       href: f.href + "?dl=1",
                       download: f.name,
@@ -18808,51 +18252,51 @@ const _sfc_main$3 = {
                       "aria-label": "Download " + f.name,
                       onClick: _cache[2] || (_cache[2] = withModifiers(() => {
                       }, ["stop"]))
-                    }, [..._cache[19] || (_cache[19] = [
+                    }, [..._cache[18] || (_cache[18] = [
                       createBaseVNode("svg", { class: "ic" }, [
                         createBaseVNode("use", { href: "#i-down" })
                       ], -1)
-                    ])], 8, _hoisted_24)
+                    ])], 8, _hoisted_20$1)
                   ])
                 ])
-              ], 44, _hoisted_12$1);
+              ], 44, _hoisted_8$1);
             }), 128))
           ], 2))
         ]),
-        unref(PAGE) && unref(PAGE).pages > 1 && !unref(ui).error && !unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_25, [
+        unref(PAGE) && unref(PAGE).pages > 1 && !unref(ui).error && !unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_21$1, [
           createBaseVNode("button", {
             title: "First page",
             disabled: unref(PAGE).page <= 1,
             onClick: _cache[3] || (_cache[3] = ($event) => page(1))
-          }, [..._cache[20] || (_cache[20] = [
+          }, [..._cache[19] || (_cache[19] = [
             createStaticVNode('<svg class="ic"><use href="#i-chevr"></use></svg><span style="transform:scaleX(-1);display:inline-flex;"><svg class="ic"><use href="#i-chevr"></use></svg></span>', 2)
-          ])], 8, _hoisted_26),
+          ])], 8, _hoisted_22$1),
           createBaseVNode("button", {
             title: "Previous page",
             disabled: unref(PAGE).page <= 1,
             onClick: _cache[4] || (_cache[4] = ($event) => page(Math.max(1, unref(PAGE).page - 1)))
-          }, [..._cache[21] || (_cache[21] = [
+          }, [..._cache[20] || (_cache[20] = [
             createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-chev" })
             ], -1)
-          ])], 8, _hoisted_27),
-          createBaseVNode("span", _hoisted_28, toDisplayString(unref(PAGE).page) + " / " + toDisplayString(unref(PAGE).pages), 1),
+          ])], 8, _hoisted_23),
+          createBaseVNode("span", _hoisted_24, toDisplayString(unref(PAGE).page) + " / " + toDisplayString(unref(PAGE).pages), 1),
           createBaseVNode("button", {
             title: "Next page",
             disabled: unref(PAGE).page >= unref(PAGE).pages,
             onClick: _cache[5] || (_cache[5] = ($event) => page(Math.min(unref(PAGE).pages, unref(PAGE).page + 1)))
-          }, [..._cache[22] || (_cache[22] = [
+          }, [..._cache[21] || (_cache[21] = [
             createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-chev" })
             ], -1)
-          ])], 8, _hoisted_29),
+          ])], 8, _hoisted_25),
           createBaseVNode("button", {
             title: "Last page",
             disabled: unref(PAGE).page >= unref(PAGE).pages,
             onClick: _cache[6] || (_cache[6] = ($event) => page(unref(PAGE).pages))
-          }, [..._cache[23] || (_cache[23] = [
+          }, [..._cache[22] || (_cache[22] = [
             createStaticVNode('<span style="transform:scaleX(-1);display:inline-flex;"><svg class="ic"><use href="#i-chevr"></use></svg></span><svg class="ic"><use href="#i-chevr"></use></svg>', 2)
-          ])], 8, _hoisted_30)
+          ])], 8, _hoisted_26)
         ])) : createCommentVNode("", true)
       ]);
     };
@@ -18865,7 +18309,7 @@ const _export_sfc = (sfc, props) => {
   }
   return target;
 };
-const _hoisted_1$1 = {
+const _hoisted_1 = {
   key: 0,
   class: "mhead"
 };
@@ -18916,7 +18360,7 @@ const _hoisted_22 = {
   class: "loadcard"
 };
 const PREVIEW_CAP = 2e5;
-const _sfc_main$2 = {
+const _sfc_main$1 = {
   __name: "PreviewModal",
   setup(__props, { expose: __expose }) {
     const open = /* @__PURE__ */ ref(false);
@@ -18998,7 +18442,7 @@ const _sfc_main$2 = {
         summary: file.value ? unref(fmtSize)(file.value.size) + " · " + unref(fmtDate)(file.value.mtime) : ""
       }, {
         default: withCtx(() => [
-          file.value ? (openBlock(), createElementBlock("div", _hoisted_1$1, [
+          file.value ? (openBlock(), createElementBlock("div", _hoisted_1, [
             createBaseVNode("span", {
               class: normalizeClass(["micon", "t-" + unref(classFor)(file.value)]),
               id: "mIconWrap"
@@ -19120,36 +18564,7 @@ const _sfc_main$2 = {
     };
   }
 };
-const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["__scopeId", "data-v-f2bd18bb"]]);
-const _sfc_main$1 = {
-  __name: "FabTop",
-  setup(__props) {
-    function onScroll() {
-      ui.fab = window.scrollY > 600;
-    }
-    function toTop() {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-    onMounted(() => window.addEventListener("scroll", onScroll, { passive: true }));
-    onBeforeUnmount(() => window.removeEventListener("scroll", onScroll));
-    return (_ctx, _cache) => {
-      return unref(ui).fab ? (openBlock(), createBlock(unref(vn), {
-        key: 0,
-        title: "Back to top",
-        "aria-label": "Back to top",
-        onClick: toTop
-      }, {
-        default: withCtx(() => [..._cache[0] || (_cache[0] = [
-          createBaseVNode("svg", { class: "ic" }, [
-            createBaseVNode("use", { href: "#i-up" })
-          ], -1)
-        ])]),
-        _: 1
-      })) : createCommentVNode("", true);
-    };
-  }
-};
-const _hoisted_1 = { id: "ftInfo" };
+const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-f2bd18bb"]]);
 const _sfc_main = {
   __name: "App",
   setup(__props) {
@@ -19165,28 +18580,13 @@ const _sfc_main = {
     });
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
-        createVNode(_sfc_main$8),
-        createVNode(_sfc_main$7),
+        createVNode(_sfc_main$4),
+        createVNode(_sfc_main$3),
         createBaseVNode("main", null, [
-          createVNode(_sfc_main$6),
-          createVNode(_sfc_main$5),
-          createVNode(_sfc_main$4),
-          createVNode(_sfc_main$3, {
+          createVNode(_sfc_main$2, {
             onPreview: _cache[0] || (_cache[0] = (f) => modal.value && modal.value.open(f))
           })
         ]),
-        createBaseVNode("footer", null, [
-          _cache[1] || (_cache[1] = createTextVNode(" Served by the ", -1)),
-          _cache[2] || (_cache[2] = createBaseVNode("b", null, "dev.sh", -1)),
-          _cache[3] || (_cache[3] = createTextVNode(" boot hook → ", -1)),
-          _cache[4] || (_cache[4] = createBaseVNode("b", null, "explorer.py", -1)),
-          _cache[5] || (_cache[5] = createTextVNode(" at 127.0.0.1:3000 — upstream of the platform preview ingress.", -1)),
-          _cache[6] || (_cache[6] = createBaseVNode("br", null, null, -1)),
-          _cache[7] || (_cache[7] = createBaseVNode("b", null, "miuix-vue (HyperOS)", -1)),
-          _cache[8] || (_cache[8] = createTextVNode(" components · palette verbatim from compose-miuix-ui/miuix Colors.kt · system-adaptive theme (setThemeMode('system')) · server-side search & pagination (v1.6) · UI v5.0 · single-file zero-runtime-dependency build · ", -1)),
-          createBaseVNode("span", _hoisted_1, toDisplayString(unref(ui).footer), 1)
-        ]),
-        createVNode(_sfc_main$1),
         createVNode(PreviewModal, {
           ref_key: "modal",
           ref: modal
@@ -19251,8 +18651,8 @@ createApp(_sfc_main).mount("#app");</script>
   --mx-tertiary-container:#2B3B54; --mx-on-tertiary-container:#4788FF;
   --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
   --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
-  --mx-page:#242424;                 /* background */
-  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; now a lifted gray above the #242424 page) */
+  --mx-page:#17171A;                 /* background — Task 61 fix #2: deep HyperOS page; the verbatim miuix pair (#242424 page vs #2d2d2d container, Δ3%) read as "background = card"; page now 21 points under the card */
+  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; kept VERBATIM — Task 61 moves the PAGE instead, so the Task-59 fix survives untouched) */
   --mx-on-card:rgba(255,255,255,.90);/* onBackground */
   --mx-on-card-2:#F2F2F2;            /* onSurface */
   --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */
@@ -19262,7 +18662,7 @@ createApp(_sfc_main).mount("#app");</script>
   --mx-outline:#404040; --mx-divider:#393939;
   --mx-error:#F12522; --mx-error-container:#2E0603; --mx-on-error-container:#FFDAD6;
   --mx-scrim:rgba(0,0,0,.60);        /* windowDimming */
-  --mx-appbar:rgba(36,36,36,.72);
+  --mx-appbar:rgba(23,23,26,.72);
   --mx-hover:rgba(255,255,255,.07); --mx-press:rgba(255,255,255,.045);
   --mx-shadow:0 1px 3px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.30);
   --mx-shadow-lg:0 12px 40px rgba(0,0,0,.60);
@@ -19287,7 +18687,7 @@ createApp(_sfc_main).mount("#app");</script>
   --mx-tertiary-container:#EAF2FF; --mx-on-tertiary-container:#3482FF;
   --mx-secondary-container:#F0F0F0; --mx-on-secondary-container:#A9A9A9;
   --mx-secondary-variant:#F0F0F0; --mx-on-secondary-variant:#B2B2B2;
-  --mx-page:#F7F7F7;                 /* surface — HyperOS gray page */
+  --mx-page:#EFEFEF;                 /* surface — HyperOS gray page (Task 61: deepened from #F7F7F7 so white cards separate visibly from the page, Δ16 vs Δ8) */
   --mx-card:#FFFFFF;                 /* surfaceContainer — white cards */
   --mx-on-card:rgba(0,0,0,.90);
   --mx-on-card-2:#000000;
@@ -19298,7 +18698,7 @@ createApp(_sfc_main).mount("#app");</script>
   --mx-outline:#D9D9D9; --mx-divider:#E0E0E0;
   --mx-error:#E94634; --mx-error-container:#FDF6F4; --mx-on-error-container:#410002;
   --mx-scrim:rgba(0,0,0,.30);
-  --mx-appbar:rgba(247,247,247,.72);
+  --mx-appbar:rgba(239,239,239,.72);
   --mx-hover:rgba(0,0,0,.045); --mx-press:rgba(0,0,0,.03);
   --mx-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05);
   --mx-shadow-lg:0 12px 40px rgba(0,0,0,.16);
@@ -19373,134 +18773,10 @@ input{font:inherit;color:inherit}
 /* ---- Layout ---------------------------------------------------- */
 main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
 section{margin-bottom:26px}
-.smalltitle{ /* Miuix SmallTitle */
-  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
-  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
-}
-.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
-.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
-
-/* ---- Stat tiles (Miuix Card grid) ------------------------------ */
-.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
-.statcard{
-  background:var(--mx-card);border-radius:var(--mx-radius-xl);
-  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
-  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
-  position:relative;overflow:hidden;
-}
-.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
-.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
-.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
-  font-variant-numeric:tabular-nums}
-.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tile40{
-  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
-}
-.tile40 .ic{width:22px;height:22px;fill:currentColor}
-.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
-.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
-.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
-.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
-.gdot.off{background:var(--mx-error)}
-/* ---- Task rail (SuperArrow-style cards) — v4.1: horizontal scroll --- */
-.taskrail{
-  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
-  scroll-snap-type:x proximity;padding:2px 2px 8px;
-}
-.tcard{
-  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
-  scroll-snap-align:start;
-  background:var(--mx-card);border-radius:var(--mx-radius-l);
-  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
-  border:2px solid transparent;
-  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
-             border-color var(--mx-dur) var(--mx-ease),
-             box-shadow var(--mx-dur-med) var(--mx-ease);
-}
-.tcard:hover{transform:translateY(-2px)}
-.tcard.active{border-color:var(--mx-primary)}
-.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
-.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
-.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
-  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
-  overflow-wrap:break-word;word-break:break-word;
-}
-.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
-  display:flex;align-items:center;justify-content:space-between}
-.tcard .tc .ic{width:13px;height:13px;fill:currentColor;opacity:.55}
-.rail-empty{
-  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
-  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
-  box-shadow:var(--mx-shadow);
-}
-
-/* ---- Toolbar: SearchBar + chips + segments --------------------- */
-.toolbar{display:flex;flex-direction:column;gap:10px}
-.searchbar{ /* Miuix SearchBar pill */
-  display:flex;align-items:center;gap:10px;height:44px;padding:0 8px 0 16px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-  transition:box-shadow var(--mx-dur-med) var(--mx-ease);
-}
-.searchbar:focus-within{box-shadow:0 0 0 2px var(--mx-primary)}
-.searchbar .ic{width:19px;height:19px;fill:var(--mx-on-secondary-container);flex:none}
-.searchbar input{
-  flex:1;min-width:0;background:none;border:0;outline:0;
-  font-size:var(--fs-card);color:var(--mx-on-card-2);
-}
-.searchbar input::placeholder{color:var(--mx-on-secondary-container)}
-.toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.fchip{ /* Miuix TabRow-style filter chip */
-  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;
-  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
-  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
-  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease),
-             transform var(--mx-dur) var(--mx-ease);
-}
-.fchip:hover{transform:translateY(-1px)}
-.fchip .ic{width:14px;height:14px;fill:currentColor}
-.fchip.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
-.fchip .fnum{font-variant-numeric:tabular-nums;opacity:.75;font-size:var(--fs-caption)}
-.seg{ /* segmented control */
-  display:inline-flex;align-items:center;gap:2px;height:32px;padding:3px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-}
-.seg button{
-  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;
-  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
-  color:var(--mx-on-secondary-variant);
-  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
-}
-.seg button.on{background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow)}
-.seg button .ic{width:14px;height:14px;fill:currentColor}
-.seg .sortarr{transition:transform var(--mx-dur-med) var(--mx-ease)}
-.seg button.asc .sortarr{transform:rotate(180deg)}
-.ichip{ /* active filter pill */
-  display:inline-flex;align-items:center;gap:8px;max-width:100%;
-  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
-  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
-  font-size:var(--fs-label);font-weight:550;
-}
-.ichip .x{
-  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
-  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
-}
-.ichip .x:hover{background:var(--mx-hover)}
-.ichip .x .ic{width:13px;height:13px;fill:currentColor}
-.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---- File cards ------------------------------------------------ */
-.rootline{
-  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
-  font-size:var(--fs-label);color:var(--mx-text-2);
-}
-.rootline .ic{width:15px;height:15px;fill:currentColor}
-.rootline b{color:var(--mx-on-card-2);font-weight:600}
-.rootline .cnt{margin-left:auto;color:var(--mx-text-3);font-variant-numeric:tabular-nums}
+/* Task 61: the listhead rootline label is retired with the other body
+   labels — .rootline rules removed; the cards open directly under main. */
 .filegrid{
   display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
@@ -19522,7 +18798,6 @@ section{margin-bottom:26px}
    stable after first paint. Kills the every-open paint burst on slow devices
    (field report: multi-device seconds-long freeze at every open). */
 .fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
-.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
@@ -19681,29 +18956,14 @@ section{margin-bottom:26px}
 }
 .snackbar .act:hover{background:var(--mx-hover)}
 
-/* ---- FAB -------------------------------------------------------- */
-.fab{
-  position:fixed;right:22px;bottom:24px;z-index:80;width:48px;height:48px;border-radius:16px;
-  display:grid;place-items:center;background:var(--mx-primary);color:var(--mx-on-primary);
-  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;transform:translateY(14px) scale(.9);
-  transition:all var(--mx-dur-med) var(--mx-ease-spring);
-}
-.fab.show{opacity:1;pointer-events:auto;transform:none}
-.fab .ic{width:22px;height:22px;fill:currentColor}
-
-/* ---- Footer ----------------------------------------------------- */
-footer{
-  max-width:1280px;margin:0 auto;padding:6px var(--pad) 34px;
-  font-size:var(--fs-caption);color:var(--mx-text-3);line-height:1.7;text-align:center;
-}
-footer b{color:var(--mx-text-2);font-weight:600}
+/* ---- Task 61 (owner order): the FAB (back-to-top) is RETIRED with the
+   rest of the body chrome — .fab and the Task-54 B2 patch (.m-fab) removed.
+   Mobile keeps native scroll-to-top; nothing floats over the file list. */
 
 /* ---- Responsive -------------------------------------------------- */
 @media (max-width:640px){
   .appbar-sub{display:none}
-  .statgrid{grid-template-columns:repeat(2,1fr)}
   .filegrid{grid-template-columns:1fr}
-  .toolrow{gap:6px}
   /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
      hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
      and overflowed sideways. The bar now wraps to TWO rows: logo + title +
@@ -19748,10 +19008,9 @@ footer b{color:var(--mx-text-2);font-weight:600}
 .m-icon-button{width:40px;height:40px;flex:none}
 .m-icon-button .ic{width:20px;height:20px;fill:currentColor}
 
-/* B2 — FAB: v4.4 .fab geometry, fixed corner + iOS safe-area
-   (min-width override needed: miuix ships min-width:60px, which beats width:48px) */
-.m-fab{position:fixed;right:22px;bottom:calc(24px + env(safe-area-inset-bottom, 0px));z-index:80;width:48px;height:48px;min-width:48px;min-height:48px;flex:none}
-.m-fab .ic{width:22px;height:22px;fill:currentColor}
+/* B2 — RETIRED at Task 61: the FAB (back-to-top) left with the body chrome
+   (owner order); no .m-fab renders, so the patch has no target. The v4.4
+   reference values live in git history if a FAB ever returns. */
 
 /* B4 — sticky header (v4.4 contract: the bar stays pinned above the cards) */
 .m-top-app-bar{position:sticky;top:0;z-index:60}

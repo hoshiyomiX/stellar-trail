@@ -51,8 +51,8 @@
   --mx-tertiary-container:#2B3B54; --mx-on-tertiary-container:#4788FF;
   --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
   --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
-  --mx-page:#242424;                 /* background */
-  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; now a lifted gray above the #242424 page) */
+  --mx-page:#17171A;                 /* background — Task 61 fix #2: deep HyperOS page; the verbatim miuix pair (#242424 page vs #2d2d2d container, Δ3%) read as "background = card"; page now 21 points under the card */
+  --mx-card:#2c2c2c;                 /* surface — elevated dark card (Task 59 fix #2: pure #000000 read as "all cards are black"; kept VERBATIM — Task 61 moves the PAGE instead, so the Task-59 fix survives untouched) */
   --mx-on-card:rgba(255,255,255,.90);/* onBackground */
   --mx-on-card-2:#F2F2F2;            /* onSurface */
   --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */
@@ -62,7 +62,7 @@
   --mx-outline:#404040; --mx-divider:#393939;
   --mx-error:#F12522; --mx-error-container:#2E0603; --mx-on-error-container:#FFDAD6;
   --mx-scrim:rgba(0,0,0,.60);        /* windowDimming */
-  --mx-appbar:rgba(36,36,36,.72);
+  --mx-appbar:rgba(23,23,26,.72);
   --mx-hover:rgba(255,255,255,.07); --mx-press:rgba(255,255,255,.045);
   --mx-shadow:0 1px 3px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.30);
   --mx-shadow-lg:0 12px 40px rgba(0,0,0,.60);
@@ -87,7 +87,7 @@
   --mx-tertiary-container:#EAF2FF; --mx-on-tertiary-container:#3482FF;
   --mx-secondary-container:#F0F0F0; --mx-on-secondary-container:#A9A9A9;
   --mx-secondary-variant:#F0F0F0; --mx-on-secondary-variant:#B2B2B2;
-  --mx-page:#F7F7F7;                 /* surface — HyperOS gray page */
+  --mx-page:#EFEFEF;                 /* surface — HyperOS gray page (Task 61: deepened from #F7F7F7 so white cards separate visibly from the page, Δ16 vs Δ8) */
   --mx-card:#FFFFFF;                 /* surfaceContainer — white cards */
   --mx-on-card:rgba(0,0,0,.90);
   --mx-on-card-2:#000000;
@@ -98,7 +98,7 @@
   --mx-outline:#D9D9D9; --mx-divider:#E0E0E0;
   --mx-error:#E94634; --mx-error-container:#FDF6F4; --mx-on-error-container:#410002;
   --mx-scrim:rgba(0,0,0,.30);
-  --mx-appbar:rgba(247,247,247,.72);
+  --mx-appbar:rgba(239,239,239,.72);
   --mx-hover:rgba(0,0,0,.045); --mx-press:rgba(0,0,0,.03);
   --mx-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05);
   --mx-shadow-lg:0 12px 40px rgba(0,0,0,.16);
@@ -173,134 +173,10 @@ input{font:inherit;color:inherit}
 /* ---- Layout ---------------------------------------------------- */
 main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
 section{margin-bottom:26px}
-.smalltitle{ /* Miuix SmallTitle */
-  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
-  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
-}
-.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
-.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
-
-/* ---- Stat tiles (Miuix Card grid) ------------------------------ */
-.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
-.statcard{
-  background:var(--mx-card);border-radius:var(--mx-radius-xl);
-  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
-  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
-  position:relative;overflow:hidden;
-}
-.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
-.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
-.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
-  font-variant-numeric:tabular-nums}
-.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tile40{
-  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
-}
-.tile40 .ic{width:22px;height:22px;fill:currentColor}
-.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
-.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
-.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
-.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
-.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
-.gdot.off{background:var(--mx-error)}
-/* ---- Task rail (SuperArrow-style cards) — v4.1: horizontal scroll --- */
-.taskrail{
-  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
-  scroll-snap-type:x proximity;padding:2px 2px 8px;
-}
-.tcard{
-  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
-  scroll-snap-align:start;
-  background:var(--mx-card);border-radius:var(--mx-radius-l);
-  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
-  border:2px solid transparent;
-  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
-             border-color var(--mx-dur) var(--mx-ease),
-             box-shadow var(--mx-dur-med) var(--mx-ease);
-}
-.tcard:hover{transform:translateY(-2px)}
-.tcard.active{border-color:var(--mx-primary)}
-.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
-.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
-.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
-  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
-  overflow-wrap:break-word;word-break:break-word;
-}
-.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
-  display:flex;align-items:center;justify-content:space-between}
-.tcard .tc .ic{width:13px;height:13px;fill:currentColor;opacity:.55}
-.rail-empty{
-  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
-  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
-  box-shadow:var(--mx-shadow);
-}
-
-/* ---- Toolbar: SearchBar + chips + segments --------------------- */
-.toolbar{display:flex;flex-direction:column;gap:10px}
-.searchbar{ /* Miuix SearchBar pill */
-  display:flex;align-items:center;gap:10px;height:44px;padding:0 8px 0 16px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-  transition:box-shadow var(--mx-dur-med) var(--mx-ease);
-}
-.searchbar:focus-within{box-shadow:0 0 0 2px var(--mx-primary)}
-.searchbar .ic{width:19px;height:19px;fill:var(--mx-on-secondary-container);flex:none}
-.searchbar input{
-  flex:1;min-width:0;background:none;border:0;outline:0;
-  font-size:var(--fs-card);color:var(--mx-on-card-2);
-}
-.searchbar input::placeholder{color:var(--mx-on-secondary-container)}
-.toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.fchip{ /* Miuix TabRow-style filter chip */
-  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;
-  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
-  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
-  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease),
-             transform var(--mx-dur) var(--mx-ease);
-}
-.fchip:hover{transform:translateY(-1px)}
-.fchip .ic{width:14px;height:14px;fill:currentColor}
-.fchip.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
-.fchip .fnum{font-variant-numeric:tabular-nums;opacity:.75;font-size:var(--fs-caption)}
-.seg{ /* segmented control */
-  display:inline-flex;align-items:center;gap:2px;height:32px;padding:3px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-}
-.seg button{
-  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;
-  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
-  color:var(--mx-on-secondary-variant);
-  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
-}
-.seg button.on{background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow)}
-.seg button .ic{width:14px;height:14px;fill:currentColor}
-.seg .sortarr{transition:transform var(--mx-dur-med) var(--mx-ease)}
-.seg button.asc .sortarr{transform:rotate(180deg)}
-.ichip{ /* active filter pill */
-  display:inline-flex;align-items:center;gap:8px;max-width:100%;
-  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
-  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
-  font-size:var(--fs-label);font-weight:550;
-}
-.ichip .x{
-  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
-  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
-}
-.ichip .x:hover{background:var(--mx-hover)}
-.ichip .x .ic{width:13px;height:13px;fill:currentColor}
-.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---- File cards ------------------------------------------------ */
-.rootline{
-  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
-  font-size:var(--fs-label);color:var(--mx-text-2);
-}
-.rootline .ic{width:15px;height:15px;fill:currentColor}
-.rootline b{color:var(--mx-on-card-2);font-weight:600}
-.rootline .cnt{margin-left:auto;color:var(--mx-text-3);font-variant-numeric:tabular-nums}
+/* Task 61: the listhead rootline label is retired with the other body
+   labels — .rootline rules removed; the cards open directly under main. */
 .filegrid{
   display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
@@ -322,7 +198,6 @@ section{margin-bottom:26px}
    stable after first paint. Kills the every-open paint burst on slow devices
    (field report: multi-device seconds-long freeze at every open). */
 .fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
-.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
@@ -481,29 +356,14 @@ section{margin-bottom:26px}
 }
 .snackbar .act:hover{background:var(--mx-hover)}
 
-/* ---- FAB -------------------------------------------------------- */
-.fab{
-  position:fixed;right:22px;bottom:24px;z-index:80;width:48px;height:48px;border-radius:16px;
-  display:grid;place-items:center;background:var(--mx-primary);color:var(--mx-on-primary);
-  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;transform:translateY(14px) scale(.9);
-  transition:all var(--mx-dur-med) var(--mx-ease-spring);
-}
-.fab.show{opacity:1;pointer-events:auto;transform:none}
-.fab .ic{width:22px;height:22px;fill:currentColor}
-
-/* ---- Footer ----------------------------------------------------- */
-footer{
-  max-width:1280px;margin:0 auto;padding:6px var(--pad) 34px;
-  font-size:var(--fs-caption);color:var(--mx-text-3);line-height:1.7;text-align:center;
-}
-footer b{color:var(--mx-text-2);font-weight:600}
+/* ---- Task 61 (owner order): the FAB (back-to-top) is RETIRED with the
+   rest of the body chrome — .fab and the Task-54 B2 patch (.m-fab) removed.
+   Mobile keeps native scroll-to-top; nothing floats over the file list. */
 
 /* ---- Responsive -------------------------------------------------- */
 @media (max-width:640px){
   .appbar-sub{display:none}
-  .statgrid{grid-template-columns:repeat(2,1fr)}
   .filegrid{grid-template-columns:1fr}
-  .toolrow{gap:6px}
   /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
      hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
      and overflowed sideways. The bar now wraps to TWO rows: logo + title +
@@ -548,10 +408,9 @@ footer b{color:var(--mx-text-2);font-weight:600}
 .m-icon-button{width:40px;height:40px;flex:none}
 .m-icon-button .ic{width:20px;height:20px;fill:currentColor}
 
-/* B2 — FAB: v4.4 .fab geometry, fixed corner + iOS safe-area
-   (min-width override needed: miuix ships min-width:60px, which beats width:48px) */
-.m-fab{position:fixed;right:22px;bottom:calc(24px + env(safe-area-inset-bottom, 0px));z-index:80;width:48px;height:48px;min-width:48px;min-height:48px;flex:none}
-.m-fab .ic{width:22px;height:22px;fill:currentColor}
+/* B2 — RETIRED at Task 61: the FAB (back-to-top) left with the body chrome
+   (owner order); no .m-fab renders, so the patch has no target. The v4.4
+   reference values live in git history if a FAB ever returns. */
 
 /* B4 — sticky header (v4.4 contract: the bar stays pinned above the cards) */
 .m-top-app-bar{position:sticky;top:0;z-index:60}
