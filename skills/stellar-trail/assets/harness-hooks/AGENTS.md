@@ -6,4 +6,6 @@ The stellar-trail protocol skill is installed in this project (skills/stellar-tr
 
 After loading, follow its workflow (classify → clarify → plan → implement → validate → report, with the protocol banner and phase markers) and its memory lifecycle (M0 restore from memory/ before answering; M1 checkpoints; M3 handoff on session exit).
 
+Language: respond in the language of the user's message; never switch to the model's default (training) language unless the user's message itself uses it.
+
 If skills/stellar-trail/SKILL.md is missing, restore it: `npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y` then `bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure`.

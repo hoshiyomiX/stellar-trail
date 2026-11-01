@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.7 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.8 (preview-popup replacement)
 =========================================================================
+v1.8 (Task 53): the UI page is the v5.0 single-file build (Vue 3 + the real
+  miuix-vue component layer, built by Vite at release time) — the serving
+  contract is UNCHANGED: one self-contained explorer-ui/index.html with
+  zero runtime dependencies, read per request; no new routes, no /assets.
 Chain served:  preview-<bot-id>.space-z.ai  ->  platform ingress :81
                 ->  127.0.0.1:3000  ->  THIS SERVER
 

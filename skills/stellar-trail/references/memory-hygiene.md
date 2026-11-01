@@ -231,7 +231,7 @@ The `⚡ACTIVATE` line (R1) rides every file the next session reads early: the f
 
 ### Marker Convention
 
-`[MEMORY | LABEL]` is a **protocol constant**: RESTORED, CHECKPOINT, COMPRESS, HANDOFF — always these four, always uppercase, greppable and auditable across sessions and by eval tooling. Content after the marker is in the user's language; never merge a `[MEMORY | …]` line with a `## 🌠 PHASE n` heading.
+`[MEMORY | LABEL]` is a **protocol constant**: RESTORED, CHECKPOINT, COMPRESS, HANDOFF — always these four, always uppercase, greppable and auditable across sessions and by eval tooling. Content after the marker is in the marker language — default the user's language; an owner may pin one (commonly EN, per GBK-L3/L4); never merge a `[MEMORY | …]` line with a `## 🌠 PHASE n` heading. Memory/worklog file entries run at the same pinned file language (default EN).
 
 ## 4. The 95% Integrity Standard
 

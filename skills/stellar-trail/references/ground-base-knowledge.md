@@ -31,7 +31,7 @@
 
 - **GBK-L1:** The response language = the language of the user's CURRENT message. Dialect/mixed registers: follow the DOMINANT language of the message, not individual loanwords.
 - **GBK-L2:** Deliverable content language = user's language UNLESS the user explicitly pins another language for the artifact. A summary request in Chinese about an Indonesian-language project produces a Chinese summary.
-- **GBK-L3:** Protocol markers (`## 🌠 PHASE n — LABEL` sub-heading; `[MEMORY | …]`) carry content in the user's language; the marker keywords themselves are protocol constants and never translated.
+- **GBK-L3:** Protocol markers (`## 🌠 PHASE n — LABEL` sub-heading; `[MEMORY | …]`) carry content in the marker language — DEFAULT the user's language; an owner may PIN a marker language (commonly EN), recorded once per GBK-L4 and applied until changed. The marker keywords themselves are protocol constants and never translated. The response BODY always follows GBK-L1, independent of the marker pin.
 - **GBK-L4:** Explicitly pinned language survives subsequent turns even if later messages mix languages — record it once, apply it until the user changes it.
 
 ## GBK-C — Complexity Calibration

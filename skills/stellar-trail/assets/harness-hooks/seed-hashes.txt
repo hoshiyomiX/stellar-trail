@@ -10,3 +10,5 @@
 # assets/harness-hooks/ appends the NEW hash line(s) in the SAME release.
 a486c2fae4ade4f24d068d57b629e3cde4669e6975f50a18a961f74471d834be  CLAUDE.md
 a486c2fae4ade4f24d068d57b629e3cde4669e6975f50a18a961f74471d834be  AGENTS.md
+b1507b0066719357fd6de832be7491075aa7b89b5eef747aa885484a2a9fb5be  CLAUDE.md
+b1507b0066719357fd6de832be7491075aa7b89b5eef747aa885484a2a9fb5be  AGENTS.md

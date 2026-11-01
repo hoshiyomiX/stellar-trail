@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.5.1); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.6.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`). Phase markers are markdown sub-headings with content on the lines below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.5.1 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.5.1 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.6.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.6.0 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -54,6 +54,8 @@ Every marked response opens with the **protocol banner** (skill name + version �
 > `[MEMORY | LABEL] short content`
 
 Non-applicable phases are marked explicitly, never silently omitted: `## 🌠 PHASE 2-5 — N/A (Type 0 conversational)` — a silent skip is invisible, unprovable, uncorrectable. Banner and markers are required from the FIRST response of a session; earlier unmarked responses are not grandfathered in (rule 2).
+
+**Language lock (v5.6.0, anti-drift):** the response BODY — every sentence the owner reads — is written in the language of the owner's CURRENT message (dominant register; GBK-L1). Marker content and memory//worklog file entries run at the owner's PINNED file language (default EN constants; GBK-L3/L4 — record the pin once in the profile/conventions and it survives). The model's default or training language is NEVER used on any surface unless the owner's own message uses it. Mid-turn drift into an unpinned language is a defect: detect, correct immediately, continue in the owner's language — and the final self-audit checks it (§8 item 11).
 
 ## 2. The 6-Phase Execution Protocol
 
@@ -190,7 +192,7 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 | `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, silent-work (artifacts outrunning the checkpoint — the 2026-10-21 incident class), installed-vs-canonical version, R1 hooks (worklog tail + memory headers), tree-integrity (per-tree checksum manifest), release-recording (newest tag vs the ledger — the 2026-10-23 dead-session class), watcher-liveness (v5.4.4) |
 | `snapshot-repo.sh` | Refresh the restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`; backup-first, verify-before-swap; includes the skill tree |
 
-**Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.7 + Miuix UI v4.4 — content-signature change detection (refresh only on real change, no per-poll re-render churn), silent first paint + offscreen card skip (boot render diet), fetch resilience (engine-independent deadlines + boot watchdog, in-flight poll guard, steady 10 s retry with the no-abort 3-failure breaker, manual rescan — the v4.3 reconnect machinery removed by owner order at v5.4.9), horizontally scrollable full-text task rail, manual live-recovery, static-copy graceful mode, official Material Icons; v1.7 scan exclusions hide the skill's own canonical tree from the listing while direct file links keep working): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`. Also bundled: `assets/harness-hooks/` (CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files at session start; seeded create-if-absent + refreshed-if-byte-identical by bootstrap — an unmodified seed, hash-registered in `seed-hashes.txt`, tracks the template across releases while a user-edited file is never touched; `--without-harness-hooks` opts out and removes unmodified seeds).
+**Bundled asset:** `assets/explorer/` — Task Files Explorer (explorer.py stdlib server v1.8 + miuix-vue UI v5.0 (the REAL miuix-vue component layer — TopAppBar · IconButton · SnackbarHost/showSnackbar · Dialog · FloatingActionButton · setThemeMode('system')/useTheme; a Vite single-file build, zero runtime dependencies; Task 53) — content-signature change detection (refresh only on real change, no per-poll re-render churn), silent first paint + offscreen card skip (boot render diet), fetch resilience (engine-independent deadlines + boot watchdog, in-flight poll guard, steady 10 s retry with the no-abort 3-failure breaker, manual rescan — the v4.3 reconnect machinery removed by owner order at v5.4.9), horizontally scrollable full-text task rail, manual live-recovery, static-copy graceful mode, the official miuix-vue icon set (Task 57: all 32 functional glyphs imported from miuix-vue/icons regular weight — the D10 icon clause amended from Material by owner order 'full use miuix'; the logo stays the app brand mark); text previews cap their input at 200 KB with a truncation notice (Task 58 hang fix — a 5 MB md preview froze the main thread ~2.9 s at 57k DOM nodes before the cap, 198 ms after); v1.7 scan exclusions hide the skill's own canonical tree from the listing while direct file links keep working): the built-in dashboard on the preview URL; deployed by bootstrap (auto-enabled when present; `--without-explorer` opts out); guide: `references/task-files-explorer.md`. Also bundled: `assets/harness-hooks/` (CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files at session start; seeded create-if-absent + refreshed-if-byte-identical by bootstrap — an unmodified seed, hash-registered in `seed-hashes.txt`, tracks the template across releases while a user-edited file is never touched; `--without-harness-hooks` opts out and removes unmodified seeds).
 
 **Exec-bit note:** files delivered by the skills CLI come 0644 and reset on every update — every invocation is exec-bit-independent by design (`bash scripts/<name>.sh`); `chmod +x` is cosmetic only.
 
@@ -212,6 +214,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 8. Budgets held: M0 read budget, worklog rotation window (last 3 Task IDs), MEMORY cap?
 9. Reset-prone arms run at M0 (`bootstrap --ensure`, `update-skill --ensure`) or the skip reason stated?
 10. Session-end signal appeared → M3 handoff executed (archive + promotion + final state)?
+11. Language lock held: response body in the owner's current-message language; marker content + memory/worklog entries at the pinned file language (EN default); no sentence, heading, list, or marker drifted into an unpinned (e.g. the model's default) language?
 
 ## 9. Violations — Recognize and Refuse
 
@@ -246,7 +249,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.5.1 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.6.0 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A
@@ -256,6 +259,10 @@ EXECUTION · 6 phases, no skips — pressure compresses format, never phases
     M1; N/A Type 0) → 5 VALIDATE (L1-L5 + enforce-gates; defect → fix →
     re-validate; N/A Type 0) → 6 REPORT (self-audit first; ≤100 words;
     next steps)
+  LANG · body = the owner's message language (GBK-L1) · marker content +
+    memory/worklog entries = the pinned file language (EN default,
+    GBK-L3/L4) · never the model's default language — drift = defect
+    (self-audit 11)
 MEMORY · M0-M3 — defies context pressure & summary loss
   M0 RESTORED   : quarantine summary → SESSION-STATE + MEMORY → version
                   alarm → debt check (worklog tail vs snapshot header;
