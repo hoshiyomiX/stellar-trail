@@ -199,7 +199,7 @@ non-compliance" gap from outside the model.
 3. **The canonical copy is gone too** (total wipe of `download/`) ⇒ the install command rebuilds
    it — run `bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure` after installing
    to re-seed the canonical + arm the boot hook (explorer/snapshot/hooks auto-enable; the hooks
-   module also seeds CLAUDE.md + AGENTS.md at the project root, create-if-absent); repo.tar's
+   module also seeds CLAUDE.md + AGENTS.md at the project root, create-if-absent + refresh-if-byte-identical); repo.tar's
    `skills/stellar-trail` append (L1) is a same-boot fallback while the archive survives. If
    the agent's response banner still shows an old version after all this, see the skill-card
    Known Risks: the continuation-activation failure mode (rule 1).

@@ -49,17 +49,21 @@
 #              dev.sh (platforms with /home/sync) — AUTO-ENABLED
 #              when the payload ships (--with-snapshot forces on;
 #              --without-snapshot opts out).
-#   hooks    : seeds CLAUDE.md + AGENTS.md at the PROJECT ROOT (create-if-
-#              absent; a user file is NEVER overwritten) from
-#              assets/harness-hooks/ — AUTO-ENABLED when the
-#              payload ships (--with-harness-hooks forces on;
+#   hooks    : seeds CLAUDE.md + AGENTS.md at the PROJECT ROOT from
+#              assets/harness-hooks/ — create-if-absent + refresh-if-byte-
+#              identical (v5.5.1): a root file whose sha256 is listed in
+#              assets/harness-hooks/seed-hashes.txt is an UNMODIFIED managed
+#              seed — it tracks the template across releases (an old-version
+#              seed is refreshed to current); a registry miss = a user file
+#              that is NEVER overwritten — AUTO-ENABLED when the payload
+#              ships (--with-harness-hooks forces on;
 #              --without-harness-hooks opts out AND removes seeds still
-#              byte-identical to the template — an edited file is the user's
-#              and is never touched). Guaranteed-context activation for
-#              harnesses that auto-read project-root files at session start
-#              (Claude Code reads CLAUDE.md; AGENTS.md is the cross-CLI
-#              standard); dev.sh step 7 re-seeds at boot (project-root files
-#              are NOT in the packer preserve list).
+#              byte-identical to ANY shipped template version — an edited
+#              file is the user's and is never touched). Guaranteed-context
+#              activation for harnesses that auto-read project-root files at
+#              session start (Claude Code reads CLAUDE.md; AGENTS.md is the
+#              cross-CLI standard); dev.sh step 7 re-seeds at boot
+#              (project-root files are NOT in the packer preserve list).
 #
 # IMPORTANT — this is persistence, not installation:
 #   the canonical snapshot is a copy of what is ALREADY installed. It never
@@ -203,6 +207,20 @@ drop_module() {  # $1=module — remove it from MODULES_FILE
     mv "${MODULES_FILE}.d" "$MODULES_FILE" 2>/dev/null
 }
 module_off() { printf '%s\n' ${MODULE_OFF[@]+"${MODULE_OFF[@]}"} | grep -qx -- "$1"; }
+
+# seed_known <file> <name> — TRUE when <file>'s sha256 is a REGISTERED template
+# version for <name> in assets/harness-hooks/seed-hashes.txt (an unmodified
+# managed seed, possibly of an older release — any user edit breaks the hash;
+# v5.5.1). Registry absent (pre-v5.5.1 install) = FALSE = safe old behavior.
+seed_known() {
+    [ -f "$1" ] || return 1
+    _sk_reg="$SKILL_ROOT/assets/harness-hooks/seed-hashes.txt"
+    [ -f "$_sk_reg" ] || return 1
+    _sk_h="$(sha256sum "$1" 2>/dev/null | awk '{print $1}')"
+    [ -n "$_sk_h" ] || return 1
+    awk -v h="$_sk_h" -v f="$2" \
+        '$0 !~ /^#/ && NF >= 2 && $1 == h && $2 == f {found=1} END {exit found ? 0 : 1}' "$_sk_reg"
+}
 AUTO_ENABLED=""
 if ! module_off explorer && [ -f "$SKILL_ROOT/assets/explorer/explorer.sh" ] && ! has_module explorer; then
     add_module explorer; AUTO_ENABLED="explorer"
@@ -272,7 +290,13 @@ if [ "$MODE" = "status" ]; then
     if has_module hooks; then
         for f in CLAUDE.md AGENTS.md; do
             if [ -f "$PROJECT/$f" ]; then
-                if cmp -s "$SKILL_ROOT/assets/harness-hooks/$f" "$PROJECT/$f"; then st="SEEDED (managed)"; else st="PRESENT (user-owned — never touched)"; fi
+                if cmp -s "$SKILL_ROOT/assets/harness-hooks/$f" "$PROJECT/$f"; then
+                    st="SEEDED (managed)"
+                elif seed_known "$PROJECT/$f" "$f"; then
+                    st="STALE SEED (managed — next --ensure refreshes it)"
+                else
+                    st="PRESENT (user-owned — never touched)"
+                fi
             else
                 st="MISSING"
             fi
@@ -367,7 +391,7 @@ DEVSH_EXPL
 #   6. SNAPSHOT --apply-auto : refresh the platform restore archive (own debounce).
 DEVSH_SNAP
     has_module hooks && cat <<'DEVSH_HOOKSHDR'
-#   7. HARNESS HOOKS re-seed : project-root CLAUDE.md/AGENTS.md (create-if-absent).
+#   7. HARNESS HOOKS re-seed : project-root CLAUDE.md/AGENTS.md (create-if-absent + refresh-if-byte-identical).
 DEVSH_HOOKSHDR
     cat <<'DEVSH_TAILGUARDHDR'
 #   8. WORKLOG TAIL GUARD : append-only — keep the activation directive as
@@ -538,13 +562,22 @@ DEVSH_SNAP2
     if has_module hooks; then
         cat <<'DEVSH_HOOKS'
 
-# --- 7. HARNESS HOOKS re-seed (create-if-absent; project-root files are NOT --
-#     in the packer preserve list, so boot-time re-seeding keeps them alive) ---
+# --- 7. HARNESS HOOKS re-seed (create-if-absent + refresh-if-byte-identical; --
+#     project-root files are NOT in the packer preserve list, so boot-time
+#     re-seeding keeps them alive) ---
 for _hh in CLAUDE.md AGENTS.md; do
     _hsrc="$PROJECT/download/stellar-trail/assets/harness-hooks/$_hh"
     [ -f "$_hsrc" ] || continue
     if [ ! -f "$PROJECT/$_hh" ]; then
         cp -p "$_hsrc" "$PROJECT/$_hh" && log "harness hook seeded: $_hh"
+    elif ! cmp -s "$_hsrc" "$PROJECT/$_hh"; then
+        # v5.5.1 refresh-if-byte-identical: a registered old-version seed tracks
+        # the template (any user edit breaks the hash -> user-owned, untouched).
+        _hreg="$PROJECT/download/stellar-trail/assets/harness-hooks/seed-hashes.txt"
+        _hhash="$(sha256sum "$PROJECT/$_hh" 2>/dev/null | awk '{print $1}')"
+        if [ -f "$_hreg" ] && [ -n "$_hhash" ] && awk -v h="$_hhash" -v f="$_hh" '$0 !~ /^#/ && NF >= 2 && $1 == h && $2 == f {found=1} END {exit found ? 0 : 1}' "$_hreg"; then
+            cp -p "$_hsrc" "$PROJECT/$_hh" && log "harness hook refreshed (managed seed tracked the template): $_hh"
+        fi
     fi
 done
 DEVSH_HOOKS
@@ -654,10 +687,17 @@ if has_module hooks; then
     for hh in CLAUDE.md AGENTS.md; do
         SRC="$SKILL_ROOT/assets/harness-hooks/$hh"
         [ -f "$SRC" ] || { log "WARN: harness-hooks asset missing: $SRC (seed skipped)"; continue; }
-        if [ -f "$PROJECT/$hh" ]; then
-            log "hooks: $PROJECT/$hh exists — kept (never overwritten)"
-        else
+        if [ ! -f "$PROJECT/$hh" ]; then
             cp -p "$SRC" "$PROJECT/$hh" && log "hooks: $PROJECT/$hh seeded (guaranteed-context activation for harnesses that auto-read it)"
+        elif cmp -s "$SRC" "$PROJECT/$hh"; then
+            log "hooks: $PROJECT/$hh current (managed seed — never rewritten)"
+        elif seed_known "$PROJECT/$hh" "$hh"; then
+            # refresh-if-byte-identical (v5.5.1): a registered old-version seed is
+            # provably unmodified (any user edit breaks the hash) — it tracks the
+            # template across releases; an unregistered file is user-owned.
+            cp -p "$SRC" "$PROJECT/$hh" && log "hooks: $PROJECT/$hh REFRESHED (managed seed tracked the template: registered old version -> current)"
+        else
+            log "hooks: $PROJECT/$hh exists — kept (user-owned, never overwritten)"
         fi
     done
 else
@@ -666,8 +706,10 @@ else
             SRC="$SKILL_ROOT/assets/harness-hooks/$hh"
             if [ -f "$PROJECT/$hh" ] && [ -f "$SRC" ] && cmp -s "$SRC" "$PROJECT/$hh"; then
                 rm -f "$PROJECT/$hh" && log "hooks: $PROJECT/$hh removed (unmodified seed, --without-harness-hooks)"
+            elif [ -f "$PROJECT/$hh" ] && seed_known "$PROJECT/$hh" "$hh"; then
+                rm -f "$PROJECT/$hh" && log "hooks: $PROJECT/$hh removed (unmodified OLD-version seed, registry-listed, --without-harness-hooks)"
             elif [ -f "$PROJECT/$hh" ]; then
-                log "hooks: $PROJECT/$hh kept (differs from the template — user-owned)"
+                log "hooks: $PROJECT/$hh kept (differs from every shipped template — user-owned)"
             fi
         done
         log "hooks module: disabled (--without-harness-hooks)"

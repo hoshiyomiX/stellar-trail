@@ -1,0 +1,12 @@
+# stellar-trail harness-hook template registry (v5.5.1)
+# One sha256 per template version ever shipped, one line per file:
+#   <sha256>  <filename>
+# RUNTIME (bootstrap-sandbox.sh 9b + dev.sh step 7): a project-root
+# CLAUDE.md/AGENTS.md whose hash is listed here but differs from the current
+# template is an UNMODIFIED seed of an older release -> refreshed to current
+# (refresh-if-byte-identical). A hash listed nowhere = a user-edited file ->
+# never touched. Registry absent (pre-v5.5.1 install) = create-if-absent only.
+# MAINTENANCE (release checklist): a release that changes a template under
+# assets/harness-hooks/ appends the NEW hash line(s) in the SAME release.
+a486c2fae4ade4f24d068d57b629e3cde4669e6975f50a18a961f74471d834be  CLAUDE.md
+a486c2fae4ade4f24d068d57b629e3cde4669e6975f50a18a961f74471d834be  AGENTS.md
