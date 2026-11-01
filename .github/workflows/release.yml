@@ -1,0 +1,95 @@
+# Release CI — stellar-trail (Task 56, ref #55)
+#
+# The repo's single release channel: EVERY push to main builds the explorer
+# UI from the committed source (explorer-src/) and publishes ONE ROLLING
+# FULL RELEASE tagged `latest`:
+#   - each run deletes the previous `latest` release + tag and re-creates it
+#     at the pushed SHA (a regular release, marked as the repo's latest);
+#   - the latest main build is always "the release" — there is no separate
+#     beta channel and no version-tag trigger;
+#   - stable vX.Y.Z tags exist for history, but releases are not cut from
+#     them by this workflow;
+#   - source of truth for the UI source: explorer-src/ — the CI build should
+#     reproduce skills/stellar-trail/assets/explorer/explorer-ui/index.html
+#     byte-identically while no unreleased source drift exists (the workflow
+#     reports drift in the release notes instead of failing).
+
+name: Release CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-latest
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Build & publish rolling release (latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: explorer-src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: explorer-src
+        run: npm ci
+
+      - name: Build explorer UI (single-file, unminified)
+        working-directory: explorer-src
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -s explorer-src/dist/index.html
+          SIZE=$(stat -c%s explorer-src/dist/index.html)
+          echo "Built explorer UI: ${SIZE} bytes (vite singlefile, minify:false)"
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "::error::build output suspiciously small (${SIZE} B)"
+            exit 1
+          fi
+
+      - name: Package release assets
+        run: |
+          VER=$(grep -m1 -oE 'v[0-9]+\.[0-9]+\.[0-9]+' skills/stellar-trail/SKILL.md | head -n1)
+          SHA=$(git rev-parse --short HEAD)
+          (cd skills && zip -qr "../stellar-trail-${VER}.zip" stellar-trail)
+          cp explorer-src/dist/index.html "explorer-ui-${SHA}.html"
+          sha256sum "stellar-trail-${VER}.zip" "explorer-ui-${SHA}.html" > checksums.txt
+          echo "version=${VER} sha=${SHA}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish rolling release (tag latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          SUBJECT=$(git log -1 --pretty=%s)
+          BUILT_MD5=$(md5sum explorer-src/dist/index.html | cut -d' ' -f1)
+          PROMOTED_MD5=$(md5sum skills/stellar-trail/assets/explorer/explorer-ui/index.html | cut -d' ' -f1)
+          if [ "$BUILT_MD5" = "$PROMOTED_MD5" ]; then
+            MATCH="The build matches the in-tree promoted explorer-ui/index.html byte-for-byte."
+          else
+            MATCH="NOTE: the build DIFFERS from the in-tree promoted explorer-ui/index.html (unreleased source drift — promote at release time)."
+          fi
+          echo "- ${MATCH}" >> "$GITHUB_STEP_SUMMARY"
+          NOTES=$(printf 'Rolling release from `main` @ %s (%s). This release always tracks the latest build of main — the tag is re-pointed on every push.\n\n%s\n\nAssets:\n- explorer-ui-%s.html — the built single-file explorer UI (vite singlefile, unminified, byte-greppable)\n- stellar-trail-*.zip — the skill tree package\n- checksums.txt — SHA-256 checksums' "$SHA" "$SUBJECT" "$MATCH" "$SHA")
+          # Rolling release: drop the previous release + tag (if any), then re-create at this SHA as a FULL release marked latest.
+          gh release delete latest --cleanup-tag --yes || true
+          git push origin --delete refs/tags/latest || true
+          gh release create latest \
+            --title "Latest — ${SHA}" \
+            --notes "$NOTES" \
+            --latest \
+            "explorer-ui-${SHA}.html" stellar-trail-*.zip checksums.txt

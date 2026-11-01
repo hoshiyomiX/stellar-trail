@@ -1,0 +1,590 @@
+/* explorer-ui v4.4 style block — carried verbatim into the v5.0 miuix-vue app
+ * (Task 53). Palette verbatim from compose-miuix-ui/miuix Colors.kt; D10 compact
+ * typography 14/12/11px. Rules for miuix-replaced components go inert.
+ * Source: assets/explorer/explorer-ui/index.html (v5.5.1 tree) */
+/* ================================================================
+   MIUIX (HyperOS) — Task Files Explorer UI v4.4 · zero-dependency
+   (no CDN, no web font)
+   Design system ported from compose-miuix-ui/miuix (Apache-2.0):
+   the color roles below are VERBATIM from miuix-ui
+   top.yukonga.miuix.kmp.theme/Colors.kt — lightColorScheme() and
+   darkColorScheme() defaults. Component vocabulary: TopAppBar
+   (frosted), Card (squircle surface), SmallTitle, SearchBar, TabRow
+   chips, SuperArrow rows, Snackbar, FloatingActionButton, Dialog
+   (windowDimming scrim). Type scale follows Miuix TextStyles,
+   compact per the explorer's locked formatting decision.
+   Adaptive: dark/light · desktop & mobile · a11y focus-visible.
+   ================================================================ */
+
+/* ---- Design tokens (non-color) --------------------------------- */
+:root{
+  /* Shape scale (squircle feel — generous radii) */
+  --mx-radius-s:10px; --mx-radius-m:14px; --mx-radius-l:18px;
+  --mx-radius-xl:22px; --mx-radius-full:999px;
+
+  /* Motion — HyperOS standard + spring overshoot */
+  --mx-dur:180ms; --mx-dur-med:280ms; --mx-dur-long:450ms;
+  --mx-ease:cubic-bezier(.2,0,0,1);
+  --mx-ease-spring:cubic-bezier(.34,1.56,.64,1);
+
+  /* Type scale (Miuix TextStyles, compact) */
+  --fs-appbar:17px;   /* MainTitle */
+  --fs-section:13px;  /* SmallTitle */
+  --fs-card:14px;     /* title3-ish */
+  --fs-body:13px;     /* body1 */
+  --fs-label:12px;    /* subtitle */
+  --fs-caption:11px;  /* caption */
+
+  --mx-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mx-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  --appbar-h:56px;
+  --pad:clamp(14px,3vw,24px);
+}
+
+/* ---- DARK color scheme (default) — verbatim darkColorScheme() --- */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --mx-primary:#277AF7; --mx-on-primary:#FFFFFF;
+  --mx-primary-container:#338FE4; --mx-on-primary-container:#FFFFFF;
+  --mx-on-primary-variant:#99C7F1;
+  --mx-tertiary-container:#2B3B54; --mx-on-tertiary-container:#4788FF;
+  --mx-secondary-container:#434343; --mx-on-secondary-container:#7C7C7C;
+  --mx-secondary-variant:#4F4F4F; --mx-on-secondary-variant:#959595;
+  --mx-page:#242424;                 /* background */
+  --mx-card:#000000;                 /* surface — HyperOS black cards */
+  --mx-on-card:rgba(255,255,255,.90);/* onBackground */
+  --mx-on-card-2:#F2F2F2;            /* onSurface */
+  --mx-text-2:rgba(255,255,255,.60); /* onSurfaceVariantSummary */
+  --mx-text-3:rgba(255,255,255,.40); /* onSurfaceVariantActions */
+  --mx-text-dim:#737373;             /* onSurfaceContainerVariant */
+  --mx-on-bg-variant:#787E96;        /* onBackgroundVariant — section titles */
+  --mx-outline:#404040; --mx-divider:#393939;
+  --mx-error:#F12522; --mx-error-container:#2E0603; --mx-on-error-container:#FFDAD6;
+  --mx-scrim:rgba(0,0,0,.60);        /* windowDimming */
+  --mx-appbar:rgba(36,36,36,.72);
+  --mx-hover:rgba(255,255,255,.07); --mx-press:rgba(255,255,255,.045);
+  --mx-shadow:0 1px 3px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.30);
+  --mx-shadow-lg:0 12px 40px rgba(0,0,0,.60);
+  --mx-spinner:#4788FF;
+  --mx-scroll:rgba(255,255,255,.14);
+  /* per-type icon-tile accents (HyperOS settings-style tiles) */
+  --t-doc-bg:#2B3B54;   --t-doc-fg:#4788FF;
+  --t-pdf-bg:#3A1512;   --t-pdf-fg:#FF7B6B;
+  --t-img-bg:#3A2140;   --t-img-fg:#C77DFF;
+  --t-data-bg:#0F3A24;  --t-data-fg:#5DDF9B;
+  --t-code-bg:#1E3348;  --t-code-fg:#7DB8FF;
+  --t-pkg-bg:#2C2340;   --t-pkg-fg:#B39DFF;
+  --t-office-bg:#3D3010;--t-office-fg:#FFC55C;
+  --t-other-bg:#333333; --t-other-fg:#ABABAB;
+}
+/* ---- LIGHT color scheme — verbatim lightColorScheme() ------------ */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --mx-primary:#3482FF; --mx-on-primary:#FFFFFF;
+  --mx-primary-container:#5D9BFF; --mx-on-primary-container:#FFFFFF;
+  --mx-on-primary-variant:#AECDFF;
+  --mx-tertiary-container:#EAF2FF; --mx-on-tertiary-container:#3482FF;
+  --mx-secondary-container:#F0F0F0; --mx-on-secondary-container:#A9A9A9;
+  --mx-secondary-variant:#F0F0F0; --mx-on-secondary-variant:#B2B2B2;
+  --mx-page:#F7F7F7;                 /* surface — HyperOS gray page */
+  --mx-card:#FFFFFF;                 /* surfaceContainer — white cards */
+  --mx-on-card:rgba(0,0,0,.90);
+  --mx-on-card-2:#000000;
+  --mx-text-2:rgba(0,0,0,.60);
+  --mx-text-3:rgba(0,0,0,.40);
+  --mx-text-dim:#959595;
+  --mx-on-bg-variant:#8C93B0;
+  --mx-outline:#D9D9D9; --mx-divider:#E0E0E0;
+  --mx-error:#E94634; --mx-error-container:#FDF6F4; --mx-on-error-container:#410002;
+  --mx-scrim:rgba(0,0,0,.30);
+  --mx-appbar:rgba(247,247,247,.72);
+  --mx-hover:rgba(0,0,0,.045); --mx-press:rgba(0,0,0,.03);
+  --mx-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05);
+  --mx-shadow-lg:0 12px 40px rgba(0,0,0,.16);
+  --mx-spinner:#3482FF;
+  --mx-scroll:rgba(0,0,0,.18);
+  --t-doc-bg:#EAF2FF;   --t-doc-fg:#2E6FD8;
+  --t-pdf-bg:#FDECE9;   --t-pdf-fg:#D63A28;
+  --t-img-bg:#F3EAFB;   --t-img-fg:#8A46C9;
+  --t-data-bg:#E4F7EC;  --t-data-fg:#1E8A4E;
+  --t-code-bg:#E8F0FA;  --t-code-fg:#2E6FD8;
+  --t-pkg-bg:#EFEAFB;   --t-pkg-fg:#6C4ECC;
+  --t-office-bg:#FBF1DF;--t-office-fg:#B07610;
+  --t-other-bg:#EFEFEF; --t-other-fg:#7A7A7A;
+}
+
+/* ---- Base ------------------------------------------------------ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--mx-font);font-size:var(--fs-body);
+  background:var(--mx-page);color:var(--mx-on-card);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  min-height:100vh;transition:background var(--mx-dur-med) var(--mx-ease);
+}
+::selection{background:var(--mx-primary);color:var(--mx-on-primary)}
+a{color:var(--mx-primary);text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--mx-primary);outline-offset:2px;border-radius:6px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--mx-scroll);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+.mono{font-family:var(--mx-mono)}
+
+/* ---- TopAppBar (frosted, Miuix) -------------------------------- */
+.topappbar{
+  position:sticky;top:0;z-index:60;height:var(--appbar-h);
+  display:flex;align-items:center;gap:10px;padding:0 var(--pad);
+  background:var(--mx-appbar);
+  -webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);
+  border-bottom:1px solid transparent;
+  transition:border-color var(--mx-dur-med) var(--mx-ease);
+}
+.topappbar.scrolled{border-bottom-color:var(--mx-divider)}
+.appbar-logo{
+  width:34px;height:34px;border-radius:11px;flex:none;display:grid;place-items:center;
+  background:var(--mx-primary);color:var(--mx-on-primary);
+  box-shadow:var(--mx-shadow);
+}
+.appbar-logo .ic{width:20px;height:20px;fill:currentColor}
+.appbar-title{font-size:var(--fs-appbar);font-weight:650;letter-spacing:.1px;color:var(--mx-on-card-2)}
+.appbar-sub{font-size:var(--fs-caption);color:var(--mx-on-bg-variant);margin-top:1px}
+.appbar-spacer{flex:1}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
+  white-space:nowrap;
+}
+.chip .ic{width:14px;height:14px;fill:currentColor;flex:none}
+.chip--primary{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.chip--warn{background:var(--mx-error-container);color:var(--mx-on-error-container)}
+.ic.spinning{animation:spin .8s linear infinite}
+.iconbtn{
+  width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
+  color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
+}
+.iconbtn:hover{background:var(--mx-hover)}
+.iconbtn:active{background:var(--mx-press)}
+.iconbtn .ic{width:20px;height:20px;fill:currentColor}
+
+/* ---- Layout ---------------------------------------------------- */
+main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
+section{margin-bottom:26px}
+.smalltitle{ /* Miuix SmallTitle */
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
+}
+.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
+.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
+
+/* ---- Stat tiles (Miuix Card grid) ------------------------------ */
+.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.statcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  position:relative;overflow:hidden;
+}
+.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
+.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
+  font-variant-numeric:tabular-nums}
+.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile40{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.tile40 .ic{width:22px;height:22px;fill:currentColor}
+.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
+.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
+.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
+.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
+.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
+.gdot.off{background:var(--mx-error)}
+/* ---- Task rail (SuperArrow-style cards) — v4.1: horizontal scroll --- */
+.taskrail{
+  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;padding:2px 2px 8px;
+}
+.tcard{
+  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
+  scroll-snap-align:start;
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
+  border:2px solid transparent;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
+             border-color var(--mx-dur) var(--mx-ease),
+             box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.tcard:hover{transform:translateY(-2px)}
+.tcard.active{border-color:var(--mx-primary)}
+.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
+.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
+.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
+  overflow-wrap:break-word;word-break:break-word;
+}
+.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
+  display:flex;align-items:center;justify-content:space-between}
+.tcard .tc .ic{width:13px;height:13px;fill:currentColor;opacity:.55}
+.rail-empty{
+  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
+  box-shadow:var(--mx-shadow);
+}
+
+/* ---- Toolbar: SearchBar + chips + segments --------------------- */
+.toolbar{display:flex;flex-direction:column;gap:10px}
+.searchbar{ /* Miuix SearchBar pill */
+  display:flex;align-items:center;gap:10px;height:44px;padding:0 8px 0 16px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  transition:box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.searchbar:focus-within{box-shadow:0 0 0 2px var(--mx-primary)}
+.searchbar .ic{width:19px;height:19px;fill:var(--mx-on-secondary-container);flex:none}
+.searchbar input{
+  flex:1;min-width:0;background:none;border:0;outline:0;
+  font-size:var(--fs-card);color:var(--mx-on-card-2);
+}
+.searchbar input::placeholder{color:var(--mx-on-secondary-container)}
+.toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fchip{ /* Miuix TabRow-style filter chip */
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;
+  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
+  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
+  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease),
+             transform var(--mx-dur) var(--mx-ease);
+}
+.fchip:hover{transform:translateY(-1px)}
+.fchip .ic{width:14px;height:14px;fill:currentColor}
+.fchip.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.fchip .fnum{font-variant-numeric:tabular-nums;opacity:.75;font-size:var(--fs-caption)}
+.seg{ /* segmented control */
+  display:inline-flex;align-items:center;gap:2px;height:32px;padding:3px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+}
+.seg button{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;
+  border-radius:var(--mx-radius-full);font-size:var(--fs-label);font-weight:550;
+  color:var(--mx-on-secondary-variant);
+  transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
+}
+.seg button.on{background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow)}
+.seg button .ic{width:14px;height:14px;fill:currentColor}
+.seg .sortarr{transition:transform var(--mx-dur-med) var(--mx-ease)}
+.seg button.asc .sortarr{transform:rotate(180deg)}
+.ichip{ /* active filter pill */
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
+  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
+  font-size:var(--fs-label);font-weight:550;
+}
+.ichip .x{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
+}
+.ichip .x:hover{background:var(--mx-hover)}
+.ichip .x .ic{width:13px;height:13px;fill:currentColor}
+.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- File cards ------------------------------------------------ */
+.rootline{
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-label);color:var(--mx-text-2);
+}
+.rootline .ic{width:15px;height:15px;fill:currentColor}
+.rootline b{color:var(--mx-on-card-2);font-weight:600}
+.rootline .cnt{margin-left:auto;color:var(--mx-text-3);font-variant-numeric:tabular-nums}
+.filegrid{
+  display:grid;gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
+}
+.filegrid--list{grid-template-columns:1fr;gap:8px}
+.fcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;position:relative;
+  display:flex;gap:11px;align-items:flex-start;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  animation:cardin var(--mx-dur-long) var(--mx-ease-spring) both;
+}
+@keyframes cardin{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.filegrid--list .fcard{align-items:center}
+.filegrid.noanim .fcard{animation:none}   /* v4.1: silent background refresh — no entrance replay */
+/* v4.2 boot render diet: offscreen cards skip layout + paint (browser-native
+   content-visibility); remembered sizes (auto X) keep scrollbar estimates
+   stable after first paint. Kills the every-open paint burst on slow devices
+   (field report: multi-device seconds-long freeze at every open). */
+.fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
+.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}
+.ftile{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.ftile .ic{width:21px;height:21px;fill:currentColor}
+.fbody{flex:1;min-width:0}
+.fnm{
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.3;
+  word-break:break-all;
+}
+.fnm .cd{color:var(--mx-text-3);font-weight:450}
+.fmeta{display:flex;gap:10px;margin-top:5px;font-size:var(--fs-caption);color:var(--mx-text-3);
+  font-variant-numeric:tabular-nums}
+.fbadge{
+  position:absolute;top:12px;right:12px;display:inline-flex;align-items:center;
+  height:19px;padding:0 8px;border-radius:var(--mx-radius-full);
+  background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
+  font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+}
+.fact{
+  display:flex;gap:4px;margin-top:8px;opacity:0;transform:translateY(2px);
+  transition:opacity var(--mx-dur-med) var(--mx-ease),transform var(--mx-dur-med) var(--mx-ease);
+}
+.fcard:hover .fact,.fcard:focus-visible .fact,.fcard:focus-within .fact{opacity:1;transform:none}
+@media (hover:none){.fact{opacity:1;transform:none}}
+.fact button,.fact a{
+  width:30px;height:30px;border-radius:10px;display:grid;place-items:center;
+  color:var(--mx-text-2);transition:background var(--mx-dur) var(--mx-ease),color var(--mx-dur) var(--mx-ease);
+}
+.fact button:hover,.fact a:hover{background:var(--mx-hover);color:var(--mx-primary)}
+.fact .ic{width:16px;height:16px;fill:currentColor}
+.ftask{ /* task attribution dot on cards */
+  display:inline-flex;align-items:center;gap:4px;margin-top:5px;
+  font-size:10px;font-weight:650;color:var(--mx-primary);letter-spacing:.3px;
+}
+.ftask .ic{width:11px;height:11px;fill:currentColor}
+/* ---- Pager ------------------------------------------------------ */
+.pager{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  margin-top:18px;
+}
+.pager button{
+  height:36px;min-width:36px;padding:0 14px;border-radius:var(--mx-radius-full);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:var(--fs-label);font-weight:600;
+  background:var(--mx-card);color:var(--mx-on-card-2);box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur) var(--mx-ease),opacity var(--mx-dur) var(--mx-ease);
+}
+.pager button:hover:not(:disabled){transform:translateY(-1px)}
+.pager button:disabled{opacity:.35;cursor:default;box-shadow:none}
+.pager button .ic{width:15px;height:15px;fill:currentColor}
+.pager .pinfo{
+  height:36px;display:inline-flex;align-items:center;padding:0 14px;
+  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
+  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---- Empty / error / static / loading states -------------------- */
+.empty{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:44px 24px;text-align:center;box-shadow:var(--mx-shadow);
+}
+.empty .e{
+  width:56px;height:56px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;
+}
+.empty .e .ic{width:28px;height:28px;fill:currentColor}
+.empty .t{font-size:var(--fs-card);font-weight:650;color:var(--mx-on-card-2)}
+.empty .h{font-size:var(--fs-label);color:var(--mx-text-3);margin-top:6px;line-height:1.55}
+.empty .btn{margin-top:16px}
+.btn{ /* Miuix Button — filled pill */
+  display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 20px;
+  border-radius:var(--mx-radius-full);background:var(--mx-primary);color:var(--mx-on-primary);
+  font-size:var(--fs-label);font-weight:650;
+  transition:transform var(--mx-dur) var(--mx-ease),filter var(--mx-dur) var(--mx-ease);
+}
+.btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.btn:active{transform:none;filter:brightness(.95)}
+.btn .ic{width:16px;height:16px;fill:currentColor}
+.loadcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:44px 24px;text-align:center;box-shadow:var(--mx-shadow);
+}
+.loadcard p{margin-top:12px;font-size:var(--fs-label);color:var(--mx-text-3)}
+.loadcard .ftile{margin:0 auto}
+.spinner{ /* Miuix ProgressIndicator */
+  width:34px;height:34px;margin:0 auto;border-radius:50%;
+  border:3px solid var(--mx-secondary-container);border-top-color:var(--mx-spinner);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- Dialog (preview) — windowDimming scrim --------------------- */
+.modal{
+  position:fixed;inset:0;z-index:100;display:none;
+  background:var(--mx-scrim);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  align-items:center;justify-content:center;padding:20px;
+}
+.modal.open{display:flex;animation:fadein var(--mx-dur-med) var(--mx-ease)}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.mbox{
+  width:min(920px,100%);max-height:88vh;display:flex;flex-direction:column;
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  box-shadow:var(--mx-shadow-lg);overflow:hidden;
+  animation:mboxin var(--mx-dur-long) var(--mx-ease-spring);
+}
+@keyframes mboxin{from{opacity:0;transform:translateY(26px) scale(.96)}to{opacity:1;transform:none}}
+.mhead{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;flex:none;
+  border-bottom:1px solid var(--mx-divider);
+}
+.micon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none}
+.micon .ic{width:20px;height:20px;fill:currentColor}
+.mnm{min-width:0;flex:1}
+.mnm .nm{font-size:var(--fs-card);font-weight:600;color:var(--mx-on-card-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnm .meta{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:2px}
+.mbody{overflow:auto;padding:16px;min-height:120px}
+.mbody pre{
+  font-family:var(--mx-mono);font-size:12px;line-height:1.6;color:var(--mx-on-card-2);
+  white-space:pre-wrap;word-break:break-word;
+}
+.mbody img{max-width:100%;border-radius:var(--mx-radius-m);display:block;margin:0 auto}
+.mbody iframe{width:100%;height:70vh;border:0;border-radius:var(--mx-radius-m)}
+.mbody .k{color:var(--mx-primary)}
+.mbody .s2{color:var(--t-data-fg)}
+.mbody .n{color:var(--t-office-fg)}
+.mbody .b2{color:var(--t-img-fg)}
+.md{font-size:var(--fs-body);line-height:1.7;color:var(--mx-on-card-2)}
+.md h1,.md h2,.md h3,.md h4{margin:1em 0 .45em;color:var(--mx-on-card-2);line-height:1.3}
+.md h1{font-size:19px}.md h2{font-size:17px}.md h3{font-size:15px}.md h4{font-size:14px}
+.md p{margin:.5em 0}
+.md ul{margin:.5em 0 .5em 1.3em}
+.md li{margin:.25em 0}
+.md code{font-family:var(--mx-mono);font-size:.92em;background:var(--mx-secondary-container);
+  border-radius:6px;padding:1px 6px}
+.md pre{background:var(--mx-secondary-container);border-radius:var(--mx-radius-m);
+  padding:12px;margin:.6em 0;overflow:auto}
+.md blockquote{border-left:3px solid var(--mx-primary);padding-left:12px;color:var(--mx-text-2);margin:.6em 0}
+
+/* ---- Snackbar --------------------------------------------------- */
+.snackbar{
+  position:fixed;left:50%;bottom:26px;z-index:120;transform:translate(-50%,80px);
+  display:flex;align-items:center;gap:12px;max-width:min(560px,92vw);
+  padding:0 8px 0 18px;height:46px;border-radius:var(--mx-radius-full);
+  background:var(--mx-on-card-2);color:var(--mx-page);
+  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;
+  transition:transform var(--mx-dur-long) var(--mx-ease-spring),opacity var(--mx-dur-med) var(--mx-ease);
+}
+.snackbar.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.snackbar span{font-size:var(--fs-label);font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snackbar .act{
+  height:34px;padding:0 14px;border-radius:var(--mx-radius-full);flex:none;
+  font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.snackbar .act:hover{background:var(--mx-hover)}
+
+/* ---- FAB -------------------------------------------------------- */
+.fab{
+  position:fixed;right:22px;bottom:24px;z-index:80;width:48px;height:48px;border-radius:16px;
+  display:grid;place-items:center;background:var(--mx-primary);color:var(--mx-on-primary);
+  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;transform:translateY(14px) scale(.9);
+  transition:all var(--mx-dur-med) var(--mx-ease-spring);
+}
+.fab.show{opacity:1;pointer-events:auto;transform:none}
+.fab .ic{width:22px;height:22px;fill:currentColor}
+
+/* ---- Footer ----------------------------------------------------- */
+footer{
+  max-width:1280px;margin:0 auto;padding:6px var(--pad) 34px;
+  font-size:var(--fs-caption);color:var(--mx-text-3);line-height:1.7;text-align:center;
+}
+footer b{color:var(--mx-text-2);font-weight:600}
+
+/* ---- Responsive -------------------------------------------------- */
+@media (max-width:640px){
+  .appbar-sub{display:none}
+  .statgrid{grid-template-columns:repeat(2,1fr)}
+  .filegrid{grid-template-columns:1fr}
+  .toolrow{gap:6px}
+  /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
+     hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
+     and overflowed sideways. The bar now wraps to TWO rows: logo + title +
+     actions on top, the version + clock chips below; the title truncates. */
+  .topappbar{flex-wrap:wrap;height:auto;min-height:var(--appbar-h);padding:8px var(--pad);row-gap:8px}
+  .appbar-logo{order:1}
+  .topappbar>div:first-of-type{order:2;min-width:0}
+  .appbar-spacer{order:3}
+  #scanBtn{order:4}
+  #themeBtn{order:5}
+  #verChip{order:6}
+  #clock{order:7}
+  .appbar-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{height:28px;padding:0 10px}
+  .iconbtn{width:34px;height:34px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ============================================================
+   Task 54 — miuix integration patch layer (v5.6.0 amend, ref #53)
+   The extracted v4.4 rules above target the hand-rolled DOM
+   (.topappbar / .iconbtn / .fab). The miuix-vue component layer
+   renders its own classes, so four v4.4 contracts silently
+   no-opped after the migration:
+     B1 .iconbtn .ic sizing      → .m-icon-button slot svg fell to
+        the intrinsic 300×150 (Rescan/Theme giant; off-screen left
+        on mobile via the absolute __actions row, protruding on
+        desktop);
+     B2 .fab fixed-corner spec   → .m-fab is consumer-positioned
+        (inline-flex, relative) → giant in-flow FAB;
+     B3 the @≤640px two-row header fit (Task 45) targeted
+        .topappbar — dead on the miuix DOM, title squeezed ~99px;
+     B4 .topappbar was sticky    → .m-top-app-bar is static.
+   This layer re-points those contracts at the miuix DOM with the
+   v4.4 values. D10 structure lock untouched (tiles / rail / type
+   scale / no hero-bento).
+   ============================================================ */
+
+/* B1 — icon buttons: v4.4 .iconbtn geometry (40px base / 34px mobile, .ic 20px) */
+.m-icon-button{width:40px;height:40px;flex:none}
+.m-icon-button .ic{width:20px;height:20px;fill:currentColor}
+
+/* B2 — FAB: v4.4 .fab geometry, fixed corner + iOS safe-area
+   (min-width override needed: miuix ships min-width:60px, which beats width:48px) */
+.m-fab{position:fixed;right:22px;bottom:calc(24px + env(safe-area-inset-bottom, 0px));z-index:80;width:48px;height:48px;min-width:48px;min-height:48px;flex:none}
+.m-fab .ic{width:22px;height:22px;fill:currentColor}
+
+/* B4 — sticky header (v4.4 contract: the bar stays pinned above the cards) */
+.m-top-app-bar{position:sticky;top:0;z-index:60}
+
+/* miuix actions row: v4.4 bar spacing was gap:10px — miuix ships gap:0
+   (the version + clock chips render touching) */
+.m-top-app-bar__actions{gap:10px}
+
+/* title containment: miuix centers the in-flow title across the FULL row
+   while nav/actions are absolute — with our wide actions row the centered
+   title runs under the chips (measured: title 266-501 vs actions 375-752
+   @768). The v4.4 bar was left-aligned: restore that (D10-faithful) and
+   fence the title between the nav zone (padding-left) and the actions
+   zone (padding-right), ellipsized. */
+.m-top-app-bar__row{justify-content:flex-start}
+.m-top-app-bar__title{flex:1;min-width:0;padding-left:64px;padding-right:404px;align-items:flex-start;text-align:left}
+.m-top-app-bar__title .m-text{max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:900px){
+  /* the subtitle is a Task-53 miuix addition, not a D10 item — drop it
+     before the title zone gets too narrow (641-900px band) */
+  .m-top-app-bar__title .m-text--body2{display:none}
+}
+
+/* B3 — @≤640px two-row header fit on the miuix DOM (the Task-45 contract):
+   row 1 = logo + truncating title, row 2 = compact buttons + chips,
+   right-aligned; the absolute nav/actions go in-flow */
+@media (max-width:640px){
+  .m-top-app-bar__row{flex-wrap:wrap;min-height:auto;row-gap:8px;padding-bottom:8px;justify-content:flex-start}
+  .m-top-app-bar__nav{position:static;order:1;height:auto}
+  .m-top-app-bar__title{order:2;flex:1;max-width:none;height:auto;padding:0}
+  .m-top-app-bar__actions{position:static;order:3;flex:1 1 100%;height:auto;padding-right:var(--pad);justify-content:flex-end;flex-wrap:wrap;row-gap:8px;gap:8px}
+  /* min-width override needed: miuix ships min-width:40px, which beats width:34px */
+  .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
+  .m-icon-button .ic{width:20px;height:20px}
+  .chip{height:28px;padding:0 10px}
+}

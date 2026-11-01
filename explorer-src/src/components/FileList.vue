@@ -1,0 +1,96 @@
+<script setup>
+// explorer UI v5.0 — file list, a verbatim port of the v4.4 renderList/renderError/
+// renderStatic/cardHTML/pager + the v4.1 silent-refresh animation rule.
+import { computed } from 'vue'
+import { S, PAGE, META, ui, PAGE_MAP, loadList, resetErrorAndRetry, goLive, copyPath, fetchT } from '../explorer.js'
+import { fmtSize, fmtDate, fmtRel, iconFor, classFor } from '../util.js'
+import { md, hlJSON } from '../preview.js'
+
+const emit = defineEmits(['preview'])
+
+const locName = computed(() => ({ all: 'All locations', download: 'Downloads', archive: 'Archive' }[S.root] || S.root))
+const rootPaths = computed(() => {
+  if (!META.value || !META.value.roots) return 'download/ + archive/'
+  return S.root === 'all'
+    ? META.value.roots.map(r => r.label + '/').join(' + ')
+    : (META.value.roots.find(r => r.label === S.root) || {}).path || S.root + '/'
+})
+const from_ = computed(() => PAGE.value && PAGE.value.total ? (PAGE.value.page - 1) * PAGE.value.per_page + 1 : 0)
+const to_ = computed(() => PAGE.value ? Math.min(PAGE.value.page * PAGE.value.per_page, PAGE.value.total) : 0)
+const shown = computed(() => PAGE.value ? `showing ${from_.value}–${to_.value} of ${PAGE.value.total} files${PAGE.value.pages > 1 ? ' · page ' + PAGE.value.page + ' / ' + PAGE.value.pages : ''}` : '')
+
+function crumb(f){
+  const i = f.rel.lastIndexOf('/')
+  return i < 0 ? { dir: '', name: f.rel } : { dir: f.rel.slice(0, i + 1), name: f.rel.slice(i + 1) }
+}
+function delay(i){ return Math.min(i * 16, 280) + 'ms' }
+function page(n){ S.page = n; loadList() }
+function onCardKey(e, f){
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  if (e.target.closest('button,a,input,select')) return
+  e.preventDefault(); emit('preview', f)
+}
+</script>
+<template>
+  <section id="listwrap" aria-label="Files">
+    <div id="listhead" v-if="PAGE && !ui.static && !ui.error">
+      <div class="rootline"><svg class="ic"><use href="#i-folder"/></svg><b>{{ locName }}</b><span class="mono">{{ rootPaths }}</span>
+      <span class="cnt">{{ shown }}</span></div>
+    </div>
+    <div id="listbody">
+      <!-- static-copy graceful mode — informational banner, never an error; manual live-recovery, never auto-navigates -->
+      <div v-if="ui.static" class="empty">
+        <div class="e" style="background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)"><svg class="ic"><use href="#i-info"/></svg></div>
+        <div class="t">{{ ui.staticLive ? 'Static copy — live explorer reachable' : 'Static copy — live data unavailable' }}</div>
+        <template v-if="ui.staticLive">
+          <div class="h">explorer.py answered from this origin — the live Task Files Explorer is one click away</div>
+          <button class="btn" @click="goLive()"><svg class="ic"><use href="#i-open"/></svg>Open live view</button>
+        </template>
+        <template v-else>
+          <div class="h">this page was opened as a plain file, without explorer.py — the /api feeds behind the tiles, task rail, and search do not exist on this origin</div>
+          <div class="h">the live Task Files Explorer is served at the preview URL root while a session is running</div>
+        </template>
+      </div>
+      <!-- honest error state (v4.3.1 watchdog / steady retry) -->
+      <div v-else-if="ui.error" class="empty">
+        <div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container)"><svg class="ic"><use href="#i-warn"/></svg></div>
+        <div class="t">Failed to load data from explorer.py</div>
+        <div class="h">server not responding — the connection may be temporarily down · UI v5.0</div>
+        <button class="btn" @click="resetErrorAndRetry()"><svg class="ic"><use href="#i-down"/></svg>Retry</button>
+      </div>
+      <!-- first paint -->
+      <div v-else-if="!PAGE" class="loadcard"><div class="spinner"></div><p>loading file inventory…</p></div>
+      <!-- empty result -->
+      <div v-else-if="!PAGE.total" class="empty">
+        <div class="e t-other"><svg class="ic"><use href="#i-search"/></svg></div>
+        <div class="t">No files match the active filters</div>
+        <div class="h">try changing the keyword, type, task, or location</div>
+      </div>
+      <!-- the grid / list -->
+      <div v-else class="filegrid" :class="{ 'filegrid--list': S.view === 'list', noanim: !ui.listAnim }">
+        <div v-for="(f, i) in PAGE.files" :key="f.key" class="fcard" tabindex="0" role="button"
+             :aria-label="'Preview ' + f.name" :style="{ animationDelay: ui.listAnim ? delay(i) : '0ms' }"
+             @click="emit('preview', f)" @keydown="e => onCardKey(e, f)">
+          <span class="fbadge">{{ f.ext || f.type }}</span>
+          <span class="ftile" :class="'t-' + classFor(f)"><svg class="ic"><use :href="'#i-' + iconFor(f)"/></svg></span>
+          <div class="fbody">
+            <div class="fnm"><span class="cd">{{ crumb(f).dir }}</span><span>{{ crumb(f).name }}</span></div>
+            <div class="fmeta"><span>{{ fmtSize(f.size) }}</span><span :title="fmtDate(f.mtime)">{{ fmtRel(f.mtime) }}</span></div>
+            <span v-if="f.task" class="ftask"><svg class="ic"><use href="#i-check"/></svg>TASK {{ f.task }}</span>
+            <div class="fact">
+              <button class="fcpy" :title="'Copy the server path'" :aria-label="'Copy the path of ' + f.name" @click.stop="copyPath(f)"><svg class="ic"><use href="#i-copy"/></svg></button>
+              <a :href="f.href + '?dl=1'" :download="f.name" :title="'Download ' + f.name" :aria-label="'Download ' + f.name" @click.stop><svg class="ic"><use href="#i-down"/></svg></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pager" id="pager" v-if="PAGE && PAGE.pages > 1 && !ui.error && !ui.static">
+      <button title="First page" :disabled="PAGE.page <= 1" @click="page(1)"><svg class="ic"><use href="#i-chevr"/></svg><span style="transform:scaleX(-1);display:inline-flex"><svg class="ic"><use href="#i-chevr"/></svg></span></button>
+      <button title="Previous page" :disabled="PAGE.page <= 1" @click="page(Math.max(1, PAGE.page - 1))"><svg class="ic"><use href="#i-chev"/></svg></button>
+      <span class="pinfo">{{ PAGE.page }} / {{ PAGE.pages }}</span>
+      <button title="Next page" :disabled="PAGE.page >= PAGE.pages" @click="page(Math.min(PAGE.pages, PAGE.page + 1))"><svg class="ic"><use href="#i-chev"/></svg></button>
+      <button title="Last page" :disabled="PAGE.page >= PAGE.pages" @click="page(PAGE.pages)"><span style="transform:scaleX(-1);display:inline-flex"><svg class="ic"><use href="#i-chevr"/></svg></span><svg class="ic"><use href="#i-chevr"/></svg></button>
+    </div>
+  </section>
+</template>
