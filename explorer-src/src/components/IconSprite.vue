@@ -35,7 +35,12 @@ const W = i => i.regular
 // vh is "the flip transform's ty" (ExtendedIconWeightData). Kept in script (not
 // an inline template string): the SFC tokenizer chokes on a paren-heavy string
 // literal sharing an element with the multi-quote :viewBox binding.
-const FLIP = g => 'matrix(1 0 0 -1 0 ' + g.vh
+// Task 60 fix: the CLOSING PAREN was missing — "matrix(1 0 0 -1 0 1204.8" is an
+// INVALID SVG transform list, so browsers ignored it and every glyph still
+// rendered unflipped (owner: "all icons still upside-down"). The paren is not
+// cosmetic: attribute-reading probes pass on invalid strings, only a real
+// render shows the difference.
+const FLIP = g => 'matrix(1 0 0 -1 0 ' + g.vh + ')'
 
 const glyphs = {
   logo: W(FolderFill),
