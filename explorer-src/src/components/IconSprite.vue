@@ -22,7 +22,10 @@
 // the toggle state stays visible via the live theme switch + snackbar);
 // doc→Notes · pdf/file→File · data→Layers (rows of data) · code→Edit · pkg→Store (package bag)
 // office→ScreenMirroring (slide/screen) · clock→Recent · warn→Report (shield-i) · spark→TopDownloads
-// (trophy, Release Health) · release→Send (paper plane) · restart→Refresh · restore→Reset · open→Link.
+// · release→Send (paper plane) · restart→Refresh · restore→Reset · open→Link.
+// Task 63 order #1: the Dashboard section title (ex-Release Health) moved off the
+// TopDownloads trophy onto grid→GridView (the dashboard-grid metaphor); spark stays
+// in the sprite as a spare glyph (33 symbols unchanged).
 import { Search, Close, Ok, GridView, ListView, Theme, ExpandLess, ExpandMore,
   ChevronForward, Download, Show, Notes, File, Folder, FolderFill, Image, Layers, Edit, Store,
   ScreenMirroring, Recent, Tasks, Report, Info, TopDownloads, Copy, Send,

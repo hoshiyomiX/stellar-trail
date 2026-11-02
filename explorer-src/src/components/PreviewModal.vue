@@ -54,7 +54,7 @@ async function openPreview(f){
   }catch(err){
     body.kind = 'error'
     body.msg = (err && err.name === 'AbortError')
-      ? 'preview timed out — the sandbox may be asleep; tap Rescan or reopen after it wakes'
+      ? 'preview timed out — the sandbox may be asleep; reopen the preview after it wakes'
       : 'Failed to load the preview: ' + esc(err.message)
   }
 }

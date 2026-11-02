@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.8 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.9 (preview-popup replacement)
 =========================================================================
+v1.9 (Task 63, owner order #2 — task-history source decision): the task
+  list now parses worklog.md + worklog-archive.md MERGED (chronological:
+  archive first, live worklog last — the later section wins on any Task-ID
+  overlap). Decision rationale (analysis delivered with Task 63): the
+  worklog family is the authoritative append-only ledger (D11) and the
+  ONLY source carrying per-task section bodies, which the rail's
+  related-files mapping tokenizes; memory/SESSION-STATE.md is a volatile
+  checkpoint snapshot (atomic full rewrite, Active + last-5-sealed only,
+  no file mapping) — wrong shape for history. Rotation keeps only the
+  last 3 Task sections in worklog.md, which starved the 14-slot rail to
+  3 cards; merging the archive restores full depth (~88 sections,
+  ~390 KB — trivial next to the token-index parse) at zero UI change.
+  The /api/tasks SESSION-STATE lens stays as-is (a different view, not
+  the rail's source).
 v1.8 (Task 53): the UI page is the v5.0 single-file build (Vue 3 + the real
   miuix-vue component layer, built by Vite at release time) — the serving
   contract is UNCHANGED: one self-contained explorer-ui/index.html with
@@ -13,7 +27,8 @@ Endpoints:
   GET /                      UI page (explorer-ui/index.html, read per
                              request so UI edits show up without a restart)
   GET /api/files             JSON: download/ + archive/ inventory, stats,
-                             the task list parsed from worklog.md, the
+                             the task list parsed from worklog.md +
+                             worklog-archive.md (v1.9 merged ledger), the
                              skill block (stellar-trail version, watcher),
                              a "guard" block (live vs canonical version,
                              watcher liveness, and THIS process's code
@@ -102,6 +117,7 @@ UI = os.path.join(ZDIR, "explorer-ui", "index.html")
 PIDFILE = os.path.join(ZDIR, "explorer.pid")
 STAMP = os.path.join(ZDIR, "explorer.code-stamp")  # v1.4: md5 of the RUNNING server's source
 WORKLOG = os.path.join(PROJECT, "worklog.md")
+WORKLOG_ARCHIVE = os.path.join(PROJECT, "worklog-archive.md")  # v1.9: merged into parse_tasks — rotation moves older Task sections here, and the rail needs the depth
 SESSION_STATE = os.path.join(PROJECT, "memory", "SESSION-STATE.md")
 
 # label -> absolute path (the label is used in /file/<label>/ URLs)
@@ -217,8 +233,10 @@ _TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9_./@+-]+")
 
 
 def parse_tasks(roots):
-    """Parse 'Task ID: n / Task: ...' sections from worklog.md, then map each
-    file to the LAST task that mentions its file name.
+    """Parse 'Task ID: n / Task: ...' sections from worklog.md +
+    worklog-archive.md (v1.9: the merged ledger — archive first, live
+    worklog last, so the LATER section wins on Task-ID overlap), then map
+    each file to the LAST task that mentions its file name.
 
     v1.5 token-index algorithm (was: per-(file, task) substring scans —
     O(tasks x files x section-bytes), ~44 ms per task per 22k files, so an
@@ -227,10 +245,14 @@ def parse_tasks(roots):
     lookup per (file, task). A file maps when its name or label/rel path
     appears as a WHOLE TOKEN in the section — exactly how file names occur
     in the worklog's markdown (bullets, backticks, parens)."""
-    try:
-        with open(WORKLOG, encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    except OSError:
+    text = ""
+    for path in (WORKLOG_ARCHIVE, WORKLOG):  # chronological: archive older, worklog newer
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text += f.read() + "\n\n---\n\n"
+        except OSError:
+            pass  # missing archive pre-rotation, missing worklog cold-start: parse what exists
+    if not text.strip():
         return []
     tasks = []
     for sec in re.split(r"\n---+\n", text):

@@ -152,16 +152,13 @@ input{font:inherit;color:inherit}
 .appbar-title{font-size:var(--fs-appbar);font-weight:650;letter-spacing:.1px;color:var(--mx-on-card-2)}
 .appbar-sub{font-size:var(--fs-caption);color:var(--mx-on-bg-variant);margin-top:1px}
 .appbar-spacer{flex:1}
-.chip{
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
-  white-space:nowrap;
-}
-.chip .ic{width:14px;height:14px;fill:currentColor;flex:none}
-.chip--primary{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
-.chip--warn{background:var(--mx-error-container);color:var(--mx-on-error-container)}
-.ic.spinning{animation:spin .8s linear infinite}
+/* Task 62 (owner clarification: "'below" means the contents of the top bar
+   (clock/version chip/Rescan/Theme)"): the version + clock chips, the Rescan
+   button and the theme toggle are RETIRED — .chip / .chip--primary /
+   .chip--warn and the .ic.spinning scan animation have no target anymore.
+   The bar is identity-only (logo + title + subtitle); the theme follows the
+   system (setThemeMode('system')); recovery stays the steady 10 s poll + the
+   error card's Retry button. */
 .iconbtn{
   width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
   color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
@@ -174,9 +171,97 @@ input{font:inherit;color:inherit}
 main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
 section{margin-bottom:26px}
 
+/* Task 62 (owner order "Revert back dashboard card tiles that you had
+   removed"): the .smalltitle section headers are restored with the tiles +
+   rail — they are the card sections' own titles, not the retired body chrome. */
+.smalltitle{ /* Miuix SmallTitle */
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
+}
+.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
+.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
+
+/* ---- Stat tiles (Miuix Card grid) — REVERTED at Task 62 ---------- */
+/* Task 63 order #3 (icon padding): every icon-in-tile ratio normalized to
+   the OFFICIAL miuix-vue convention — MiuixIcon default size 24 inside the
+   40px .m-icon-button target (60%). Measured before: tile40 22/40 (55%),
+   ftile 21/40 (52.5%) — both airier than the design language reads. */
+.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.statcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  position:relative;overflow:hidden;
+}
+.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
+.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
+  font-variant-numeric:tabular-nums}
+.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile40{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.tile40 .ic{width:24px;height:24px;fill:currentColor}   /* Task 63: 22→24 — official MiuixIcon default in a 40px tile (60%) */
+.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
+.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
+.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
+.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
+.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
+.gdot.off{background:var(--mx-error)}
+/* ---- Task rail (SuperArrow-style cards) — REVERTED at Task 62 ---
+   v4.1: horizontal scroll; the .ichip active-filter pill rides with the
+   rail (it is the rail's own filter surface, not the retired toolbar). */
+.taskrail{
+  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;padding:2px 2px 8px;
+}
+.tcard{
+  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
+  scroll-snap-align:start;
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
+  border:2px solid transparent;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
+             border-color var(--mx-dur) var(--mx-ease),
+             box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.tcard:hover{transform:translateY(-2px)}
+.tcard.active{border-color:var(--mx-primary)}
+.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
+.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
+.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
+  overflow-wrap:break-word;word-break:break-word;
+}
+.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
+  display:flex;align-items:center;justify-content:space-between}
+.tcard .tc .ic{width:15px;height:15px;fill:currentColor;opacity:.55}   /* Task 63: 13→15 — the chevron ink (~5px wide) read undersized at 13px */
+.rail-empty{
+  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
+  box-shadow:var(--mx-shadow);
+}
+.ichip{ /* active filter pill (TaskRail's filter surface) */
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
+  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
+  font-size:var(--fs-label);font-weight:550;
+}
+.ichip .x{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
+}
+.ichip .x:hover{background:var(--mx-hover)}
+.ichip .x .ic{width:13px;height:13px;fill:currentColor}
+.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ---- File cards ------------------------------------------------ */
-/* Task 61: the listhead rootline label is retired with the other body
-   labels — .rootline rules removed; the cards open directly under main. */
+/* Task 61 (stands): the listhead rootline label stays retired with the other
+   body labels — .rootline rules removed; the cards open directly under main. */
 .filegrid{
   display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
@@ -198,10 +283,11 @@ section{margin-bottom:26px}
    stable after first paint. Kills the every-open paint burst on slow devices
    (field report: multi-device seconds-long freeze at every open). */
 .fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
+.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}   /* restored with the rail (Task 62) */
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
-.ftile .ic{width:21px;height:21px;fill:currentColor}
+.ftile .ic{width:24px;height:24px;fill:currentColor}   /* Task 63: 21→24 — same 40px tile, same official 60% ratio as tile40 */
 .fbody{flex:1;min-width:0}
 .fnm{
   font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.3;
@@ -263,7 +349,7 @@ section{margin-bottom:26px}
 .empty .e{
   width:56px;height:56px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;
 }
-.empty .e .ic{width:28px;height:28px;fill:currentColor}
+.empty .e .ic{width:32px;height:32px;fill:currentColor}   /* Task 63: 28→32 — 56px tile to ~57%, in line with the official ratio */
 .empty .t{font-size:var(--fs-card);font-weight:650;color:var(--mx-on-card-2)}
 .empty .h{font-size:var(--fs-label);color:var(--mx-text-3);margin-top:6px;line-height:1.55}
 .empty .btn{margin-top:16px}
@@ -310,7 +396,7 @@ section{margin-bottom:26px}
   border-bottom:1px solid var(--mx-divider);
 }
 .micon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none}
-.micon .ic{width:20px;height:20px;fill:currentColor}
+.micon .ic{width:22px;height:22px;fill:currentColor}   /* Task 63: 20→22 — 38px tile to ~58%, in line with the official ratio */
 .mnm{min-width:0;flex:1}
 .mnm .nm{font-size:var(--fs-card);font-weight:600;color:var(--mx-on-card-2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -363,21 +449,19 @@ section{margin-bottom:26px}
 /* ---- Responsive -------------------------------------------------- */
 @media (max-width:640px){
   .appbar-sub{display:none}
+  .statgrid{grid-template-columns:repeat(2,1fr)}   /* restored with the tiles (Task 62) */
   .filegrid{grid-template-columns:1fr}
-  /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
-     hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
-     and overflowed sideways. The bar now wraps to TWO rows: logo + title +
-     actions on top, the version + clock chips below; the title truncates. */
+  /* v4.4 mobile header fit (owner order, Task 45) — the legacy hand-rolled
+     reference layer. The Task-45 two-row wrap + the #scanBtn/#themeBtn/
+     #verChip/#clock order lines + the .chip sizing are SWEPT at Task 62:
+     those elements left the bar with the owner's top-bar-strip order, so the
+     reference lines have nothing left to document. The wrap geometry stays
+     as the pre-migration reference (inert — the miuix DOM renders instead). */
   .topappbar{flex-wrap:wrap;height:auto;min-height:var(--appbar-h);padding:8px var(--pad);row-gap:8px}
   .appbar-logo{order:1}
   .topappbar>div:first-of-type{order:2;min-width:0}
   .appbar-spacer{order:3}
-  #scanBtn{order:4}
-  #themeBtn{order:5}
-  #verChip{order:6}
-  #clock{order:7}
   .appbar-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .chip{height:28px;padding:0 10px}
   .iconbtn{width:34px;height:34px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -404,9 +488,12 @@ section{margin-bottom:26px}
    scale / no hero-bento).
    ============================================================ */
 
-/* B1 — icon buttons: v4.4 .iconbtn geometry (40px base / 34px mobile, .ic 20px) */
+/* B1 — icon buttons: v4.4 .iconbtn geometry (40px base / 34px mobile).
+   Task 63 order #3: the slot svg 20→24px — the official .m-icon-button
+   pairs with the MiuixIcon 24px default (60%); 20/40 measured 50%, the
+   airiest icon on the page (the preview modal's copy/close buttons). */
 .m-icon-button{width:40px;height:40px;flex:none}
-.m-icon-button .ic{width:20px;height:20px;fill:currentColor}
+.m-icon-button .ic{width:24px;height:24px;fill:currentColor}
 
 /* B2 — RETIRED at Task 61: the FAB (back-to-top) left with the body chrome
    (owner order); no .m-fab renders, so the patch has no target. The v4.4
@@ -415,35 +502,36 @@ section{margin-bottom:26px}
 /* B4 — sticky header (v4.4 contract: the bar stays pinned above the cards) */
 .m-top-app-bar{position:sticky;top:0;z-index:60}
 
-/* miuix actions row: v4.4 bar spacing was gap:10px — miuix ships gap:0
-   (the version + clock chips render touching) */
-.m-top-app-bar__actions{gap:10px}
+/* miuix actions row — RETIRED at Task 62: the top bar is identity-only
+   (owner order — verChip/clock/Rescan/Theme gone), so no __actions element
+   renders and the v4.4 gap:10 fix has no target. */
 
 /* title containment: miuix centers the in-flow title across the FULL row
-   while nav/actions are absolute — with our wide actions row the centered
-   title runs under the chips (measured: title 266-501 vs actions 375-752
-   @768). The v4.4 bar was left-aligned: restore that (D10-faithful) and
-   fence the title between the nav zone (padding-left) and the actions
-   zone (padding-right), ellipsized. */
+   while nav is absolute. The v4.4 bar was left-aligned: restore that
+   (D10-faithful) and fence the title between the nav zone (padding-left)
+   and the now-EMPTY right side (Task 62: padding-right 404px → 16px — the
+   actions zone the fence protected is gone), ellipsized. */
 .m-top-app-bar__row{justify-content:flex-start}
-.m-top-app-bar__title{flex:1;min-width:0;padding-left:64px;padding-right:404px;align-items:flex-start;text-align:left}
+.m-top-app-bar__title{flex:1;min-width:0;padding-left:64px;padding-right:16px;align-items:flex-start;text-align:left}
 .m-top-app-bar__title .m-text{max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:900px){
-  /* the subtitle is a Task-53 miuix addition, not a D10 item — drop it
-     before the title zone gets too narrow (641-900px band) */
+@media (max-width:640px){
+  /* the subtitle is a Task-53 miuix addition, not a D10 item — with the
+     actions row gone (Task 62) the title zone spans the full bar, so the
+     subtitle survives down to the v4.4 mobile cutoff instead of the old
+     641-900px band */
   .m-top-app-bar__title .m-text--body2{display:none}
 }
 
-/* B3 — @≤640px two-row header fit on the miuix DOM (the Task-45 contract):
-   row 1 = logo + truncating title, row 2 = compact buttons + chips,
-   right-aligned; the absolute nav/actions go in-flow */
+/* B3 — @≤640px header fit on the miuix DOM, RETUNED at Task 62 for the
+   identity-only bar: row = logo + truncating title (the two-row wrap + the
+   actions-row placement left with the buttons/chips); the absolute nav goes
+   in-flow. The compact .m-icon-button sizing stays — the preview modal's
+   copy/close buttons render it. */
 @media (max-width:640px){
-  .m-top-app-bar__row{flex-wrap:wrap;min-height:auto;row-gap:8px;padding-bottom:8px;justify-content:flex-start}
+  .m-top-app-bar__row{min-height:auto;justify-content:flex-start}
   .m-top-app-bar__nav{position:static;order:1;height:auto}
   .m-top-app-bar__title{order:2;flex:1;max-width:none;height:auto;padding:0}
-  .m-top-app-bar__actions{position:static;order:3;flex:1 1 100%;height:auto;padding-right:var(--pad);justify-content:flex-end;flex-wrap:wrap;row-gap:8px;gap:8px}
   /* min-width override needed: miuix ships min-width:40px, which beats width:34px */
   .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
   .m-icon-button .ic{width:20px;height:20px}
-  .chip{height:28px;padding:0 10px}
 }

@@ -17536,14 +17536,14 @@ var u = {
     d: "M329.4 209.9 Q329.4 242.9 350.4 267.4 Q371.4 291.9 404.4 295.9 L526.4 313.9 Q541.4 315.9 552.4 318.4 Q563.4 320.9 569.4 324.9 Q582.4 332.9 587.4 344.9 Q590.4 350.9 590.9 362.4 Q591.4 373.9 591.4 388.9 V458.9 Q505.4 474.9 435.9 527.9 Q366.4 580.9 326.9 658.9 Q287.4 736.9 287.4 826.9 V1099.9 Q287.4 1113.9 296.9 1123.4 Q306.4 1132.9 319.4 1132.9 H1005.4 Q1019.4 1132.9 1028.9 1123.4 Q1038.4 1113.9 1038.4 1099.9 V826.9 Q1038.4 734.9 996.4 654.9 Q954.4 574.9 881.9 522.4 Q809.4 469.9 720.4 456.9 V388.9 Q720.4 357.9 724.4 346.9 Q729.4 332.9 742.4 324.9 Q748.4 320.9 759.4 318.4 Q770.4 315.9 785.4 313.9 L908.4 295.9 Q940.4 290.9 961.4 266.4 Q982.4 241.9 982.4 209.9 Q982.4 202.9 977.4 197.4 Q972.4 191.9 965.4 191.9 H347.4 Q340.4 191.9 334.9 196.9 Q329.4 201.9 329.4 209.9 Z M110.4 909.9 V1032.9 Q110.4 1052.9 124.4 1067.4 Q138.4 1081.9 158.4 1081.9 H197.4 Q214.4 1081.9 227.4 1068.9 Q240.4 1055.9 240.4 1037.9 V804.9 Q240.4 799.9 236.9 796.9 Q233.4 793.9 228.4 793.9 Q196.4 793.9 169.4 809.4 Q142.4 824.9 126.4 851.9 Q110.4 878.9 110.4 909.9 Z M1084.4 804.9 V1037.9 Q1084.4 1055.9 1097.4 1068.9 Q1110.4 1081.9 1128.4 1081.9 H1166.4 Q1186.4 1081.9 1200.4 1067.4 Q1214.4 1052.9 1214.4 1032.9 V909.9 Q1214.4 877.9 1198.9 851.4 Q1183.4 824.9 1155.9 809.4 Q1128.4 793.9 1096.4 793.9 Q1091.4 793.9 1087.9 796.9 Q1084.4 799.9 1084.4 804.9 Z M654.4 644.9 H697.4 Q704.4 644.9 708.4 648.9 Q712.4 652.9 712.4 659.9 V969.9 Q712.4 976.9 708.4 980.9 Q704.4 984.9 697.4 984.9 H661.4 Q650.4 984.9 642.4 980.9 L574.4 945.9 Q569.4 942.9 566.4 938.4 Q563.4 933.9 563.4 927.9 V883.9 Q563.4 874.9 568.4 871.9 Q573.4 868.9 581.4 872.9 L639.4 902.9 V659.9 Q639.4 652.9 643.4 648.9 Q647.4 644.9 654.4 644.9 Z"
   }
 };
-const _hoisted_1$3 = {
+const _hoisted_1$4 = {
   style: { "display": "none" },
   xmlns: "http://www.w3.org/2000/svg",
   "aria-hidden": "true"
 };
-const _hoisted_2$3 = ["id", "viewBox"];
-const _hoisted_3$3 = ["d", "transform"];
-const _sfc_main$4 = {
+const _hoisted_2$4 = ["id", "viewBox"];
+const _hoisted_3$4 = ["d", "transform"];
+const _sfc_main$6 = {
   __name: "IconSprite",
   setup(__props) {
     const W2 = (i) => i.regular;
@@ -17584,7 +17584,7 @@ const _sfc_main$4 = {
       open: W2(Z)
     };
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("svg", _hoisted_1$3, [
+      return openBlock(), createElementBlock("svg", _hoisted_1$4, [
         (openBlock(), createElementBlock(Fragment, null, renderList(glyphs, (g2, id2) => {
           return createBaseVNode("symbol", {
             key: id2,
@@ -17597,10 +17597,33 @@ const _sfc_main$4 = {
               fill: "currentColor",
               "fill-rule": "nonzero",
               "clip-rule": "nonzero"
-            }, null, 8, _hoisted_3$3)
-          ], 8, _hoisted_2$3);
+            }, null, 8, _hoisted_3$4)
+          ], 8, _hoisted_2$4);
         }), 64))
       ]);
+    };
+  }
+};
+const _sfc_main$5 = {
+  __name: "TopBar",
+  setup(__props) {
+    return (_ctx, _cache) => {
+      return openBlock(), createBlock(unref(Cn), {
+        title: "Task Files Explorer",
+        subtitle: "Miuix · download/ + archive/ dashboard"
+      }, {
+        navigation: withCtx(() => [..._cache[0] || (_cache[0] = [
+          createBaseVNode("span", {
+            class: "appbar-logo",
+            "aria-hidden": "true"
+          }, [
+            createBaseVNode("svg", { class: "ic" }, [
+              createBaseVNode("use", { href: "#i-logo" })
+            ])
+          ], -1)
+        ])]),
+        _: 1
+      });
     };
   }
 };
@@ -17701,7 +17724,7 @@ const POLL_BASE_MS = 1e4;
 const CAN_ABORT = typeof AbortController !== "undefined";
 const RECOVER_MS = 1e3;
 const BOOT_WATCHDOG_MS = 8e3;
-let pollTimer = null, metaInFlight = false, connFails = 0, lastSig = "", firstLoadDone = false, TASKS_DONE = false, bootWatchdogFired = false, RECOVER_ARMED = false, scanBusy = false;
+let pollTimer = null, metaInFlight = false, connFails = 0, lastSig = "", firstLoadDone = false, TASKS_DONE = false, bootWatchdogFired = false, RECOVER_ARMED = false;
 function fetchT(url, ms) {
   ms = ms || FETCH_TIMEOUT_MS;
   const ctl = CAN_ABORT ? new AbortController() : null;
@@ -17887,129 +17910,182 @@ function boot() {
     if (CAN_ABORT || connFails < 3) schedulePoll(POLL_BASE_MS);
   }, BOOT_WATCHDOG_MS);
 }
-async function onScan() {
-  if (scanBusy) return;
-  scanBusy = true;
-  ui.spinning = true;
-  try {
-    const ok = await probeNow();
-    if (ok === null) {
-      snack("A scan is already in progress…");
-    } else if (ok && !ui.static) {
-      await loadList(true);
-      snack("Scan complete — " + ui.lastScan);
-    } else if (!ui.static) {
-      snack("Scan failed — explorer.py is not answering; retrying automatically");
-    }
-  } finally {
-    ui.spinning = false;
-    scanBusy = false;
-  }
-}
-function bootTheme(onTheme) {
-  let saved = null;
-  try {
-    saved = localStorage.getItem("miuix-theme");
-  } catch (_) {
-  }
-  H(saved === "dark" || saved === "light" ? saved : "system");
-  const { theme } = te();
-  watch(theme, (t) => {
-    document.documentElement.dataset.theme = t;
-    onTheme && onTheme(t);
-  }, { immediate: true });
-}
-function toggleTheme() {
-  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  try {
-    localStorage.setItem("miuix-theme", next);
-    localStorage.removeItem("md3-theme");
-  } catch (e) {
-  }
-  H(next);
-}
-const _hoisted_1$2 = {
-  class: "chip chip--primary",
-  id: "verChip",
-  title: "UI build — shows the stellar-trail version once explorer.py answers"
+const _hoisted_1$3 = { "aria-label": "Dashboard" };
+const _hoisted_2$3 = {
+  class: "statgrid",
+  id: "stats"
 };
-const _hoisted_2$2 = { id: "verTxt" };
-const _hoisted_3$2 = {
-  class: "chip",
-  id: "clock",
-  title: "local time"
-};
-const _hoisted_4$2 = {
-  class: "ic",
-  id: "themeIcon"
-};
-const _hoisted_5$2 = ["href"];
-const _sfc_main$3 = {
-  __name: "TopBar",
+const _hoisted_3$3 = { class: "top" };
+const _hoisted_4$3 = { class: "ic" };
+const _hoisted_5$3 = ["href"];
+const _hoisted_6$3 = { class: "k" };
+const _hoisted_7$3 = { class: "v" };
+const _hoisted_8$3 = { class: "s" };
+const _sfc_main$4 = {
+  __name: "StatsTiles",
   setup(__props) {
-    const verTxt = computed(() => META.value ? "v" + (META.value.guard && META.value.guard.live_version || "?") : "…");
+    const cells = computed(() => {
+      const m = META.value;
+      if (!m) return [];
+      const g2 = m.guard || {}, rs = m.resets || {};
+      const syncTxt = !g2 || !g2.installed ? "skill not installed" : g2.in_sync ? "in sync with canonical" : g2.canonical_present === false ? "no canonical yet — run bootstrap --ensure" : "drift vs canonical " + (g2.canonical_version || "?");
+      const wTxt = g2 && g2.watcher_alive ? "watcher alive" : "watcher down";
+      const cell = (o, label, cls, icon) => {
+        const c = o && o.count != null ? o.count : 0;
+        const last = o && o.last ? o.last : "never";
+        return { k: label, v: String(c), s: "last: " + last, icon, cls };
+      };
+      return [
+        {
+          k: "Skill Version",
+          v: "v" + (g2 && g2.live_version || "?"),
+          s: (g2 && g2.watcher_alive ? " watcher-alive" : "") + " — " + syncTxt + " · " + wTxt,
+          icon: "release",
+          cls: "primary",
+          dot: !!(g2 && g2.watcher_alive)
+        },
+        cell(rs.boot && rs.boot.boots, "Boot Resets", "doc", "restart"),
+        cell(rs.boot && rs.boot.skill_restores, "Skill Restores", "data", "restore"),
+        cell(rs.boot && rs.boot.archive_applies, "Snapshot Restores", "img", "backup")
+      ];
+    });
     return (_ctx, _cache) => {
-      return openBlock(), createBlock(unref(Cn), {
-        title: "Task Files Explorer",
-        subtitle: "Miuix · download/ + archive/ dashboard"
-      }, {
-        navigation: withCtx(() => [..._cache[0] || (_cache[0] = [
-          createBaseVNode("span", {
-            class: "appbar-logo",
-            "aria-hidden": "true"
-          }, [
-            createBaseVNode("svg", { class: "ic" }, [
-              createBaseVNode("use", { href: "#i-logo" })
-            ])
-          ], -1)
-        ])]),
-        actions: withCtx(() => [
-          createBaseVNode("span", _hoisted_1$2, [
-            _cache[1] || (_cache[1] = createBaseVNode("svg", { class: "ic" }, [
-              createBaseVNode("use", { href: "#i-release" })
-            ], -1)),
-            createBaseVNode("span", _hoisted_2$2, "UI 5.0 · " + toDisplayString(verTxt.value), 1)
+      return openBlock(), createElementBlock("section", _hoisted_1$3, [
+        _cache[0] || (_cache[0] = createBaseVNode("div", { class: "smalltitle" }, [
+          createBaseVNode("svg", { class: "ic" }, [
+            createBaseVNode("use", { href: "#i-grid" })
           ]),
-          createBaseVNode("span", _hoisted_3$2, [
-            _cache[2] || (_cache[2] = createBaseVNode("svg", { class: "ic" }, [
-              createBaseVNode("use", { href: "#i-clock" })
-            ], -1)),
-            createTextVNode(toDisplayString(unref(ui).clock), 1)
-          ]),
-          createVNode(unref(Ue$1), {
-            id: "scanBtn",
-            title: "Rescan now — refresh the file inventory from the server",
-            "aria-label": "Rescan now",
-            onClick: unref(onScan)
-          }, {
-            default: withCtx(() => [
-              (openBlock(), createElementBlock("svg", {
-                class: normalizeClass(["ic", { spinning: unref(ui).spinning }]),
-                id: "scanIcon"
-              }, [..._cache[3] || (_cache[3] = [
-                createBaseVNode("use", { href: "#i-restart" }, null, -1)
-              ])], 2))
-            ]),
-            _: 1
-          }, 8, ["onClick"]),
-          createVNode(unref(Ue$1), {
-            id: "themeBtn",
-            title: "Toggle dark / light theme",
-            "aria-label": "Toggle theme",
-            onClick: unref(toggleTheme)
-          }, {
-            default: withCtx(() => [
-              (openBlock(), createElementBlock("svg", _hoisted_4$2, [
-                createBaseVNode("use", {
-                  href: unref(ui).themeDark ? "#i-moon" : "#i-sun"
-                }, null, 8, _hoisted_5$2)
-              ]))
-            ]),
-            _: 1
-          }, 8, ["onClick"])
+          createTextVNode("Dashboard")
+        ], -1)),
+        createBaseVNode("div", _hoisted_2$3, [
+          (openBlock(true), createElementBlock(Fragment, null, renderList(cells.value, (t, i) => {
+            return openBlock(), createElementBlock("div", {
+              key: i,
+              class: "statcard"
+            }, [
+              createBaseVNode("div", _hoisted_3$3, [
+                createBaseVNode("span", {
+                  class: normalizeClass(["tile40", "tile40--" + t.cls])
+                }, [
+                  (openBlock(), createElementBlock("svg", _hoisted_4$3, [
+                    createBaseVNode("use", {
+                      href: "#i-" + t.icon
+                    }, null, 8, _hoisted_5$3)
+                  ]))
+                ], 2),
+                createBaseVNode("span", _hoisted_6$3, toDisplayString(t.k), 1)
+              ]),
+              createBaseVNode("div", _hoisted_7$3, toDisplayString(t.v), 1),
+              createBaseVNode("div", _hoisted_8$3, [
+                i === 0 ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
+                  createBaseVNode("span", {
+                    class: normalizeClass(["gdot", t.dot ? "on" : "off"])
+                  }, null, 2),
+                  createTextVNode(toDisplayString(t.s), 1)
+                ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                  createTextVNode(toDisplayString(t.s), 1)
+                ], 64))
+              ])
+            ]);
+          }), 128))
+        ])
+      ]);
+    };
+  }
+};
+const _hoisted_1$2 = { "aria-labelledby": "secTask" };
+const _hoisted_2$2 = {
+  class: "taskrail",
+  id: "taskRail",
+  role: "list",
+  tabindex: "0",
+  "aria-label": "Task history — scroll horizontally with arrow keys"
+};
+const _hoisted_3$2 = {
+  key: 0,
+  class: "rail-empty"
+};
+const _hoisted_4$2 = ["data-id", "onClick", "onKeydown"];
+const _hoisted_5$2 = { class: "th" };
+const _hoisted_6$2 = { class: "tid" };
+const _hoisted_7$2 = { class: "tt" };
+const _hoisted_8$2 = { class: "tc" };
+const _hoisted_9$2 = {
+  key: 0,
+  id: "activeFilter"
+};
+const _hoisted_10$2 = { class: "ichip" };
+const _sfc_main$3 = {
+  __name: "TaskRail",
+  setup(__props) {
+    const ts = computed(() => TASKS.value ? [...TASKS.value].slice(-14).reverse() : []);
+    const activeTask = computed(() => {
+      if (!S.task) return null;
+      const t = (META.value && META.value.tasks || []).find((x) => x.id === S.task);
+      return { id: t ? t.id : S.task, title: t ? t.title : "" };
+    });
+    function go(id2) {
+      S.task = S.task === id2 ? null : id2;
+      S.page = 1;
+      loadList();
+    }
+    function onKey(e, id2) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        go(id2);
+      }
+    }
+    function clearTask() {
+      S.task = null;
+      S.page = 1;
+      loadList();
+    }
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock("section", _hoisted_1$2, [
+        _cache[3] || (_cache[3] = createStaticVNode('<div class="smalltitle"><svg class="ic"><use href="#i-task"></use></svg><span id="secTask">Task History</span><span class="note">parsed from worklog.md + worklog-archive.md — full titles, scroll sideways; click a card to filter its related files</span></div>', 1)),
+        createBaseVNode("div", _hoisted_2$2, [
+          !ts.value.length ? (openBlock(), createElementBlock("div", _hoisted_3$2, "the worklog has no Task section yet — this rail fills in automatically once one exists.")) : (openBlock(true), createElementBlock(Fragment, { key: 1 }, renderList(ts.value, (t) => {
+            return openBlock(), createElementBlock("div", {
+              key: t.id,
+              class: normalizeClass(["tcard", { active: unref(S).task === t.id }]),
+              role: "listitem",
+              tabindex: "0",
+              "data-id": t.id,
+              onClick: ($event) => go(t.id),
+              onKeydown: (e) => onKey(e, t.id)
+            }, [
+              createBaseVNode("div", _hoisted_5$2, [
+                _cache[0] || (_cache[0] = createBaseVNode("svg", { class: "ic tick" }, [
+                  createBaseVNode("use", { href: "#i-check" })
+                ], -1)),
+                createBaseVNode("span", _hoisted_6$2, "TASK " + toDisplayString(t.id), 1)
+              ]),
+              createBaseVNode("div", _hoisted_7$2, toDisplayString(t.title), 1),
+              createBaseVNode("div", _hoisted_8$2, [
+                createBaseVNode("span", null, toDisplayString(t.count) + " related files", 1),
+                _cache[1] || (_cache[1] = createBaseVNode("svg", { class: "ic" }, [
+                  createBaseVNode("use", { href: "#i-chevr" })
+                ], -1))
+              ])
+            ], 42, _hoisted_4$2);
+          }), 128))
         ]),
-        _: 1
-      });
+        activeTask.value ? (openBlock(), createElementBlock("div", _hoisted_9$2, [
+          createBaseVNode("span", _hoisted_10$2, [
+            createBaseVNode("span", null, "Active filter — TASK " + toDisplayString(activeTask.value.id) + ": " + toDisplayString(activeTask.value.title), 1),
+            createBaseVNode("button", {
+              class: "x",
+              onClick: clearTask,
+              title: "Remove filter",
+              "aria-label": "Remove the task filter"
+            }, [..._cache[2] || (_cache[2] = [
+              createBaseVNode("svg", { class: "ic" }, [
+                createBaseVNode("use", { href: "#i-close" })
+              ], -1)
+            ])])
+          ])
+        ])) : createCommentVNode("", true)
+      ]);
     };
   }
 };
@@ -18424,7 +18500,7 @@ const _sfc_main$1 = {
         body.html = esc(src);
       } catch (err) {
         body.kind = "error";
-        body.msg = err && err.name === "AbortError" ? "preview timed out — the sandbox may be asleep; tap Rescan or reopen after it wakes" : "Failed to load the preview: " + esc(err.message);
+        body.msg = err && err.name === "AbortError" ? "preview timed out — the sandbox may be asleep; reopen the preview after it wakes" : "Failed to load the preview: " + esc(err.message);
       }
     }
     function onKey(e) {
@@ -18564,7 +18640,20 @@ const _sfc_main$1 = {
     };
   }
 };
-const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-f2bd18bb"]]);
+const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-02f96a6f"]]);
+function bootTheme(onTheme) {
+  let saved = null;
+  try {
+    saved = localStorage.getItem("miuix-theme");
+  } catch (_) {
+  }
+  H(saved === "dark" || saved === "light" ? saved : "system");
+  const { theme } = te();
+  watch(theme, (t) => {
+    document.documentElement.dataset.theme = t;
+    onTheme && onTheme(t);
+  }, { immediate: true });
+}
 const _sfc_main = {
   __name: "App",
   setup(__props) {
@@ -18574,15 +18663,14 @@ const _sfc_main = {
         ui.themeDark = t === "dark";
       });
       boot();
-      setInterval(() => {
-        ui.clock = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US");
-      }, 1e3);
     });
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
-        createVNode(_sfc_main$4),
-        createVNode(_sfc_main$3),
+        createVNode(_sfc_main$6),
+        createVNode(_sfc_main$5),
         createBaseVNode("main", null, [
+          createVNode(_sfc_main$4),
+          createVNode(_sfc_main$3),
           createVNode(_sfc_main$2, {
             onPreview: _cache[0] || (_cache[0] = (f) => modal.value && modal.value.open(f))
           })
@@ -18752,16 +18840,13 @@ input{font:inherit;color:inherit}
 .appbar-title{font-size:var(--fs-appbar);font-weight:650;letter-spacing:.1px;color:var(--mx-on-card-2)}
 .appbar-sub{font-size:var(--fs-caption);color:var(--mx-on-bg-variant);margin-top:1px}
 .appbar-spacer{flex:1}
-.chip{
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
-  border-radius:var(--mx-radius-full);background:var(--mx-secondary-container);
-  color:var(--mx-on-secondary-variant);font-size:var(--fs-label);font-weight:550;
-  white-space:nowrap;
-}
-.chip .ic{width:14px;height:14px;fill:currentColor;flex:none}
-.chip--primary{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
-.chip--warn{background:var(--mx-error-container);color:var(--mx-on-error-container)}
-.ic.spinning{animation:spin .8s linear infinite}
+/* Task 62 (owner clarification: "'below" means the contents of the top bar
+   (clock/version chip/Rescan/Theme)"): the version + clock chips, the Rescan
+   button and the theme toggle are RETIRED — .chip / .chip--primary /
+   .chip--warn and the .ic.spinning scan animation have no target anymore.
+   The bar is identity-only (logo + title + subtitle); the theme follows the
+   system (setThemeMode('system')); recovery stays the steady 10 s poll + the
+   error card's Retry button. */
 .iconbtn{
   width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
   color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
@@ -18774,9 +18859,97 @@ input{font:inherit;color:inherit}
 main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
 section{margin-bottom:26px}
 
+/* Task 62 (owner order "Revert back dashboard card tiles that you had
+   removed"): the .smalltitle section headers are restored with the tiles +
+   rail — they are the card sections' own titles, not the retired body chrome. */
+.smalltitle{ /* Miuix SmallTitle */
+  display:flex;align-items:center;gap:8px;margin:0 2px 10px;
+  font-size:var(--fs-section);font-weight:600;color:var(--mx-on-bg-variant);
+}
+.smalltitle .ic{width:15px;height:15px;fill:currentColor;opacity:.9}
+.smalltitle .note{font-weight:450;font-size:var(--fs-caption);color:var(--mx-text-3);margin-left:2px}
+
+/* ---- Stat tiles (Miuix Card grid) — REVERTED at Task 62 ---------- */
+/* Task 63 order #3 (icon padding): every icon-in-tile ratio normalized to
+   the OFFICIAL miuix-vue convention — MiuixIcon default size 24 inside the
+   40px .m-icon-button target (60%). Measured before: tile40 22/40 (55%),
+   ftile 21/40 (52.5%) — both airier than the design language reads. */
+.statgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.statcard{
+  background:var(--mx-card);border-radius:var(--mx-radius-xl);
+  padding:16px 16px 14px;box-shadow:var(--mx-shadow);
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),box-shadow var(--mx-dur-med) var(--mx-ease);
+  position:relative;overflow:hidden;
+}
+.statcard:hover{transform:translateY(-2px);box-shadow:var(--mx-shadow-lg)}
+.statcard .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.statcard .k{font-size:var(--fs-label);font-weight:550;color:var(--mx-text-2);letter-spacing:.2px}
+.statcard .v{font-size:26px;font-weight:700;line-height:1.15;color:var(--mx-on-card-2);
+  font-variant-numeric:tabular-nums}
+.statcard .s{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile40{
+  width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
+}
+.tile40 .ic{width:24px;height:24px;fill:currentColor}   /* Task 63: 22→24 — official MiuixIcon default in a 40px tile (60%) */
+.tile40--primary{background:var(--mx-primary);color:var(--mx-on-primary)}
+.tile40--doc{background:var(--t-doc-bg);color:var(--t-doc-fg)}
+.tile40--data{background:var(--t-data-bg);color:var(--t-data-fg)}
+.tile40--img{background:var(--t-img-bg);color:var(--t-img-fg)}
+.gdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.gdot.on{background:#4AD66D;box-shadow:0 0 6px rgba(74,214,109,.7)}
+.gdot.off{background:var(--mx-error)}
+/* ---- Task rail (SuperArrow-style cards) — REVERTED at Task 62 ---
+   v4.1: horizontal scroll; the .ichip active-filter pill rides with the
+   rail (it is the rail's own filter surface, not the retired toolbar). */
+.taskrail{
+  display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;padding:2px 2px 8px;
+}
+.tcard{
+  flex:0 0 min(320px,84vw);      /* v4.1: fixed-basis cards in a sideways rail */
+  scroll-snap-align:start;
+  background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:13px 14px;box-shadow:var(--mx-shadow);cursor:pointer;
+  border:2px solid transparent;
+  transition:transform var(--mx-dur-med) var(--mx-ease-spring),
+             border-color var(--mx-dur) var(--mx-ease),
+             box-shadow var(--mx-dur-med) var(--mx-ease);
+}
+.tcard:hover{transform:translateY(-2px)}
+.tcard.active{border-color:var(--mx-primary)}
+.tcard .th{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.tcard .tid{font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);letter-spacing:.4px}
+.tcard .tick{width:14px;height:14px;fill:var(--mx-primary);flex:none}
+.tcard .tt{   /* v4.1: FULL text — wraps to as many lines as needed (was line-clamp:2) */
+  font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.42;
+  overflow-wrap:break-word;word-break:break-word;
+}
+.tcard .tc{font-size:var(--fs-caption);color:var(--mx-text-3);margin-top:6px;
+  display:flex;align-items:center;justify-content:space-between}
+.tcard .tc .ic{width:15px;height:15px;fill:currentColor;opacity:.55}   /* Task 63: 13→15 — the chevron ink (~5px wide) read undersized at 13px */
+.rail-empty{
+  flex:0 0 100%;background:var(--mx-card);border-radius:var(--mx-radius-l);
+  padding:22px;text-align:center;color:var(--mx-text-3);font-size:var(--fs-label);
+  box-shadow:var(--mx-shadow);
+}
+.ichip{ /* active filter pill (TaskRail's filter surface) */
+  display:inline-flex;align-items:center;gap:8px;max-width:100%;
+  height:32px;padding:0 6px 0 13px;border-radius:var(--mx-radius-full);
+  background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container);
+  font-size:var(--fs-label);font-weight:550;
+}
+.ichip .x{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  color:currentColor;transition:background var(--mx-dur) var(--mx-ease);
+}
+.ichip .x:hover{background:var(--mx-hover)}
+.ichip .x .ic{width:13px;height:13px;fill:currentColor}
+.ichip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ---- File cards ------------------------------------------------ */
-/* Task 61: the listhead rootline label is retired with the other body
-   labels — .rootline rules removed; the cards open directly under main. */
+/* Task 61 (stands): the listhead rootline label stays retired with the other
+   body labels — .rootline rules removed; the cards open directly under main. */
 .filegrid{
   display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(235px,1fr));
@@ -18798,10 +18971,11 @@ section{margin-bottom:26px}
    stable after first paint. Kills the every-open paint burst on slow devices
    (field report: multi-device seconds-long freeze at every open). */
 .fcard{content-visibility:auto;contain-intrinsic-size:auto 120px}
+.tcard{content-visibility:auto;contain-intrinsic-size:auto 150px}   /* restored with the rail (Task 62) */
 .ftile{
   width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;
 }
-.ftile .ic{width:21px;height:21px;fill:currentColor}
+.ftile .ic{width:24px;height:24px;fill:currentColor}   /* Task 63: 21→24 — same 40px tile, same official 60% ratio as tile40 */
 .fbody{flex:1;min-width:0}
 .fnm{
   font-size:var(--fs-card);font-weight:550;color:var(--mx-on-card-2);line-height:1.3;
@@ -18863,7 +19037,7 @@ section{margin-bottom:26px}
 .empty .e{
   width:56px;height:56px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;
 }
-.empty .e .ic{width:28px;height:28px;fill:currentColor}
+.empty .e .ic{width:32px;height:32px;fill:currentColor}   /* Task 63: 28→32 — 56px tile to ~57%, in line with the official ratio */
 .empty .t{font-size:var(--fs-card);font-weight:650;color:var(--mx-on-card-2)}
 .empty .h{font-size:var(--fs-label);color:var(--mx-text-3);margin-top:6px;line-height:1.55}
 .empty .btn{margin-top:16px}
@@ -18910,7 +19084,7 @@ section{margin-bottom:26px}
   border-bottom:1px solid var(--mx-divider);
 }
 .micon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none}
-.micon .ic{width:20px;height:20px;fill:currentColor}
+.micon .ic{width:22px;height:22px;fill:currentColor}   /* Task 63: 20→22 — 38px tile to ~58%, in line with the official ratio */
 .mnm{min-width:0;flex:1}
 .mnm .nm{font-size:var(--fs-card);font-weight:600;color:var(--mx-on-card-2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -18963,21 +19137,19 @@ section{margin-bottom:26px}
 /* ---- Responsive -------------------------------------------------- */
 @media (max-width:640px){
   .appbar-sub{display:none}
+  .statgrid{grid-template-columns:repeat(2,1fr)}   /* restored with the tiles (Task 62) */
   .filegrid{grid-template-columns:1fr}
-  /* v4.4 mobile header fit (owner order, Task 45): a single 56 px row cannot
-     hold logo + title + 2 chips + 2 buttons at 360-400 px — the bar clipped
-     and overflowed sideways. The bar now wraps to TWO rows: logo + title +
-     actions on top, the version + clock chips below; the title truncates. */
+  /* v4.4 mobile header fit (owner order, Task 45) — the legacy hand-rolled
+     reference layer. The Task-45 two-row wrap + the #scanBtn/#themeBtn/
+     #verChip/#clock order lines + the .chip sizing are SWEPT at Task 62:
+     those elements left the bar with the owner's top-bar-strip order, so the
+     reference lines have nothing left to document. The wrap geometry stays
+     as the pre-migration reference (inert — the miuix DOM renders instead). */
   .topappbar{flex-wrap:wrap;height:auto;min-height:var(--appbar-h);padding:8px var(--pad);row-gap:8px}
   .appbar-logo{order:1}
   .topappbar>div:first-of-type{order:2;min-width:0}
   .appbar-spacer{order:3}
-  #scanBtn{order:4}
-  #themeBtn{order:5}
-  #verChip{order:6}
-  #clock{order:7}
   .appbar-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .chip{height:28px;padding:0 10px}
   .iconbtn{width:34px;height:34px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -19004,9 +19176,12 @@ section{margin-bottom:26px}
    scale / no hero-bento).
    ============================================================ */
 
-/* B1 — icon buttons: v4.4 .iconbtn geometry (40px base / 34px mobile, .ic 20px) */
+/* B1 — icon buttons: v4.4 .iconbtn geometry (40px base / 34px mobile).
+   Task 63 order #3: the slot svg 20→24px — the official .m-icon-button
+   pairs with the MiuixIcon 24px default (60%); 20/40 measured 50%, the
+   airiest icon on the page (the preview modal's copy/close buttons). */
 .m-icon-button{width:40px;height:40px;flex:none}
-.m-icon-button .ic{width:20px;height:20px;fill:currentColor}
+.m-icon-button .ic{width:24px;height:24px;fill:currentColor}
 
 /* B2 — RETIRED at Task 61: the FAB (back-to-top) left with the body chrome
    (owner order); no .m-fab renders, so the patch has no target. The v4.4
@@ -19015,52 +19190,53 @@ section{margin-bottom:26px}
 /* B4 — sticky header (v4.4 contract: the bar stays pinned above the cards) */
 .m-top-app-bar{position:sticky;top:0;z-index:60}
 
-/* miuix actions row: v4.4 bar spacing was gap:10px — miuix ships gap:0
-   (the version + clock chips render touching) */
-.m-top-app-bar__actions{gap:10px}
+/* miuix actions row — RETIRED at Task 62: the top bar is identity-only
+   (owner order — verChip/clock/Rescan/Theme gone), so no __actions element
+   renders and the v4.4 gap:10 fix has no target. */
 
 /* title containment: miuix centers the in-flow title across the FULL row
-   while nav/actions are absolute — with our wide actions row the centered
-   title runs under the chips (measured: title 266-501 vs actions 375-752
-   @768). The v4.4 bar was left-aligned: restore that (D10-faithful) and
-   fence the title between the nav zone (padding-left) and the actions
-   zone (padding-right), ellipsized. */
+   while nav is absolute. The v4.4 bar was left-aligned: restore that
+   (D10-faithful) and fence the title between the nav zone (padding-left)
+   and the now-EMPTY right side (Task 62: padding-right 404px → 16px — the
+   actions zone the fence protected is gone), ellipsized. */
 .m-top-app-bar__row{justify-content:flex-start}
-.m-top-app-bar__title{flex:1;min-width:0;padding-left:64px;padding-right:404px;align-items:flex-start;text-align:left}
+.m-top-app-bar__title{flex:1;min-width:0;padding-left:64px;padding-right:16px;align-items:flex-start;text-align:left}
 .m-top-app-bar__title .m-text{max-width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:900px){
-  /* the subtitle is a Task-53 miuix addition, not a D10 item — drop it
-     before the title zone gets too narrow (641-900px band) */
+@media (max-width:640px){
+  /* the subtitle is a Task-53 miuix addition, not a D10 item — with the
+     actions row gone (Task 62) the title zone spans the full bar, so the
+     subtitle survives down to the v4.4 mobile cutoff instead of the old
+     641-900px band */
   .m-top-app-bar__title .m-text--body2{display:none}
 }
 
-/* B3 — @≤640px two-row header fit on the miuix DOM (the Task-45 contract):
-   row 1 = logo + truncating title, row 2 = compact buttons + chips,
-   right-aligned; the absolute nav/actions go in-flow */
+/* B3 — @≤640px header fit on the miuix DOM, RETUNED at Task 62 for the
+   identity-only bar: row = logo + truncating title (the two-row wrap + the
+   actions-row placement left with the buttons/chips); the absolute nav goes
+   in-flow. The compact .m-icon-button sizing stays — the preview modal's
+   copy/close buttons render it. */
 @media (max-width:640px){
-  .m-top-app-bar__row{flex-wrap:wrap;min-height:auto;row-gap:8px;padding-bottom:8px;justify-content:flex-start}
+  .m-top-app-bar__row{min-height:auto;justify-content:flex-start}
   .m-top-app-bar__nav{position:static;order:1;height:auto}
   .m-top-app-bar__title{order:2;flex:1;max-width:none;height:auto;padding:0}
-  .m-top-app-bar__actions{position:static;order:3;flex:1 1 100%;height:auto;padding-right:var(--pad);justify-content:flex-end;flex-wrap:wrap;row-gap:8px;gap:8px}
   /* min-width override needed: miuix ships min-width:40px, which beats width:34px */
   .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
   .m-icon-button .ic{width:20px;height:20px}
-  .chip{height:28px;padding:0 10px}
 }
 
-.truncnote[data-v-f2bd18bb]{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--mx-surface-variant);color:var(--mx-on-surface-variant);font-size:12px}
-.truncnote .ic[data-v-f2bd18bb]{width:14px;height:14px;fill:currentColor;flex:none}
-.truncnote a[data-v-f2bd18bb]{color:var(--mx-primary);font-weight:600;text-decoration:none}
-.mhead[data-v-f2bd18bb]{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;border-bottom:1px solid var(--mx-divider);margin-bottom:10px}
-.mhead .micon[data-v-f2bd18bb]{flex:0 0 auto}
-.mhead .mnm[data-v-f2bd18bb]{flex:1 1 auto;min-width:0}
-.mhead .nm[data-v-f2bd18bb]{font-weight:600;font-size:14px;line-height:1.25;word-break:break-all}
-.mhead .meta[data-v-f2bd18bb]{font-size:11px;color:var(--mx-text-2);margin-top:2px}
-.mhead .btn[data-v-f2bd18bb]{white-space:nowrap}
-.mbody[data-v-f2bd18bb]{max-height:60vh;overflow:auto}
-.mbody img[data-v-f2bd18bb]{max-width:100%;border-radius:8px}
-.mbody iframe[data-v-f2bd18bb]{width:100%;height:60vh;border:0;border-radius:8px;background:#fff}
-.mbody pre[data-v-f2bd18bb]{white-space:pre-wrap;word-break:break-all;font-family:var(--mx-mono);font-size:12px;line-height:1.5;color:var(--mx-on-card)}
+.truncnote[data-v-02f96a6f]{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--mx-surface-variant);color:var(--mx-on-surface-variant);font-size:12px}
+.truncnote .ic[data-v-02f96a6f]{width:14px;height:14px;fill:currentColor;flex:none}
+.truncnote a[data-v-02f96a6f]{color:var(--mx-primary);font-weight:600;text-decoration:none}
+.mhead[data-v-02f96a6f]{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;border-bottom:1px solid var(--mx-divider);margin-bottom:10px}
+.mhead .micon[data-v-02f96a6f]{flex:0 0 auto}
+.mhead .mnm[data-v-02f96a6f]{flex:1 1 auto;min-width:0}
+.mhead .nm[data-v-02f96a6f]{font-weight:600;font-size:14px;line-height:1.25;word-break:break-all}
+.mhead .meta[data-v-02f96a6f]{font-size:11px;color:var(--mx-text-2);margin-top:2px}
+.mhead .btn[data-v-02f96a6f]{white-space:nowrap}
+.mbody[data-v-02f96a6f]{max-height:60vh;overflow:auto}
+.mbody img[data-v-02f96a6f]{max-width:100%;border-radius:8px}
+.mbody iframe[data-v-02f96a6f]{width:100%;height:60vh;border:0;border-radius:8px;background:#fff}
+.mbody pre[data-v-02f96a6f]{white-space:pre-wrap;word-break:break-all;font-family:var(--mx-mono);font-size:12px;line-height:1.5;color:var(--mx-on-card)}
 /*$vite$:1*/</style>
 </head>
 <body>
