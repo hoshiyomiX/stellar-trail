@@ -19214,11 +19214,26 @@ section{margin-bottom:26px}
    identity-only bar: row = logo + truncating title (the two-row wrap + the
    actions-row placement left with the buttons/chips); the absolute nav goes
    in-flow. The compact .m-icon-button sizing stays — the preview modal's
-   copy/close buttons render it. */
+   copy/close buttons render it.
+   Task 65 (owner order "fix padding ikon header", ref #63): two padding
+   defects fixed on this bar — see the inline notes below. */
 @media (max-width:640px){
-  .m-top-app-bar__row{min-height:auto;justify-content:flex-start}
+  /* Task 65 fix 1 — VERTICAL: the miuix non-large row carries an INLINE
+     paddingBottom (computed subtitle?8px:4px — a bottom-only inset meant
+     for the native status-bar/large-title zone). With the in-flow nav +
+     min-height:auto (Task 62) it left the 34px logo FLUSH at y=0 with 8px
+     dead space below. padding-top:8px balances the pair: logo at 8/8 in a
+     50px row — the desktop rhythm (52px row, absolute nav, 9/9) carried
+     onto the mobile bar. NOTE: pairs with the component's subtitle branch
+     (8px); a subtitle-less TopBar renders pb:4 — rebalance here if the
+     subtitle prop ever leaves TopBar.vue. */
+  .m-top-app-bar__row{min-height:auto;justify-content:flex-start;padding-top:8px}
   .m-top-app-bar__nav{position:static;order:1;height:auto}
-  .m-top-app-bar__title{order:2;flex:1;max-width:none;height:auto;padding:0}
+  /* Task 65 fix 2 — HORIZONTAL: padding:0 left the title text at ~5px from
+     the logo (glyph side-bearing only). 14px = the desktop fence (title
+     padding-left:64px − the 50px nav zone) — the same logo→title rhythm at
+     both widths; the ellipsis contract (min-width:0) is untouched. */
+  .m-top-app-bar__title{order:2;flex:1;max-width:none;height:auto;padding:0 0 0 14px}
   /* min-width override needed: miuix ships min-width:40px, which beats width:34px */
   .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
   .m-icon-button .ic{width:20px;height:20px}
