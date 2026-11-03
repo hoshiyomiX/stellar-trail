@@ -28,7 +28,8 @@ const CAN_ABORT=(typeof AbortController!=="undefined");
 const RECOVER_MS=1000;
 const BOOT_WATCHDOG_MS=8000;
 let pollTimer=null, metaInFlight=false, connFails=0, lastSig="", firstLoadDone=false,
-    TASKS_DONE=false, bootWatchdogFired=false, RECOVER_ARMED=false, scanBusy=false;
+    TASKS_DONE=false, bootWatchdogFired=false, RECOVER_ARMED=false, scanBusy=false,
+    AUTO_BROKE_OUT=false;   /* Task 67: static→live auto-breakout fired flag (once per page) */
 
 /* ================= v4.3.1 fetch deadline ================= */
 export function fetchT(url,ms){
@@ -80,10 +81,19 @@ export async function loadList(silent){
 export async function loadMeta(){
   try{
     const d=await(await fetchT("/api/files?max=0")).json();
-    if(ui.static){   /* live feed reachable from this origin — offer manual recovery */
+    if(ui.static){   /* live feed reachable from this origin — recover the window */
       if(d&&d.server&&d.server.pid){
         if(!ui.staticLive){ui.staticLive=true;
-          ui.footer="live explorer reachable on this origin — click Open live view"}
+          /* Task 67 (owner order "popup preview platform mati permanent"): the
+             platform file-preview chrome that wrapped this static copy is
+             replaced by the LIVE app at top level the moment the live feed
+             answers on this origin — auto-breakout, ONCE per page (guarded:
+             a replace that lands somewhere static again must not loop).
+             Supersedes the v4.2 "manual live-recovery, never auto-navigates"
+             note per this owner order; the banner + button stay as the
+             fallback when top-level navigation is sandbox-blocked. */
+          if(!AUTO_BROKE_OUT){AUTO_BROKE_OUT=true;goLive()}
+          ui.footer="live explorer reachable on this origin — recovering the live view…"}
       }
       schedulePoll(POLL_BASE_MS);
       return true;

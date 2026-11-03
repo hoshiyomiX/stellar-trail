@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.9 (preview-popup replacement)
+explorer.py — Task Files Explorer server v1.10 (preview-popup kill)
 =========================================================================
+v1.10 (Task 67, owner order "popup preview platform mati permanent"): the
+  /file/ serving default FLIPS inline -> ATTACHMENT. A direct hit on a
+  /file/<label>/<rel> URL (typed, pasted, linked from anywhere, opened by
+  any foreign file panel) now DOWNLOADS — the browser inline viewer and
+  every platform preview popup built on our file URLs die at the source.
+  The explorer's own preview modal is UNAFFECTED: its text branches read
+  via fetch() (Content-Disposition never applies to subresource fetches),
+  and its <img>/<iframe> sources carry ?inline=1 — the ONLY inline path
+  (?inline=1; ?dl=1 keeps its explicit-download meaning; default =
+  attachment). Security side-win: html/svg/pdf-as-document served as
+  attachments can no longer execute as standalone documents via URL.
+  UI v5.0.1 companions (same task): the modal's img/pdf hrefs carry
+  ?inline=1, the binary-branch download carries ?dl=1, and the
+  static-copy state AUTO-BREAKS OUT to the live root the moment the live
+  feed answers on that origin (the platform file-preview chrome that
+  wraps a static copy is replaced by the live app — once per page,
+  guarded; supersedes the v4.2 manual-only recovery note per this owner
+  order; the banner + manual button remain as the fallback when
+  top-level navigation is blocked).
 v1.9 (Task 63, owner order #2 — task-history source decision): the task
   list now parses worklog.md + worklog-archive.md MERGED (chronological:
   archive first, live worklog last — the later section wins on any Task-ID
@@ -60,8 +79,11 @@ Endpoints:
                              tables + checkpoint line; missing file =
                              empty structure, never an error)
   GET /file/<label>/<rel>    raw file (path guard: only inside ROOTS);
-                             add ?dl=1 to send it as an ATTACHMENT
-                             (forced download via Content-Disposition: attachment)
+                             v1.10: served as an ATTACHMENT by default
+                             (direct URL hits download — foreign inline
+                             previews die); ?inline=1 = the ONLY inline
+                             path (the preview modal's img/iframe);
+                             ?dl=1 = explicit attachment (unchanged)
   GET /healthz               health check for explorer.sh / watcher.sh
 
 v1.5 scalability contract (Task 30, evidence 2026-10-23 — v1.4 paid
@@ -736,9 +758,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             size = os.path.getsize(fp)
             name = os.path.basename(fp)
-            # ?dl=1 -> attachment (forced download); default inline (preview)
-            dl = parse_qs(query).get("dl", ["0"])[0] in ("1", "true", "yes")
-            disp = "attachment" if dl else "inline"
+            # v1.10 (Task 67): default ATTACHMENT — direct URL hits download,
+            # never inline-preview (browser viewer + platform preview popups
+            # die at the source). ?inline=1 = the ONLY inline path (the modal's
+            # own <img>/<iframe>); ?dl=1 keeps its explicit-download meaning.
+            dl = q.get("dl", ["0"])[0] in ("1", "true", "yes")
+            inl = q.get("inline", ["0"])[0] in ("1", "true", "yes")
+            disp = "inline" if (inl and not dl) else "attachment"
             self.send_response(200)
             self.send_header("Content-Type", ctype_of(fp))
             self.send_header("Content-Length", str(size))

@@ -1,8 +1,14 @@
 <script setup>
-// explorer UI v5.0 — file preview modal: the v4.4 hand-rolled .modal is replaced
+// explorer UI v5.0.1 — file preview modal: the v4.4 hand-rolled .modal is replaced
 // by the REAL miuix-vue Dialog (Task 53 component-layer swap); the preview
 // branching (img/pdf/binary/md/json/text) + the 10 s fetch deadline + the
 // AbortError message + focus restore are ported verbatim from v4.4 openPreview.
+// Task 67 (platform-preview kill, explorer.py v1.10 companion): the /file/
+// serving default is now ATTACHMENT — direct URL hits download, foreign inline
+// previews die at the source. THIS modal is the only inline consumer: img/pdf
+// hrefs carry ?inline=1 (the sole inline path), the binary download + all
+// download anchors carry ?dl=1; text branches read via fetch() and never see
+// Content-Disposition at all.
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { MiuixDialog, MiuixIconButton } from 'miuix-vue'
 import { fetchT, copyPath } from '../explorer.js'
@@ -37,11 +43,11 @@ async function openPreview(f){
   await nextTick()
   const e = (f.ext || '').toLowerCase()
   try{
-    if (f.type === 'img'){ body.kind = 'img'; body.href = f.href; body.name = f.name; return }
-    if (e === 'pdf'){ body.kind = 'pdf'; body.href = f.href; return }
+    if (f.type === 'img'){ body.kind = 'img'; body.href = f.href + '?inline=1'; body.name = f.name; return }
+    if (e === 'pdf'){ body.kind = 'pdf'; body.href = f.href + '?inline=1'; return }
     if (BINARY.includes(e) || f.type === 'office' || f.type === 'pkg'){
       body.kind = 'binary'; body.icon = iconFor(f); body.cls = cls
-      body.name = f.name; body.href = f.href
+      body.name = f.name; body.href = f.href + '?dl=1'
       body.msg = 'Format <b>' + esc((e || f.type).toUpperCase()) + '</b> has no direct browser preview.<br>.skill = skill package (zip) · office = open in the respective application.'
       return
     }

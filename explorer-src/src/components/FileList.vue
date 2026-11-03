@@ -27,12 +27,12 @@ function onCardKey(e, f){
 <template>
   <section id="listwrap" aria-label="Files">
     <div id="listbody">
-      <!-- static-copy graceful mode — informational banner, never an error; manual live-recovery, never auto-navigates -->
+      <!-- static-copy graceful mode — informational banner, never an error; Task 67: AUTO-breakout to the live root the moment the live feed answers on this origin (the manual button stays as the blocked-navigation fallback) -->
       <div v-if="ui.static" class="empty">
         <div class="e" style="background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)"><svg class="ic"><use href="#i-info"/></svg></div>
         <div class="t">{{ ui.staticLive ? 'Static copy — live explorer reachable' : 'Static copy — live data unavailable' }}</div>
         <template v-if="ui.staticLive">
-          <div class="h">explorer.py answered from this origin — the live Task Files Explorer is one click away</div>
+          <div class="h">explorer.py answered from this origin — recovering the live view… (Task 67 auto-breakout: the platform file-preview chrome is replaced by the live app; if this frame is still here, top-level navigation was blocked — use the button)</div>
           <button class="btn" @click="goLive()"><svg class="ic"><use href="#i-open"/></svg>Open live view</button>
         </template>
         <template v-else>

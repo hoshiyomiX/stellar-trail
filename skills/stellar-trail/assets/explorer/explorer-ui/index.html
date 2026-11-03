@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Task Files Explorer UI v5.0 — miuix-vue single-file build (Task 53): Vue 3 + the real miuix-vue component layer, D10 structure locks, the v4.3.1/v4.4 behavioral engine ported verbatim (engine-independent deadlines, steady 10 s loop, static-copy graceful mode + manual live-recovery).">
+<meta name="description" content="Task Files Explorer UI v5.0.1 — miuix-vue single-file build (Task 53): Vue 3 + the real miuix-vue component layer, D10 structure locks, the v4.3.1/v4.4 behavioral engine ported verbatim (engine-independent deadlines, steady 10 s loop, static-copy graceful mode with Task-67 auto-breakout to the live root + blocked-navigation fallback button, platform-preview kill: /file/ URLs download by default, ?inline=1 is the modal-only inline path).">
 <title>Task Files Explorer</title>
   <script type="module" crossorigin>var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 (function polyfill() {
@@ -17724,7 +17724,7 @@ const POLL_BASE_MS = 1e4;
 const CAN_ABORT = typeof AbortController !== "undefined";
 const RECOVER_MS = 1e3;
 const BOOT_WATCHDOG_MS = 8e3;
-let pollTimer = null, metaInFlight = false, connFails = 0, lastSig = "", firstLoadDone = false, TASKS_DONE = false, bootWatchdogFired = false, RECOVER_ARMED = false;
+let pollTimer = null, metaInFlight = false, connFails = 0, lastSig = "", firstLoadDone = false, TASKS_DONE = false, bootWatchdogFired = false, RECOVER_ARMED = false, AUTO_BROKE_OUT = false;
 function fetchT(url, ms) {
   ms = ms || FETCH_TIMEOUT_MS;
   const ctl = CAN_ABORT ? new AbortController() : null;
@@ -17800,7 +17800,11 @@ async function loadMeta() {
       if (d && d.server && d.server.pid) {
         if (!ui.staticLive) {
           ui.staticLive = true;
-          ui.footer = "live explorer reachable on this origin — click Open live view";
+          if (!AUTO_BROKE_OUT) {
+            AUTO_BROKE_OUT = true;
+            goLive();
+          }
+          ui.footer = "live explorer reachable on this origin — recovering the live view…";
         }
       }
       schedulePoll(POLL_BASE_MS);
@@ -18238,7 +18242,7 @@ const _sfc_main$2 = {
             ], -1)),
             createBaseVNode("div", _hoisted_4$1, toDisplayString(unref(ui).staticLive ? "Static copy — live explorer reachable" : "Static copy — live data unavailable"), 1),
             unref(ui).staticLive ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
-              _cache[8] || (_cache[8] = createBaseVNode("div", { class: "h" }, "explorer.py answered from this origin — the live Task Files Explorer is one click away", -1)),
+              _cache[8] || (_cache[8] = createBaseVNode("div", { class: "h" }, "explorer.py answered from this origin — recovering the live view… (Task 67 auto-breakout: the platform file-preview chrome is replaced by the live app; if this frame is still here, top-level navigation was blocked — use the button)", -1)),
               createBaseVNode("button", {
                 class: "btn",
                 onClick: _cache[0] || (_cache[0] = ($event) => unref(goLive)())
@@ -18465,13 +18469,13 @@ const _sfc_main$1 = {
       try {
         if (f.type === "img") {
           body.kind = "img";
-          body.href = f.href;
+          body.href = f.href + "?inline=1";
           body.name = f.name;
           return;
         }
         if (e === "pdf") {
           body.kind = "pdf";
-          body.href = f.href;
+          body.href = f.href + "?inline=1";
           return;
         }
         if (BINARY.includes(e) || f.type === "office" || f.type === "pkg") {
@@ -18479,7 +18483,7 @@ const _sfc_main$1 = {
           body.icon = iconFor(f);
           body.cls = cls;
           body.name = f.name;
-          body.href = f.href;
+          body.href = f.href + "?dl=1";
           body.msg = "Format <b>" + esc((e || f.type).toUpperCase()) + "</b> has no direct browser preview.<br>.skill = skill package (zip) · office = open in the respective application.";
           return;
         }
@@ -18640,7 +18644,7 @@ const _sfc_main$1 = {
     };
   }
 };
-const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-02f96a6f"]]);
+const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-92276812"]]);
 function bootTheme(onTheme) {
   let saved = null;
   try {
@@ -19241,19 +19245,19 @@ section{margin-bottom:26px}
   .m-icon-button .ic{width:20px;height:20px}
 }
 
-.truncnote[data-v-02f96a6f]{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--mx-surface-variant);color:var(--mx-on-surface-variant);font-size:12px}
-.truncnote .ic[data-v-02f96a6f]{width:14px;height:14px;fill:currentColor;flex:none}
-.truncnote a[data-v-02f96a6f]{color:var(--mx-primary);font-weight:600;text-decoration:none}
-.mhead[data-v-02f96a6f]{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;border-bottom:1px solid var(--mx-divider);margin-bottom:10px}
-.mhead .micon[data-v-02f96a6f]{flex:0 0 auto}
-.mhead .mnm[data-v-02f96a6f]{flex:1 1 auto;min-width:0}
-.mhead .nm[data-v-02f96a6f]{font-weight:600;font-size:14px;line-height:1.25;word-break:break-all}
-.mhead .meta[data-v-02f96a6f]{font-size:11px;color:var(--mx-text-2);margin-top:2px}
-.mhead .btn[data-v-02f96a6f]{white-space:nowrap}
-.mbody[data-v-02f96a6f]{max-height:60vh;overflow:auto}
-.mbody img[data-v-02f96a6f]{max-width:100%;border-radius:8px}
-.mbody iframe[data-v-02f96a6f]{width:100%;height:60vh;border:0;border-radius:8px;background:#fff}
-.mbody pre[data-v-02f96a6f]{white-space:pre-wrap;word-break:break-all;font-family:var(--mx-mono);font-size:12px;line-height:1.5;color:var(--mx-on-card)}
+.truncnote[data-v-92276812]{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--mx-surface-variant);color:var(--mx-on-surface-variant);font-size:12px}
+.truncnote .ic[data-v-92276812]{width:14px;height:14px;fill:currentColor;flex:none}
+.truncnote a[data-v-92276812]{color:var(--mx-primary);font-weight:600;text-decoration:none}
+.mhead[data-v-92276812]{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;border-bottom:1px solid var(--mx-divider);margin-bottom:10px}
+.mhead .micon[data-v-92276812]{flex:0 0 auto}
+.mhead .mnm[data-v-92276812]{flex:1 1 auto;min-width:0}
+.mhead .nm[data-v-92276812]{font-weight:600;font-size:14px;line-height:1.25;word-break:break-all}
+.mhead .meta[data-v-92276812]{font-size:11px;color:var(--mx-text-2);margin-top:2px}
+.mhead .btn[data-v-92276812]{white-space:nowrap}
+.mbody[data-v-92276812]{max-height:60vh;overflow:auto}
+.mbody img[data-v-92276812]{max-width:100%;border-radius:8px}
+.mbody iframe[data-v-92276812]{width:100%;height:60vh;border:0;border-radius:8px;background:#fff}
+.mbody pre[data-v-92276812]{white-space:pre-wrap;word-break:break-all;font-family:var(--mx-mono);font-size:12px;line-height:1.5;color:var(--mx-on-card)}
 /*$vite$:1*/</style>
 </head>
 <body>
