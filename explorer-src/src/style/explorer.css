@@ -133,25 +133,21 @@ input{font:inherit;color:inherit}
 ::-webkit-scrollbar-track{background:transparent}
 .mono{font-family:var(--mx-mono)}
 
-/* ---- TopAppBar (frosted, Miuix) -------------------------------- */
-.topappbar{
-  position:sticky;top:0;z-index:60;height:var(--appbar-h);
-  display:flex;align-items:center;gap:10px;padding:0 var(--pad);
-  background:var(--mx-appbar);
-  -webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);
-  border-bottom:1px solid transparent;
-  transition:border-color var(--mx-dur-med) var(--mx-ease);
-}
-.topappbar.scrolled{border-bottom-color:var(--mx-divider)}
+/* ---- TopAppBar -------------------------------------------------- */
+/* Task 66 (owner order "optimize render", ref #65 lineage): the pre-Task-53
+   hand-rolled bar rules are REMOVED as dead CSS — DOM-audited zero matches
+   since the Task-53 miuix swap (live bar = MiuixTopAppBar, m-top-app-bar,
+   its own sticky/solid chrome; the .topappbar frosted backdrop-filter
+   blur(24px) saturate(1.8) NEVER applied, so it was never a render cost);
+   .appbar-title/.appbar-sub/.appbar-spacer and .iconbtn died with it
+   (title/subtitle are miuix props; buttons are m-icon-button). Only the
+   nav-slot .appbar-logo is ours and stays. */
 .appbar-logo{
   width:34px;height:34px;border-radius:11px;flex:none;display:grid;place-items:center;
   background:var(--mx-primary);color:var(--mx-on-primary);
   box-shadow:var(--mx-shadow);
 }
 .appbar-logo .ic{width:20px;height:20px;fill:currentColor}
-.appbar-title{font-size:var(--fs-appbar);font-weight:650;letter-spacing:.1px;color:var(--mx-on-card-2)}
-.appbar-sub{font-size:var(--fs-caption);color:var(--mx-on-bg-variant);margin-top:1px}
-.appbar-spacer{flex:1}
 /* Task 62 (owner clarification: "'below" means the contents of the top bar
    (clock/version chip/Rescan/Theme)"): the version + clock chips, the Rescan
    button and the theme toggle are RETIRED — .chip / .chip--primary /
@@ -159,13 +155,6 @@ input{font:inherit;color:inherit}
    The bar is identity-only (logo + title + subtitle); the theme follows the
    system (setThemeMode('system')); recovery stays the steady 10 s poll + the
    error card's Retry button. */
-.iconbtn{
-  width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;
-  color:var(--mx-on-card-2);transition:background var(--mx-dur) var(--mx-ease);
-}
-.iconbtn:hover{background:var(--mx-hover)}
-.iconbtn:active{background:var(--mx-press)}
-.iconbtn .ic{width:20px;height:20px;fill:currentColor}
 
 /* ---- Layout ---------------------------------------------------- */
 main{max-width:1280px;margin:0 auto;padding:18px var(--pad) 40px}
@@ -297,13 +286,26 @@ section{margin-bottom:26px}
 .fmeta{display:flex;gap:10px;margin-top:5px;font-size:var(--fs-caption);color:var(--mx-text-3);
   font-variant-numeric:tabular-nums}
 .fbadge{
-  position:absolute;top:12px;right:12px;display:inline-flex;align-items:center;
+  /* Task 66 (VLM-caught, DOM-measured: 12+/41 cards' first name line ran
+     under this corner badge — position:absolute(top/right) collided with
+     .fnm line 1 on every long filename). Now a right float INSIDE .fbody:
+     name line 1 wraps short of the badge, lines 2+ run full width. Same
+     visual corner slot as before. */
+  float:right;margin:2px 0 6px 8px;display:inline-flex;align-items:center;
   height:19px;padding:0 8px;border-radius:var(--mx-radius-full);
   background:var(--mx-secondary-container);color:var(--mx-on-secondary-variant);
   font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
 }
 .fact{
-  display:flex;gap:4px;margin-top:8px;opacity:0;transform:translateY(2px);
+  /* Task 66 (owner order "optimize render", ref #65 lineage): the two 30×30
+     card-action targets (copy + download, both @click.stop) sat at the ROW
+     start — on desktop stretched grid rows that band coincides with the
+     card's geometric center, so a center click landed ON the download anchor
+     and the stopPropagation ate the preview bubble (probe-proven: card-center
+     real click → modal never opens; .fnm click → opens). flex-end moves them
+     to the row's right edge — off the center band, bottom-right corner on
+     content-fit (mobile) cards. */
+  display:flex;justify-content:flex-end;gap:4px;margin-top:8px;opacity:0;transform:translateY(2px);
   transition:opacity var(--mx-dur-med) var(--mx-ease),transform var(--mx-dur-med) var(--mx-ease);
 }
 .fcard:hover .fact,.fcard:focus-visible .fact,.fcard:focus-within .fact{opacity:1;transform:none}

@@ -60,9 +60,13 @@ function onCardKey(e, f){
         <div v-for="(f, i) in PAGE.files" :key="f.key" class="fcard" tabindex="0" role="button"
              :aria-label="'Preview ' + f.name" :style="{ animationDelay: ui.listAnim ? delay(i) : '0ms' }"
              @click="emit('preview', f)" @keydown="e => onCardKey(e, f)">
-          <span class="fbadge">{{ f.ext || f.type }}</span>
           <span class="ftile" :class="'t-' + classFor(f)"><svg class="ic"><use :href="'#i-' + iconFor(f)"/></svg></span>
           <div class="fbody">
+            <!-- Task 66: fbadge moved INSIDE .fbody as a right float — the
+                 card-level absolute corner badge collided with .fnm line 1
+                 on long filenames (12+/41 cards, VLM-caught, DOM-measured).
+                 Same corner slot; name wraps short of it, lines 2+ full width. -->
+            <span class="fbadge">{{ f.ext || f.type }}</span>
             <div class="fnm"><span class="cd">{{ crumb(f).dir }}</span><span>{{ crumb(f).name }}</span></div>
             <div class="fmeta"><span>{{ fmtSize(f.size) }}</span><span :title="fmtDate(f.mtime)">{{ fmtRel(f.mtime) }}</span></div>
             <span v-if="f.task" class="ftask"><svg class="ic"><use href="#i-check"/></svg>TASK {{ f.task }}</span>
