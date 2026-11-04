@@ -48,7 +48,7 @@ Four structural facts that can be exploited (verified empirically on a real cont
 
 | Layer | Role | When it works |
 |---|---|---|
-| **L1 — Source refresh** (`scripts/snapshot-repo.sh`) | Overwrites the platform restore archive with a snapshot of the CURRENT state — now including `skills/stellar-trail` (surgical append) — so the native boot restore = fresh state *for as long as that archive survives* | `--apply` after significant milestones; `--apply-auto` periodically (debounce + 15-min cooldown) |
+| **L1 — Source refresh** (`scripts/snapshot-repo.sh`) | Overwrites the platform restore archive with a snapshot of the CURRENT state — now including `skills/stellar-trail` (surgical append) — so the native boot restore = fresh state *for as long as that archive survives*; original backups pruned to the NEWEST ONLY (v5.7.0) | `--apply` after significant milestones; `--apply-auto` periodically (debounce + 15-min cooldown) |
 | **L2a — Cache-replay boot restore** (`scripts/bootstrap-sandbox.sh` → generated `.zscripts/dev.sh`) | At every boot, verifies `skills/stellar-trail` against the canonical copy's SHA-256 manifest (`download/stellar-trail/`) and restores it byte-identically when broken or missing — with a **no-downgrade version gate** (a healthy NEWER live install is never overwritten; a corrupt-but-newer install raises a watcher alarm instead of a silent repair) | Automatic at every boot; the canonical copy persists via the platform archive (which does include `download/`) |
 | **L2b — Verify-only monitoring** (`scripts/watcher.sh`) | Periodic integrity verification of the installed copies against the checksum manifest; on failure: **alarm + the remediation message** (the single install command). NO automatic multi-source repair — by design | Watchdog loop, ~every 10 minutes; started at boot (dev.sh) and at every `bootstrap-sandbox.sh --ensure` — the daemon can die silently at container lifecycle events, so the session path matters |
 | **L3 — Original backup** | Undo: the platform's original restore archive is copied before being overwritten — restorable at any time | Always, before every L1 swap |
@@ -85,6 +85,8 @@ illusory protection, and a poisoned source once winning a version race). The gen
 with six sources and silent repairs is a second, poisonable installer**. The current doctrine:
 one installer, one source of truth, zero silent repairs — restore = the boot cache replay from
 the ONE canonical copy, detect = verify-only monitoring, repair = THE install command.
+
+**v5.7.0 hardening (Task 68, owner order #2):** (a) the boot hook's skill restore now runs CANONICAL HYGIENE — when the live tree verifies against the manifest, snapshot-ONLY files are deleted from the canonical copy at every boot (the platform packer can resurrect a pre-prune `download/` with stale extras — measured 2026-11-04: 14 v3.6.5-era files sat one `cp -a` away from the live tree); (b) `update-skill.sh` relocks the skills-lock.json pin after every install (step 5/5 — the CLI's own hash algorithm, replicated from skills@1.7.6; standalone re-pin: `scripts/relock-skill.sh --check`); (c) after any version-changing update the session MUST reload the protocol body before continuing — never run stale skill logic.
 
 ## 3. Using the Scripts
 
@@ -123,6 +125,9 @@ Security principles the script holds (do not violate them when modifying):
   `node_modules/`, `db/`, `upload/`, `.venv/`, `.next/` — a different format = weird restores.
   The packer's `skills/` exclusion is closed by the `skills/stellar-trail` surgical append
   (literal path, not a file-name expansion — the injection vector does not apply).
+- **Keep-latest original retention (owner order #1, v5.7.0)**: exactly ONE original repo.tar backup
+  is kept (the newest) — older originals are auto-deleted at every apply; the undo path
+  (`--restore-original`) only ever consumes the newest one.
 - **As atomic as the mount allows**: build on local disk -> copy to a staging name on the same
   mount -> in-mount rename-overwrite (rename is generally supported by FUSE object storage).
 

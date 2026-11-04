@@ -14,7 +14,13 @@
 #      every M0, before the phases begin, and the state file is a record for
 #      --status, never a gate), and
 #   2. when the origin is newer, runs that one install command, then
-#      verifies the result and re-arms the persistence modules.
+#      verifies the result, re-arms the persistence modules, and RELOCKS the
+#      skills-lock.json pin (step 5 — owner order #2, Task 68: the pin must
+#      always match the installed tree; a stale pin makes the CLI's
+#      experimental_install --frozen-lockfile treat the live tree as changed).
+#      After a successful update the script prints a RELOAD directive: the
+#      running session's loaded body is stale and MUST be re-read before any
+#      further work (never continue on stale skill logic — owner order #2).
 # There is NO fallback source and NO alternate repair path. If the install
 # fails, it fails loudly (exit 1) and this script has touched nothing —
 # the user retries the same command.
@@ -189,14 +195,14 @@ if ! command -v npx >/dev/null 2>&1; then
 fi
 
 say "=== UPDATE v$LOCAL_VER -> v$REMOTE_VER START ==="
-say "[1/4] single install flow: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
+say "[1/5] single install flow: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
 if ! timeout 600 npx --yes skills add "$INSTALL_SOURCE" $INSTALL_ARGS; then
     say "FAILED: the install command exited non-zero — update aborted. No fallback exists by design."
     say "Retry the same command manually: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
     exit 1
 fi
 
-say "[2/4] verify the installed version"
+say "[2/5] verify the installed version"
 shopt -s nullglob
 UPDATED_DIR=""
 UPDATED=0
@@ -217,7 +223,7 @@ if [ "$UPDATED" -ne 1 ]; then
     exit 1
 fi
 
-say "[3/4] verify the package manifest of the updated installation"
+say "[3/5] verify the package manifest of the updated installation"
 if ( cd "$UPDATED_DIR" && LC_ALL=C sha256sum -c assets/integrity.sha256 --quiet >/dev/null 2>&1 ); then
     MANIFEST_N="$(wc -l < "$UPDATED_DIR/assets/integrity.sha256")"
     say "       manifest $MANIFEST_N/$MANIFEST_N entries OK"
@@ -228,7 +234,7 @@ else
 fi
 
 BOOTSTRAP_ARGS="${STELLAR_UPDATE_BOOTSTRAP_ARGS:---ensure --with-explorer --with-snapshot --with-harness-hooks}"
-say "[4/4] arm the persistence layer: bootstrap-sandbox.sh $BOOTSTRAP_ARGS"
+say "[4/5] arm the persistence layer: bootstrap-sandbox.sh $BOOTSTRAP_ARGS"
 if [ -f "$UPDATED_DIR/scripts/bootstrap-sandbox.sh" ]; then
     _bs_out="$(bash "$UPDATED_DIR/scripts/bootstrap-sandbox.sh" $BOOTSTRAP_ARGS 2>&1)"; _bs_rc=$?
     printf '%s\n' "$_bs_out" | tail -4 | sed 's/^/       /'
@@ -237,8 +243,61 @@ else
     say "       bootstrap-sandbox.sh not found in the updated installation — skipped"
 fi
 
+# --- [5/5] RELOCK the skills pin (owner order #2, Task 68) -------------------
+# The skills CLI pins the installed tree's hash in <project>/skills-lock.json
+# (computedHash). A CLI install rewrites it, but a manual deploy (dev-repo ->
+# live) does not — and a stale pin makes `skills experimental_install
+# --frozen-lockfile` treat the live tree as "changed since skills-lock.json
+# was written". Algorithm = the CLI's own computeSkillFolderHash (skills@1.7.6
+# dist): sha256 over (relativePath + content) of every file, excluding .git/
+# and node_modules/, sorted by relativePath via localeCompare — replicated 1:1
+# below (byte-identical by construction; sibling copy: scripts/relock-skill.sh).
+LOCKF="$PROJECT/skills-lock.json"
+if [ -f "$LOCKF" ] && command -v node >/dev/null 2>&1; then
+    _rl="$(mktemp /tmp/stellar-relock.XXXXXX.js)"
+    if [ -n "$_rl" ]; then
+        cat > "$_rl" <<'RELOCK_JS'
+const {createHash} = require("crypto");
+const {readdirSync, readFileSync, writeFileSync} = require("fs");
+const {join, relative} = require("path");
+const [dir, lockPath, name] = process.argv.slice(2);
+function collect(baseDir, currentDir, results) {
+  for (const entry of readdirSync(currentDir, {withFileTypes: true})) {
+    const fullPath = join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      collect(baseDir, fullPath, results);
+    } else if (entry.isFile()) {
+      results.push({relativePath: relative(baseDir, fullPath).split("\\").join("/"), content: readFileSync(fullPath)});
+    }
+  }
+}
+const files = []; collect(dir, dir, files);
+files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+const hash = createHash("sha256");
+for (const file of files) { hash.update(file.relativePath); hash.update(file.content); }
+const digest = hash.digest("hex");
+const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+const entry = lock.skills && lock.skills[name];
+if (!entry) { console.log("no lock entry for " + name + " — nothing to relock"); process.exit(0); }
+if (entry.computedHash === digest) { console.log("lock pin already current (" + digest.slice(0, 8) + ")"); process.exit(0); }
+const old = entry.computedHash;
+entry.computedHash = digest;
+writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+console.log("RELOCKED " + name + ": " + (old ? old.slice(0, 8) : "none") + " -> " + digest.slice(0, 8));
+RELOCK_JS
+        node "$_rl" "$UPDATED_DIR" "$LOCKF" stellar-trail | sed 's/^/       /'
+        rm -f "$_rl"
+    fi
+elif [ -f "$LOCKF" ]; then
+    say "       WARN: node unavailable — skills-lock.json pin NOT relocked (run scripts/relock-skill.sh when node is present)"
+else
+    say "       no skills-lock.json at the project root — nothing to relock"
+fi
+
 write_state "$REMOTE_VER"
 say "=== UPDATE COMPLETE: v$LOCAL_VER -> v$REMOTE_VER ==="
-say "The protocol now runs on v$REMOTE_VER; response banners carry the new version."
-say "If a session is currently open, reload the skill body at the next session start."
+say "RELOAD REQUIRED (owner order, v5.7.0): the running session still holds the v$LOCAL_VER body —"
+say "  re-invoke Skill('stellar-trail') (or re-read SKILL.md) NOW and continue on the new body."
+say "  Never continue work on stale skill logic."
 exit 0

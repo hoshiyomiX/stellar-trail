@@ -469,6 +469,25 @@ if [ -f "$CANON/SKILL.md" ] && [ -f "$CANON/assets/integrity.sha256" ]; then
         fi
     done
     shopt -u nullglob
+    # canonical hygiene (owner order #2, Task 68, v5.7.0): when the live tree
+    # is HEALTHY (manifest OK), the snapshot must mirror it exactly —
+    # snapshot-ONLY files are stale-resurrection junk (incident 2026-11-04:
+    # the platform packer restored a pre-prune download/, leaving 14 v3.6.5-era
+    # extras one restore away from the live tree). Delete them at every boot.
+    for LIVE in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
+        [ -f "$LIVE/SKILL.md" ] || continue
+        if (cd "$LIVE" && sha256sum -c "$CANON/assets/integrity.sha256" --quiet >/dev/null 2>&1); then
+            _hyg=0
+            while IFS= read -r _extra; do
+                [ -n "$_extra" ] && rm -f "$CANON/$_extra" && _hyg=$((_hyg+1))
+            done < <(comm -13 \
+                <(cd "$LIVE"  2>/dev/null && find . -type f | sort) \
+                <(cd "$CANON" 2>/dev/null && find . -type f | sort))
+            [ "$_hyg" -eq 0 ] || log "CANONICAL HYGIENE: pruned $_hyg stale snapshot-only file(s)"
+        fi
+        break   # the first PRESENT live tree is the reference (healthy = prune;
+                # unhealthy = leave for bootstrap --ensure's seed swap)
+    done
 fi
 DEVSH_RESTORE
 

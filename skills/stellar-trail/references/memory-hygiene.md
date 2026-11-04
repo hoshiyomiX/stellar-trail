@@ -8,9 +8,7 @@
 ├── memory/
 │   ├── MEMORY.md                  # long-term memory (durable facts, promoted via M3)
 │   ├── SESSION-STATE.md           # working snapshot (atomic rewrite per checkpoint)
-│   ├── summary-quarantine.log      # per-session platform-summary verdicts (append-only, v5.5.0)
-│   ├── summary-quarantine.log      # per-session platform-summary verdicts (append-only, v5.5.0)
-│   ├── summary-quarantine.log      # per-session platform-summary verdicts (append-only, v5.5.0)
+│   ├── summary-quarantine.log      # per-session platform-summary verdicts (append-only, v5.5.0; grep-first line format v5.7.0)
 │   └── handoffs/
 │       └── YYYY-MM-DD-<slug>.md   # immutable session archives (write once)
 ├── worklog.md                     # append-only multi-agent audit trail (platform convention)
@@ -37,13 +35,28 @@ Single-writer for `memory/` prevents races: a subagent could overwrite the main 
 
 ## 2. Templates
 
+### 2.0 Grep-First Line Format (owner order #3, Task 68, v5.7.0)
+
+Every line WRITTEN into a memory file (MEMORY.md, SESSION-STATE.md, handoffs, worklog sections, summary-quarantine.log) is a search target first and prose second. The format contract — verifiable, tool-agnostic (grep/ripgrep/fzf/cut):
+
+1. **One fact per line.** Never bury a decision, date, verdict, or ID mid-paragraph. A fact that cannot be found cannot be restored.
+2. **Tagged entries:** each entry starts with a stable bracket tag — `[D#]` locked decisions · `[E]` environment lesson · `[T#]` task outcome · `[C]` convention · `[P]` profile · `[I]` inventory · `[Q]` quarantine verdict. Tags are greppable anchors: `rg '\[D14\]' memory/`.
+3. **`key: value` pairs, pipe-separated:** `date: 2026-11-05 | task: 68 | verdict: SEALED | ref: #67` — pipe-separate MULTIPLE pairs on one line; a single pair may go bare (`[P] language: …`). Keys are a closed vocabulary per file (task, verdict, status, ref, session, source, conflict, resolution…); `cut -d'|'` yields clean fields.
+4. **ISO dates only** (`YYYY-MM-DD`, `YYYY-MM-DD HH:mm`); times carry an explicit timezone when material.
+5. **Soft line cap ~200 chars.** Split into continuation lines rather than writing a mega-line; a continuation starts with two spaces and aligns under its parent. (Legacy prose lines predating v5.7.0 are read as-is — never rewritten retroactively; worklog/archive history stays append-only.)
+6. **Never split a `key: value` pair across lines** — the pair is the atomic unit.
+
+Validation hook (task68-verify §format): every NEW line in the memory family must survive `rg '<key>:'` and the tag scan; the SESSION-STATE header carries `checkpoint:`/`session:`/`channel:` fields; worklog progress lines carry `task:` and `event:` keys.
+
 ### 2.1 SESSION-STATE.md
 
 ```markdown
 ⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation
 # SESSION-STATE — Working Snapshot
 > Atomic snapshot — rewritten at every checkpoint. Latest write wins.
-> Checkpoint at: YYYY-MM-DD HH:mm (session N, tz) — M1/M2/M3
+> checkpoint: YYYY-MM-DD HH:mm UTC | session: N | channel: <im-channel> | protocol: vX.Y.Z
+> context: one line — what is open right now
+> summary-warisan: <verdict> — quarantined (if a continuation summary was received)
 
 ## Active Tasks
 | Task ID | Description | Phase | Status | Next (resume anchor) | Updated |
@@ -58,20 +71,6 @@ resume anchor — the Next column is the Resume Protocol R4 entry point.
 DONE/CANCELLED tasks NEVER live here — sealed to the list below in the same
 write that closes them (H3). Populated ONLY from user-confirmed work — never
 seeded from a continuation summary (H13, H8).)
-
-## Pending Plans
-### Task <id> — <title> (updated: YYYY-MM-DD HH:mm)
-- Steps: 1. [x] done step · 2. [ ] open step (current statuses)
-- Next action: the R4 entry point
-- Blockers: none / <blocker>
-(one block per ACTIVE task; rewritten at EVERY M1 (v5.5.0) — the plan's state must never live only in the conversation: a plan that dies with the context is the pending-plan-loss class this section kills. Resumes (R2/R4) enter from the recorded Next action, never from recollection.)
-
-## Pending Plans
-### Task <id> — <title> (updated: YYYY-MM-DD HH:mm)
-- Steps: 1. [x] done step · 2. [ ] open step (current statuses)
-- Next action: the R4 entry point
-- Blockers: none / <blocker>
-(one block per ACTIVE task; rewritten at EVERY M1 (v5.5.0) — the plan's state must never live only in the conversation: a plan that dies with the context is the pending-plan-loss class this section kills. Resumes (R2/R4) enter from the recorded Next action, never from recollection.)
 
 ## Pending Plans
 ### Task <id> — <title> (updated: YYYY-MM-DD HH:mm)
@@ -107,7 +106,7 @@ propose sealing once — H6)
 - low / normal / elevated — one line why
 ```
 
-**Atomic rewrite semantics:** write the COMPLETE file each time, never append. The file must always be small, current, self-contained — the next M0 reads ONLY this + MEMORY.md as its mandatory minimum. A stale entry left by lazy appending misleads; a sealed entry left in the Active table is the worst case — it gets PICKED UP as work by a later session (the exact failure section 5 exists to kill). During long stretches, one artifact = one M1 — checkpoints interleaved with the work, never batched to the session's end (F3a; incident 2026-09-29). The Pending Plans section is part of every rewrite — step completions and deferrals are checkpoint-worthy state (v5.5.0). The Pending Plans section is part of every rewrite — step completions and deferrals are checkpoint-worthy state (v5.5.0). The Pending Plans section is part of every rewrite — step completions and deferrals are checkpoint-worthy state (v5.5.0).
+**Atomic rewrite semantics:** write the COMPLETE file each time, never append. The file must always be small, current, self-contained — the next M0 reads ONLY this + MEMORY.md as its mandatory minimum. A stale entry left by lazy appending misleads; a sealed entry left in the Active table is the worst case — it gets PICKED UP as work by a later session (the exact failure section 5 exists to kill). During long stretches, one artifact = one M1 — checkpoints interleaved with the work, never batched to the session's end (F3a; incident 2026-09-29). The Pending Plans section is part of every rewrite — step completions and deferrals are checkpoint-worthy state (v5.5.0).
 
 ### 2.2 MEMORY.md
 
@@ -117,22 +116,22 @@ propose sealing once — H6)
 > Durable facts only. Promoted from session work via M3. Last updated: YYYY-MM-DD (session N)
 
 ## User Profile
-- Language, register/casual style, timezone, communication preferences
+- [P] YYYY-MM-DD | key: value — one fact per line (language, timezone, style, preferences)
 
 ## Locked Decisions
-- [D1] ... (locked YYYY-MM-DD, session N)
+- [D1] YYYY-MM-DD | topic: ... | rule: ... (locked session N)
 
 ## Project Inventory
 | Item | Path | Status |
 
 ## Conventions
-- ... (marker styles, naming rules, established patterns)
+- [C] YYYY-MM-DD | rule: ... (marker styles, naming rules, established patterns)
 
 ## Environment
-- tooling status, known issues, model info
+- [E] YYYY-MM-DD | lesson: ... (tooling status, known issues — one line per lesson)
 ```
 
-**Promotion criteria:** facts that remain true across sessions — a learned preference, a locked decision, a delivered artifact path, an established convention, a persistent environment fact. **Never enters:** task progress (→ SESSION-STATE), one-off details (→ handoff), anything stale tomorrow. **Cap:** ~80 lines (SKILL.md section 3b prune order).
+**Promotion criteria:** facts that remain true across sessions — a learned preference, a locked decision, a delivered artifact path, an established convention, a persistent environment fact. **Never enters:** task progress (→ SESSION-STATE), one-off details (→ handoff), anything stale tomorrow. **Cap:** ~80 prose lines ≈ ~160 structured grep-first lines (§2.0; SKILL.md section 3b prune order; v5.7.0).
 
 ### 2.3 Handoff Archive
 
@@ -164,11 +163,11 @@ Task ID: <id> (DONE|CANCELLED — SEALED)  (closed task — verdict REQUIRED, S3
 Agent: <agent name>
 Task: <one-line task description>
 
-Work Log:
-- <concrete step>
+Work Log (grep-first lines, §2.0):
+- date: YYYY-MM-DD HH:mm | task: <id> | step: <n> | event: <concrete step>
 
 Stage Summary:
-- <key results / decisions / artifacts>
+- date: YYYY-MM-DD | task: <id> | result: <key results / decisions / artifacts>
 ```
 
 The Task-ID line of a CLOSED task carries its terminal verdict — `Task ID: <id> (DONE — SEALED)` or `(CANCELLED — SEALED)` (Seal Ritual S3) — so seal detection is mechanical: a tail section without a verdict is an open task, checkpoint debt for the next M0.
@@ -205,7 +204,7 @@ The `⚡ACTIVATE` line (R1) rides every file the next session reads early: the f
 **Triggers (any of):** a phase or task completed / materially advanced · a decision locked or pending decision surfaced · an artifact written/delivered · a plan changed, a plan step completed or deferred, or a blocker discovered · BEFORE a long implementation stretch (pre-emptive) · DURING a long stretch: **one artifact = one M1** — every completed artifact (file written, script delivered, subagent returned) earns its own checkpoint; never batch toward the session's end (incident 2026-09-29, RC2: an 871-line three-artifact stretch with zero interim M1 left a 26-minute loss window).
 
 **Procedure:**
-1. Rewrite `SESSION-STATE.md` completely (atomic — all template sections, current values). The Pending Plans section carries every ACTIVE task's step statuses + next action + blockers (v5.5.0) — the persisted plan is the R2/R4 resume source, never the conversation. The Pending Plans section carries every ACTIVE task's step statuses + next action + blockers (v5.5.0) — the persisted plan is the R2/R4 resume source, never the conversation. The Pending Plans section carries every ACTIVE task's step statuses + next action + blockers (v5.5.0) — the persisted plan is the R2/R4 resume source, never the conversation.
+1. Rewrite `SESSION-STATE.md` completely (atomic — all template sections, current values). The Pending Plans section carries every ACTIVE task's step statuses + next action + blockers (v5.5.0) — the persisted plan is the R2/R4 resume source, never the conversation.
 2. **Seal in the same write** (H3): if this checkpoint records a task DONE/CANCELLED, delete its Active row and append its Sealed line in this SAME rewrite. Keep the Sealed list at the last 5. Verify the Active table against H2 (legacy quarantine, H7); delete resolved Pending Decisions (H6).
 3. Append a worklog entry ONLY for major milestones (Task ID per platform convention) and ONLY AFTER the step-1 rewrite completed (write-order, F1+F2): before appending, verify the milestone is already reflected in SESSION-STATE — if not, rewrite SESSION-STATE first (pre-append guard). Never append a milestone the snapshot does not yet hold — that exact state is the 2026-09-29 incident.
 4. **Checkpoint snapshot (v5.4.7; reset-prone sandboxes):** EVERY M1 — and every M3 — also runs `bash scripts/snapshot-repo.sh --apply-auto` (internal debounce keeps it cheap when fresh), so repo.tar deterministically reflects every checkpoint and never lags the ledger by more than one checkpoint (rollback-loss class, measured 2026-10-23).

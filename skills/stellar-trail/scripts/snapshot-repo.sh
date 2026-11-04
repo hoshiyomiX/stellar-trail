@@ -4,6 +4,13 @@
 # snapshot-repo.sh — bundled asset of skill stellar-trail; live project copy:
 #        <project>/.zscripts/repo-snapshot.sh (identical content — keep in sync)
 #
+# CHANGELOG v1.5 (owner order #1, Task 68, 2026-11-05 — 'auto delete old
+#   backed-up repo.tar, only save latest snapshot'):
+#   - KEEP_ORIG 5 -> 1: exactly ONE original repo.tar backup is retained (the
+#     newest); older originals are auto-deleted at every apply. The undo path
+#     (--restore-original) only ever consumes the newest original, so the
+#     older ones were dead weight (~90 MB each on /home/sync).
+#
 # CHANGELOG v1.4 :
 #   - Shadow backup layer REMOVED ENTIRELY (user verdict: worthless — forensic
 #     incident 07:38: stale false-positive detection, blind spot & failure
@@ -87,7 +94,8 @@ WMG_STATE_DIR="${WMG_STATE_DIR:-$WMG_SYNC/repo-state}"
 WMG_TMP="${WMG_TMP:-/tmp}"
 TAR_PATH="$WMG_SYNC/repo.tar"
 LOG="$WMG_PROJECT/.zscripts/boot.log"
-KEEP_ORIG=5                      # rolling retention of original repo.tar backups
+KEEP_ORIG=1                      # owner order Task 68: only the LATEST original
+                                  # repo.tar backup is kept; older auto-deleted
 COOLDOWN_AUTO=900                # minimum spacing between --apply-auto runs (seconds)
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
