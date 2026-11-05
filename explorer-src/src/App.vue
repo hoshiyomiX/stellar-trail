@@ -12,8 +12,14 @@
 // "search restore" residual was offered at Task 61 and not taken).
 // The clock interval is gone with the clock chip (no per-second tick for an
 // unrendered label); the theme stays system-following via bootTheme.
+// Task 69 (owner order "any popup preview from sandbox except task file
+// manager stopped"): the miuix snackbar platform — the last sandbox-origin
+// popup surface — is REMOVED (host + snack.js + every call site); copy and
+// connection-loss feedback both speak through the sr-only aria-live
+// announcer below; the error card (FileList) keeps the dead-first-load
+// state with its Retry. The PreviewModal stays: it is the task file
+// manager's own preview.
 import { onMounted, ref } from 'vue'
-import { MiuixSnackbarHost } from 'miuix-vue'
 import IconSprite from './components/IconSprite.vue'
 import TopBar from './components/TopBar.vue'
 import StatsTiles from './components/StatsTiles.vue'
@@ -39,5 +45,5 @@ onMounted(() => {
     <FileList @preview="f => modal && modal.open(f)"/>
   </main>
   <PreviewModal ref="modal"/>
-  <MiuixSnackbarHost/>
+  <div class="sr-live" aria-live="polite">{{ ui.announce }}</div>
 </template>

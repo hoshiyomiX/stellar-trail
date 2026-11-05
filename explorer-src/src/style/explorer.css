@@ -10,7 +10,7 @@
    top.yukonga.miuix.kmp.theme/Colors.kt — lightColorScheme() and
    darkColorScheme() defaults. Component vocabulary: TopAppBar
    (frosted), Card (squircle surface), SmallTitle, SearchBar, TabRow
-   chips, SuperArrow rows, Snackbar, FloatingActionButton, Dialog
+   chips, SuperArrow rows, FloatingActionButton, Dialog
    (windowDimming scrim). Type scale follows Miuix TextStyles,
    compact per the explorer's locked formatting decision.
    Adaptive: dark/light · desktop & mobile · a11y focus-visible.
@@ -426,23 +426,15 @@ section{margin-bottom:26px}
   padding:12px;margin:.6em 0;overflow:auto}
 .md blockquote{border-left:3px solid var(--mx-primary);padding-left:12px;color:var(--mx-text-2);margin:.6em 0}
 
-/* ---- Snackbar --------------------------------------------------- */
-.snackbar{
-  position:fixed;left:50%;bottom:26px;z-index:120;transform:translate(-50%,80px);
-  display:flex;align-items:center;gap:12px;max-width:min(560px,92vw);
-  padding:0 8px 0 18px;height:46px;border-radius:var(--mx-radius-full);
-  background:var(--mx-on-card-2);color:var(--mx-page);
-  box-shadow:var(--mx-shadow-lg);opacity:0;pointer-events:none;
-  transition:transform var(--mx-dur-long) var(--mx-ease-spring),opacity var(--mx-dur-med) var(--mx-ease);
+/* ---- Task 69 (owner order "any popup from sandbox except task file
+   manager stopped"): the snackbar platform + its pre-Task-53 custom CSS
+   are REMOVED. The sr-only aria-live announcer below is the replacement
+   feedback channel (copy results) — visually silent by design. -------- */
+.sr-live{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;
+  border:0;
 }
-.snackbar.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
-.snackbar span{font-size:var(--fs-label);font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.snackbar .act{
-  height:34px;padding:0 14px;border-radius:var(--mx-radius-full);flex:none;
-  font-size:var(--fs-label);font-weight:700;color:var(--mx-primary);
-  transition:background var(--mx-dur) var(--mx-ease);
-}
-.snackbar .act:hover{background:var(--mx-hover)}
 
 /* ---- Task 61 (owner order): the FAB (back-to-top) is RETIRED with the
    rest of the body chrome — .fab and the Task-54 B2 patch (.m-fab) removed.

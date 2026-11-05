@@ -1,5 +1,17 @@
 # Changelog
 
+## v5.7.1 — 2026-11-05 · sandbox-popup kill — the snackbar platform is gone (owner order — Task 69, ref #67 lineage)
+
+**Why — the owner's imperative:** "ensure & validate any popup preview from sandbox except task file manager to be stopped and kept in control under skill stellar-trail." Task 67 killed the two foreign doors (/file/ attachment-default + static-copy auto-breakout) and kept the in-app miuix snackbar as a convention; this order closes the last gap — every popup the SANDBOX itself can spawn, except the task file manager's own preview, is now dead and pinned dead.
+
+**What shipped:**
+- **UI v5.0.2 — snackbar platform removed** — `MiuixSnackbarHost` + `snack.js` + all six call sites deleted; the dead-on-arrival `onScan()` toast path (orphaned when Task 62 retired the Rescan button) pruned together with `ui.spinning` and the legacy pre-Task-53 `.snackbar` CSS. The app now renders ZERO popup surfaces beyond the task file manager's own preview modal.
+- **Feedback without popups** — copy-path results and connection-loss notices speak through an sr-only `aria-live="polite"` announcer (`.sr-live` + `ui.announce`, clear-then-set so identical repeats re-announce); the error card keeps the dead-first-load state with its Retry button; the steady 10 s poll remains the recovery path (v4.4 doctrine). Stale footer copy fixed in passing ("tap Rescan" → "tap Retry" — Rescan retired at Task 62).
+- **Kept in control** — `scripts/task69-verify.sh` pins the permanent no-popup invariant: zero `MiuixSnackbarHost`/`showSnackbar`/`alert(`/`confirm(`/`prompt(`/`window.open` in src + dist ×2 trees, zero snackbar DOM elements live after copy/modal interactions, zero console errors, PLUS non-regression contracts — the Task-66 card-center-click (preview opens) and the Task-67 attachment disposition (default attachment, `?inline=1` modal-only).
+- Housekeeping: banner constant v5.7.0 → v5.7.1; SKILL §6 + TFE carry the Task-69 clauses (UI v5.0.2); dist 722,690 B md5 `9a5aa039` deployed ×6 + live :3000/:81 (explorer.py unchanged at v1.10 — the UI is served read-per-request, no restart needed).
+
+**Validation:** task69-verify (source forms ×2 trees · dist zero-popup APIs · deploy ×6 + live ×2 · live DOM no-popup + sr-live copy announcement + center-click contract · Task-67 header spot-check · docs ×3 + integrity ×3) + legacy chain re-run (task62 census re-pin, task63/65/66/67, task54-smoke, enforce-gates).
+
 ## v5.7.0 — 2026-11-05 · 4-order protocol hardening: snapshot keep-latest · update-relock-restore-reload · grep-first memory format · auto-seal + unseal (owner orders — Task 68, ref #67 lineage)
 
 **Why — the owner's four imperatives:** "#1 Repo.tar: auto delete old backed-up repo.tar, only save latest snapshot" · "#2 ensure & validate skill auto update logic, skill restore when missing/reset, skill auto relock pin after update, use updated skill and never let continue to use stale skill logic" · "#3 skill memory: optimize append memory formatting for better grep and any search tools compatibility" · "#4 auto seal task and never ask confirmation. If those task need adjustment just unseal + resurface it into the session."

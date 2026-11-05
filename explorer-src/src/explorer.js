@@ -4,9 +4,14 @@
 //  · v4.4 steady 10 s cadence (no backoff, no reconnecting chip, no wake probes — owner order, Task 45)
 //  · content-signature change detection (rail + list refresh only on real change)
 //  · static-copy graceful mode + manual live-recovery
+// Task 69 (owner order "any popup preview from sandbox except task file
+// manager stopped"): the snackbar platform is GONE — connection-loss and
+// copy feedback both speak through ui.announce (sr-only aria-live,
+// App.vue; clear-then-set so repeats re-announce); the error card keeps the
+// dead-first-load state with its Retry; the onScan() scan-toast path was
+// DEAD CODE since Task 62 retired Rescan and is pruned here with it.
 import { reactive, shallowRef } from 'vue'
 import { fmtDur } from './util.js'
-import { snack } from './snack.js'
 
 /* ================= state ================= */
 export const S=reactive({q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1});
@@ -16,9 +21,9 @@ export const TASKS=shallowRef(null);       // rail data — replaced ONLY on rea
 export const PAGE=shallowRef(null);
 export const PAGE_MAP={};                  // key -> file (server page map)
 export const ui=reactive({
-  clock:"--:--:--", footer:"loading…", lastScan:"—",
+  clock:"--:--:--", footer:"loading…", lastScan:"—", announce:"",
   error:false, static:false, staticLive:false, listAnim:true,
-  spinning:false, fab:false, themeDark:false,
+  fab:false, themeDark:false,
 });
 
 /* ================= v4.3/v4.3.1/v4.4 constants ================= */
@@ -28,7 +33,7 @@ const CAN_ABORT=(typeof AbortController!=="undefined");
 const RECOVER_MS=1000;
 const BOOT_WATCHDOG_MS=8000;
 let pollTimer=null, metaInFlight=false, connFails=0, lastSig="", firstLoadDone=false,
-    TASKS_DONE=false, bootWatchdogFired=false, RECOVER_ARMED=false, scanBusy=false,
+    TASKS_DONE=false, bootWatchdogFired=false, RECOVER_ARMED=false,
     AUTO_BROKE_OUT=false;   /* Task 67: static→live auto-breakout fired flag (once per page) */
 
 /* ================= v4.3.1 fetch deadline ================= */
@@ -72,7 +77,9 @@ export async function loadList(silent){
     ui.error=false;
     if(!firstLoadDone&&!ui.static){firstLoadDone=true}
   }catch(e){
-    if(!silent&&!ui.static&&firstLoadDone)snack("Connection to explorer.py lost — retrying every 10 s","Retry",()=>loadList());
+    /* Task 69: no snackbar — a lost connection on a user action announces
+       via the sr-only live region (the error card covers the dead first load) */
+    if(!silent&&!ui.static&&firstLoadDone){ui.announce="";setTimeout(()=>{ui.announce="Connection to explorer.py lost — retrying automatically every 10 s"},50)}
     if(!PAGE.value&&!ui.static)ui.error=true;
   }
 }
@@ -129,11 +136,13 @@ export async function loadMeta(){
     connFails++;                                  /* v4.4: steady cadence — no backoff, no reconnecting chip (owner order, Task 45) */
     const paused=!(CAN_ABORT||connFails<3);       /* v4.3.1 breaker KEPT: engines that cannot abort stop auto-polling after 3 failures */
     ui.footer=(paused
-      ?"explorer.py not answering — automatic retry paused on this engine (tap Rescan to retry)"
+      ?"explorer.py not answering — automatic retry paused on this engine (tap Retry to resume)"
       :"explorer.py not answering — retrying automatically every "+Math.round(POLL_BASE_MS/1000)+" s")
       +" · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+ui.lastScan;
     if(!firstLoadDone)ui.error=true;
-    if(connFails===1)snack("Connection to explorer.py lost — retrying every 10 s","Retry now",probeNow);
+    /* Task 69: no snackbar — first loss announces once via the sr-only live
+       region; the steady 10 s loop IS the recovery (v4.4 doctrine) */
+    if(connFails===1){ui.announce="";setTimeout(()=>{ui.announce="Connection to explorer.py lost — retrying automatically every 10 s"},50)}
     if(!paused)schedulePoll(POLL_BASE_MS);        /* steady retry — the next successful poll IS the recovery */
     return false;
   }
@@ -163,10 +172,13 @@ export async function copyPath(f){
   try{await navigator.clipboard.writeText(p)}catch(e){ok=false;
     try{const ta=document.createElement("textarea");ta.value=p;ta.style.position="fixed";ta.style.opacity="0";
       document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();ok=true}catch(e2){}}
-  snack(ok?"Path copied: "+p:"Failed to copy the path");
+  /* Task 69: sr-only aria-live announcement replaces the snackbar toast —
+     clear-then-set so identical consecutive copies re-announce */
+  ui.announce="";
+  setTimeout(()=>{ui.announce=ok?("Path copied: "+p):"Failed to copy the path"},50);
 }
 
-/* ================= boot + watchdog + scan ================= */
+/* ================= boot + watchdog ================= */
 export function boot(){
   /* static-copy detection — explorer.py serves this UI ONLY at "/" and "/index.html" on its own origin */
   ui.static=(location.protocol==="file:")||(location.pathname!=="/"&&location.pathname!=="/index.html");
@@ -181,18 +193,4 @@ export function boot(){
     ui.footer="explorer.py not answering — retrying automatically every "+Math.round(POLL_BASE_MS/1000)+" s · the sandbox may be asleep (it wakes when you send a chat message) · last scan: "+ui.lastScan;
     if(CAN_ABORT||connFails<3)schedulePoll(POLL_BASE_MS);
   },BOOT_WATCHDOG_MS);
-}
-export async function onScan(){
-  if(scanBusy)return;
-  scanBusy=true;ui.spinning=true;
-  try{
-    const ok=await probeNow();
-    if(ok===null){snack("A scan is already in progress…")}
-    else if(ok&&!ui.static){
-      await loadList(true);                            /* silent refresh — no animation replay */
-      snack("Scan complete — "+ui.lastScan);
-    }else if(!ui.static){
-      snack("Scan failed — explorer.py is not answering; retrying automatically");
-    }                                                 /* static copies: the probe result speaks through the banner */
-  }finally{ui.spinning=false;scanBusy=false}
 }
