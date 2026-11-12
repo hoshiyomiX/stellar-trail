@@ -47,7 +47,7 @@ if [ -f "$SKILL_MD" ]; then
 fi
 iv() { [ -n "$PROJ" ] && [ -f "$1" ] && cat "$1" 2>/dev/null || echo "absent"; }
 LIVE="$SELF/.."
-CANON="$PROJ/download/stellar-trail"
+CANON="$PROJ/.zscripts/stellar-trail-canonical"
 DEVT="$PROJ/stellar-trail-dev/skills/stellar-trail"
 say "[GT|RELEASE] skill_banner: ${BANNER} | integrity_live: $(iv "$LIVE/assets/integrity.version") | integrity_canonical: $(iv "$CANON/assets/integrity.version") | integrity_dev: $(iv "$DEVT/assets/integrity.version")"
 

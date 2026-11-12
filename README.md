@@ -53,7 +53,7 @@ The shipped frontmatter description is the best activation captor ever measured 
 | `scripts/snapshot-repo.sh` | Restore-archive refresh: backup-first, verify-before-swap, anti-traversal audit, keep-latest retention, gated `--apply-auto` |
 | `scripts/relock-skill.sh` | Standalone skills-lock.json pin re-pinner (the CLI's exact algorithm); `--check` = verify-only |
 | `scripts/ground-truth.sh` | M0 disk ground-truth card (v5.7.3): emits release/integrity ×3 · git+origin · ledger tail · checkpoint · quarantine tail · arms as grep-first lines — a platform continuation summary is judged against DISK, never trusted (D11 operationalized); read-only, offline-tolerant, always exit 0 |
-| `assets/explorer/` | Task Files Explorer (server v1.10, launcher v1.5, UI v5.0.2 miuix-vue — content-signature change detection, silent first paint + offscreen card skip, fetch resilience with steady 10 s retry, platform-preview kill + static-copy auto-breakout, zero in-app popups beyond the preview modal): the built-in dashboard on the preview URL |
+| `assets/explorer/` | Task Files Explorer (server v1.11, launcher v1.5, UI v5.0.2 miuix-vue — content-signature change detection, silent first paint + offscreen card skip, fetch resilience with steady 10 s retry, platform-preview kill + static-copy auto-breakout, zero in-app popups beyond the preview modal): the built-in dashboard on the preview URL |
 | `assets/harness-hooks/` | CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files |
 | `references/` | Six on-demand references: memory-hygiene, ground-base-knowledge, environment-resilience, task-files-explorer, github-repo-structure, android-apk-compose |
 

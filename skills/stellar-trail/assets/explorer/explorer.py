@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.10 (preview-popup kill)
+explorer.py — Task Files Explorer server v1.11 (preview-popup kill)
 =========================================================================
+v1.11 (Task 77 / v5.7.4, owner order "Set default location at zscripts/,
+  bukan download/"): the guard block's canonical-version read moves to
+  .zscripts/stellar-trail-canonical/ (the skill canonical relocated out of
+  download/ — the platform "All files in task" auto-preview reacts to
+  download/ writes, so the 25-file canonical + its release-day refresh
+  bursts leave the panel); the v1.7 download-root scan exclusion stays as
+  a stale-resurrection guard for the legacy path.
 v1.10 (Task 67, owner order "popup preview platform mati permanent"): the
   /file/ serving default FLIPS inline -> ATTACHMENT. A direct hit on a
   /file/<label>/<rel> URL (typed, pasted, linked from anywhere, opened by
@@ -150,9 +157,11 @@ ROOTS = [
 ROOTMAP = dict(ROOTS)
 # v1.7: per-root TOP-LEVEL directory exclusions — a listed subtree is skipped
 # by the scan entirely (never walked, never stat'd, never listed, never mapped
-# to tasks). The skill's own canonical copy under download/stellar-trail/ is
+# to tasks). The skill's own canonical copy (.zscripts/stellar-trail-canonical/
+# since v5.7.4 — download/stellar-trail/ until then) is
 # restore infrastructure, not a task deliverable — the owner ordered it hidden
-# from the explorer view (2026-10-25: 20 files, 48% of the download listing).
+# from the explorer view (2026-10-25: 20 files, 48% of the download listing;
+# the download-root entry below stays as a legacy-resurrection guard).
 # Direct /file/<label>/<rel> links into an excluded subtree STILL WORK
 # (safe_path never consults this list), so tooling and shared links are
 # unaffected; only the listing drops them. Depth-below-root scoping keeps
@@ -364,7 +373,7 @@ def guard_info():
         pass
     canon_v = None
     try:
-        with open(os.path.join(PROJECT, "download", "stellar-trail", "assets", "integrity.version"),
+        with open(os.path.join(PROJECT, ".zscripts", "stellar-trail-canonical", "assets", "integrity.version"),
                   encoding="utf-8") as f:
             canon_v = f.read().strip() or None
     except OSError:

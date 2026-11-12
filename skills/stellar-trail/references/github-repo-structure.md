@@ -89,7 +89,7 @@ Keep it factual and versioned — stale versions in the README are validator-fla
 ## 4. Release conventions
 
 - **Version slots** (all must move together): the 3 banner-constant slots in `SKILL.md`, the skill-card version line, `assets/integrity.version` ×3 trees, the manifest, and the skills-lock pin (relock after sync).
-- **Three trees, one direction:** author in the dev clone → sync to the live install and the canonical `download/stellar-trail/` seed. Never sync backwards.
+- **Three trees, one direction:** author in the dev clone → sync to the live install and the canonical `.zscripts/stellar-trail-canonical/` seed. Never sync backwards.
 - **Tagging:** `vX.Y.Z` on `main`; the CHANGELOG section is prepended at the very top of the file (newest first).
 - **Release CI:** one rolling `latest` release rebuilt on every push to `main` (trigger `branches: [main]`); vX.Y.Z tags are history, not release sources. (Verification note: confirm trigger filters with byte-level reads — terminal rendering can eat literal `[m` sequences from bracketed YAML lists and manufacture phantom "corruption.")
 - **Manifest regen:** rebuild from the existing path list (the Task-11 lesson: a find-by-extension rebuild is wrong — `dev.sh.template` matches no extension). Insert new paths next to their siblings, then hash.

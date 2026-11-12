@@ -171,7 +171,7 @@ if [ -f "$SS" ]; then
     SW_MARK="$(mktemp)"
     touch -d @$((SW_SS_M + SW_TH)) "$SW_MARK" 2>/dev/null
     SW_N=$(find "$ROOT/workspace" "$ROOT/scripts" "$ROOT/download" -type f -newer "$SW_MARK" \
-        -not -path "$ROOT/download/stellar-trail/*" -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
+        -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
     rm -f "$SW_MARK"
     SW_MARK2="$(mktemp)"
     touch -d @$((SW_SS_M + SW_EV)) "$SW_MARK2" 2>/dev/null
@@ -188,11 +188,11 @@ fi
 
 # --- version-sanity ----------------------------------------------------------
 # : the registry lock anchor is fully retired — every installed copy is now compared against the canonical snapshot
-#   (download/stellar-trail), the one out-of-band reference the GitHub
+#   (.zscripts/stellar-trail-canonical), the one out-of-band reference the GitHub
 #   install path has always had. (The pre-code read the lock file but
 #   never actually used CANON_VER — the canonical comparison the header
 #   always claimed became real in this version.)
-CANON_VER="$(cat "$ROOT/download/stellar-trail/assets/integrity.version" 2>/dev/null || true)"
+CANON_VER="$(cat "$ROOT/.zscripts/stellar-trail-canonical/assets/integrity.version" 2>/dev/null || true)"
 for CAND in "$ROOT/skills/stellar-trail" "$ROOT"/skills/@*/stellar-trail; do
     [ -d "$CAND" ] || continue
     IV="$(cat "$CAND/assets/integrity.version" 2>/dev/null || echo '?')"
@@ -211,7 +211,7 @@ done
 # this audit PASSED 8/8 over the same tree. Per-tree checksum verification
 # closes the gap at every audit run (manual + duty-8 periodic).
 INT_PASS=0; INT_BAD_TREES=""
-for TI_T in "$ROOT/skills/stellar-trail" "$ROOT/download/stellar-trail" "$ROOT/stellar-trail-dev/skills/stellar-trail"; do
+for TI_T in "$ROOT/skills/stellar-trail" "$ROOT/.zscripts/stellar-trail-canonical" "$ROOT/stellar-trail-dev/skills/stellar-trail"; do
     [ -f "$TI_T/assets/integrity.sha256" ] || continue
     TI_OUT="$(cd "$TI_T" && sha256sum -c assets/integrity.sha256 2>&1)"
     if [ $? -eq 0 ]; then

@@ -21,7 +21,7 @@
 #     there (PID/log always in .zscripts/, the install tree stays drift-free;
 #     anti-loop via env guard + layout detection).
 #   - sync_fresh: the .zscripts/ deployment copy is not the source of truth —
-#     the skill canonical is (download/stellar-trail/assets/explorer/).
+#     the skill canonical is (.zscripts/stellar-trail-canonical/assets/explorer/).
 #     --ensure refreshes explorer.py + explorer-ui/index.html on md5 drift
 #     and restarts the server when explorer.py changed (the UI is read
 #     per-request — a copy suffices). Alive-but-stale is repaired, not just
@@ -62,7 +62,7 @@ PIDFILE="$ZDIR/explorer.pid"
 STAMP="$ZDIR/explorer.code-stamp"   # v1.5: md5 of the RUNNING server's source
 PORT=3000
 HEALTH="http://127.0.0.1:${PORT}/healthz"
-CANON_EXP="$PROJECT/download/stellar-trail/assets/explorer"
+CANON_EXP="$PROJECT/.zscripts/stellar-trail-canonical/assets/explorer"
 
 # --- v1.3 : AUTO-DEPLOY from the install tree -----------------------
 # Runs BEFORE the variables above are used for any side effect.

@@ -58,7 +58,7 @@
 # SOLUTION: refresh repo.tar with a snapshot of the CURRENT state, so the
 #   boot restore ALWAYS receives fresh state regardless of pre-stop's fate.
 #   Companion layers: the boot hook's cache-replay skill restore (canonical
-#   download/stellar-trail) and --restore-original (undo).
+#   .zscripts/stellar-trail-canonical) and --restore-original (undo).
 #
 # FORMAT COMPATIBILITY :
 #   - relative entries WITHOUT the ./ prefix (e.g. ".zscripts/dev.sh",

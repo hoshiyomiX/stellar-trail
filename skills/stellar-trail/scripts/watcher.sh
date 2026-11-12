@@ -19,7 +19,7 @@
 #       the activation command; state-gated (.explorer-gap.noticed), the
 #       marker is removed when the gap closes. NOTICE, not alarm — the
 #       watcher never installs anything.
-#   3. Release-file guard — download/stellar-trail/skill-card.md and
+#   3. Release-file guard — .zscripts/stellar-trail-canonical/skill-card.md and
 #      assets/integrity.sha256 are release files that live outside the
 #      checksum manifest (the manifest cannot hash itself, and the skill
 #      card carries the version the manifest generator ran under). When one
@@ -296,7 +296,7 @@ fi
         echo $$ > "$PIDFILE"
         wlog "watcher START (pid $$, interval ${INTERVAL}s, origin probe ${ORIGIN_INTERVAL}s, project $PROJECT)"
         CYCLES=0
-        CANON_DIR="$DOWNLOAD/stellar-trail"
+        CANON_DIR="$PROJECT/.zscripts/stellar-trail-canonical"
         GUARD_STATE="$ZDIR/.guard-release.state"
         # duty 1 hashes the top level of download/ EXCEPT the ALERT surface —
         # an alarm file appearing/clearing must never trigger dev.sh (the
@@ -501,7 +501,12 @@ fi
                     # node_modules and the ALERT surface itself excluded)
                     SW_MARK="$ZDIR/.silence-mark.work"
                     touch -d @$((SW_SS_M + SILENCE_WORK_SECS)) "$SW_MARK" 2>/dev/null
-                    SW_A_N=$(find "$PROJECT/workspace" "$PROJECT/scripts" "$PROJECT/download" -type f -newer "$SW_MARK" -not -path "$PROJECT/download/stellar-trail/*" -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
+                    # v5.7.4: the download/stellar-trail exclusion is RETIRED —
+                    # the canonical lives at .zscripts/stellar-trail-canonical/
+                    # (outside these scan roots); a stale-archive resurrection
+                    # of the legacy path carries OLD mtimes (never trips -newer),
+                    # and genuinely NEW files there SHOULD alarm.
+                    SW_A_N=$(find "$PROJECT/workspace" "$PROJECT/scripts" "$PROJECT/download" -type f -newer "$SW_MARK" -not -path "*/node_modules/*" -not -name "ALERT-*" 2>/dev/null | wc -l)
                     if [ "$SW_A_N" -gt 0 ]; then
                         SW_ANY=1
                         SW_CLASSES="$SW_CLASSES WORK-SILENCE"
