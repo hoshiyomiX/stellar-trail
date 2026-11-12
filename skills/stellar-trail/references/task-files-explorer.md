@@ -95,7 +95,7 @@ Key facts:
 Two environment failures that are easy to confuse:
 
 - **Preview explorer dead** (the :3000 process is gone, "index.html killed") = a **container recycle** signature — container-living processes (explorer, watcher) die with the container; THIS IS NOT a skill bug; the built-in asset stays intact inside the installation. Remedy: opt-in redeploy — `bash .zscripts/explorer.sh --ensure` (dev.sh/watcher revive it at the next boot when the /start.sh hook is active).
-- **Installed asset files missing / version regressed** (built-in assets gone, an old banner, new release components absent) = a **restore-archive rollback** signature — the installation was overwritten by a stale archive. Remedy: re-run the single install command (`npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y`) or `bash skills/stellar-trail/scripts/update-skill.sh --force`; the M0 version sanity alarm and the watcher's integrity check report the degradation (environment-resilience.md §3c/§4).
+- **Installed asset files missing / version regressed** (built-in assets gone, an old banner, new release components absent) = a **restore-archive rollback** signature — the installation was overwritten by a stale archive. Remedy: re-run the single install command (`npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y`) or `bash skills/stellar-trail/scripts/update-skill.sh --reinstall` (the same-version repair — `--force`/`--ensure` no-op when origin == local); the M0 version sanity alarm and the watcher's integrity check report the degradation (environment-resilience.md §3c/§4).
 
 Compact rule: **processes dead → recycle (redeploy); files changed/missing → rollback (re-install)**.
 

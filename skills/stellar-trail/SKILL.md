@@ -40,12 +40,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.7.4); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.7.5); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.7.4 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.7.4 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.7.5 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.7.5 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -190,8 +190,8 @@ Memory stores WORK FACTS (the manifest categories), never personal secrets: NEVE
 | Script (all invoked as `bash scripts/<name>.sh`) | Duty |
 |---|---|
 | `bootstrap-sandbox.sh` | Arm persistence: canonical copy + boot hook + watcher daemon ensure + worklog R1 seed + tail guard + memory scaffold; explorer/snapshot modules AUTO-ENABLE when their payload ships in the tree (`--without-*` opts out); idempotent, offline |
-| `update-skill.sh` | Single-flow installer wrapper — `--ensure` always checks the origin (once per session; offline = report, exit 0); newer origin → verified override that runs THE install command (staging clone → SHA-256 manifest → tag≡content → anti-downgrade → canonical swap first → live install last); post-install: persistence re-arm + skills-lock.json RELOCK (step 5/5) + RELOAD directive (v5.7.0) |
-| `watcher.sh` | Runtime watchdog daemon v2.3: explorer health + auto-restart · deployment-gap NOTICE (once per gap; never installs) · verify-only integrity checks ~every 10 min (failures raise the INTEGRITY class on the ALERT surface — v5.4.4) · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · **silent-work sentinel + ALERT surface ~every 2 min** (WORK-SILENCE: artifacts outrunning the checkpoint >30 min · EVIDENCE-PENDING: user evidence unprocessed >2 h · alarms to worklog AND `download/ALERT-ACTIVE.md`, removed on all-clear; incident class 2026-10-21) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · **periodic compliance audit ~every 6 h** (verdict to watcher.log) · `--ensure/--status/--stop/--probe-origin`; started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events |
+| `update-skill.sh` | Single-flow installer wrapper — `--ensure` always checks the origin (once per session; offline = report, exit 0); newer origin → verified override that runs THE install command (staging clone → SHA-256 manifest → tag≡content → anti-downgrade → canonical swap first → live install last); post-install: persistence re-arm + skills-lock.json RELOCK (step 5/5) + RELOAD directive (v5.7.0); `--reinstall` = same-version repair from the origin (v5.7.5 — the corruption remedy; `--force` stays a pure `--ensure` alias) |
+| `watcher.sh` | Runtime watchdog daemon v2.3: explorer health + auto-restart · deployment-gap NOTICE + foreign-dev.sh NOTICE (persistence hostage — names `--force-devsh`; once per gap; never installs; v5.7.5) · verify-only integrity checks ~every 10 min (failures raise the INTEGRITY class on the ALERT surface — v5.4.4) · release-file guard · archive refresh ~every 15 min · compliance sentinel (worklog growth without M1) · **silent-work sentinel + ALERT surface ~every 2 min** (WORK-SILENCE: artifacts outrunning the checkpoint >30 min · EVIDENCE-PENDING: user evidence unprocessed >2 h · alarms to worklog AND `download/ALERT-ACTIVE.md`, removed on all-clear; incident class 2026-10-21) · origin release probe every ~24h (epoch-gated, alarm-only, never installs) · **periodic compliance audit ~every 6 h** (verdict to watcher.log) · `--ensure/--status/--stop/--probe-origin`; started at boot (dev.sh) and at every `bootstrap --ensure` — the daemon can die silently at container lifecycle events |
 | `enforce-gates.sh` | Terminal-track enforcement: `--artifact` (exists, size) · `--lint` (bash/py/js/json/html/md) · `--check-skill` (frontmatter, description ≤1024, referenced files exist) · `--check-worklog --task-id` |
 | `audit-compliance.sh` | Compliance audit from OUTSIDE the model: Active-table hygiene, snapshot-vs-worklog staleness, silent-work (the 2026-10-21 incident class), installed-vs-canonical version, R1 hooks (worklog tail + memory headers), tree-integrity (per-tree checksum manifest), release-recording (newest tag vs the ledger — the 2026-10-23 dead-session class), watcher-liveness (v5.4.4) |
 | `snapshot-repo.sh` | Refresh the restore archive repo.tar — `--status/--dry-run/--apply/--apply-auto/--restore-original`; backup-first, verify-before-swap; includes the skill tree; original-backup retention = LATEST ONLY (owner order #1, v5.7.0) |
@@ -257,7 +257,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.7.4 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.7.5 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A

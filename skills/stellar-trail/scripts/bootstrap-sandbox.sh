@@ -171,6 +171,13 @@ fi
 CANON="$PROJECT/.zscripts/stellar-trail-canonical"
 ZDIR="$PROJECT/.zscripts"
 STATE_FILE="$ZDIR/bootstrap.state"
+
+# boot.log ledger writer — bootstrap events that must outlive the session
+# (stdout log() vanishes with the terminal; the boot ledger persists).
+# Used for the foreign-dev.sh SKIP/OVERWRITE events (Task 78 audit R2).
+blog() {
+    printf '[%s] [bootstrap] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$ZDIR/boot.log" 2>/dev/null || true
+}
 MEMORY_DIR="$PROJECT/memory"
 WORKLOG="$PROJECT/worklog.md"
 MODULES_FILE="/tmp/bootstrap-modules.$$"
@@ -568,10 +575,13 @@ DEVSH_WATCH
 
 # --- 5. TASK FILES EXPLORER --ensure ------------------------------------------
 if [ -f "$PROJECT/.zscripts/explorer.sh" ]; then
-    if bash "$PROJECT/.zscripts/explorer.sh" --ensure >> "$BOOTLOG" 2>&1; then
-        log "explorer --ensure: OK (running / guard active)"
+    _ex_out="$(bash "$PROJECT/.zscripts/explorer.sh" --ensure 2>&1)"; _ex_rc=$?
+    if [ -n "$_ex_out" ]; then printf '%s\n' "$_ex_out" >> "$BOOTLOG"; fi
+    _ex_v="$(printf '%s\n' "$_ex_out" | grep -v '^[[:space:]]*$' | tail -n 1)"
+    if [ "$_ex_rc" -eq 0 ]; then
+        log "explorer --ensure: OK — ${_ex_v:-alive (no diagnostics)}"
     else
-        log "WARN: explorer --ensure failed"
+        log "WARN: explorer --ensure failed (rc=$_ex_rc) — ${_ex_v:-no diagnostics}"
     fi
 fi
 DEVSH_EXPL2
@@ -647,9 +657,12 @@ if [ -f "$ZDIR/dev.sh" ] && ! head -n 2 "$ZDIR/dev.sh" | grep -qF "$STATE_MARKER
     if [ "$FORCE_DEVSH" = "1" ]; then
         cp -p "$DEVSH_SRC" "$ZDIR/dev.sh"
         log "foreign dev.sh OVERWRITTEN (--force-devsh) — the bootstrap version is installed"
+        blog "foreign dev.sh OVERWRITTEN (--force-devsh) — the bootstrap version is installed"
     else
         log "SKIP dev.sh: a non-bootstrap dev.sh already exists at $ZDIR (owned by another deployment). Use --force-devsh to overwrite."
         log "NOTE: without a bootstrap-owned dev.sh, the skill is NOT restored automatically after a reset."
+        blog "SKIP dev.sh: a non-bootstrap dev.sh already exists at $ZDIR (owned by another deployment). Use --force-devsh to overwrite."
+        blog "NOTE: without a bootstrap-owned dev.sh, the skill is NOT restored automatically after a reset."
     fi
 else
     R=$(write_if_changed "$DEVSH_SRC" "$ZDIR/dev.sh")
@@ -867,10 +880,13 @@ fi
 #     persistence state).
 # ---------------------------------------------------------------------------
 if has_module explorer && [ -f "$ZDIR/explorer.sh" ]; then
-    if bash "$ZDIR/explorer.sh" --ensure >> "$ZDIR/boot.log" 2>&1; then
-        log "explorer   : activated — deployed code live on :3000 (freshness restart handled by explorer.sh v1.5)"
+    _ex_out="$(bash "$ZDIR/explorer.sh" --ensure 2>&1)"; _ex_rc=$?
+    if [ -n "$_ex_out" ]; then printf '%s\n' "$_ex_out" >> "$ZDIR/boot.log"; fi
+    _ex_v="$(printf '%s\n' "$_ex_out" | grep -v '^[[:space:]]*$' | tail -n 1)"
+    if [ "$_ex_rc" -eq 0 ]; then
+        log "explorer   : ensure OK — ${_ex_v:-alive (no diagnostics)}"
     else
-        log "explorer   : WARN — activation --ensure failed (service issue; the persistence layer is unaffected)"
+        log "explorer   : WARN — activation --ensure failed (rc=$_ex_rc; service issue; the persistence layer is unaffected) — ${_ex_v:-no diagnostics}"
     fi
 fi
 

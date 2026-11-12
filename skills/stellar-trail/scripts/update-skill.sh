@@ -13,7 +13,8 @@
 #      always-check fix there is NO debounce gate: the protocol runs this at
 #      every M0, before the phases begin, and the state file is a record for
 #      --status, never a gate), and
-#   2. when the origin is newer, runs that one install command, then
+#   2. when the origin is newer (or --reinstall was passed: same-version
+#      repair), runs that one install command, then
 #      verifies the result, re-arms the persistence modules, and RELOCKS the
 #      skills-lock.json pin (step 5 — owner order #2, Task 68: the pin must
 #      always match the installed tree; a stale pin makes the CLI's
@@ -26,14 +27,21 @@
 # the user retries the same command.
 #
 # Usage:
-#   bash scripts/update-skill.sh [--ensure|--force|--check|--status|--help]
+#   bash scripts/update-skill.sh [--ensure|--force|--reinstall|--check|--status|--help]
 #   (no argument = --ensure — the protocol's cold-boot path)
-#     --ensure   check the origin NOW (always — the M0 path) and auto-update
-#                when the origin is newer
-#     --force    compatibility alias of --ensure (kept after the debounce
-#                gate was removed — older docs and habits still name it)
-#     --check    network check without installing (dry-run report)
-#     --status   local state report, no network access
+#     --ensure     check the origin NOW (always — the M0 path) and auto-update
+#                  when the origin is newer
+#     --force      compatibility alias of --ensure (kept after the debounce
+#                  gate was removed — older docs and habits still name it).
+#                  NOT a same-version repair: same version = already-latest
+#                  no-op. The corruption remedy is --reinstall.
+#     --reinstall  same-version repair: reinstall from the origin even when
+#                  origin == local (bypasses the already-latest exit;
+#                  downgrade protection still refuses an OLDER origin).
+#                  Offline with --reinstall = exit 1 — an explicit operator
+#                  action must not fail silently.
+#     --check      network check without installing (dry-run report)
+#     --status     local state report, no network access
 #
 # Environment overrides:
 #   STELLAR_PROJECT               project root (auto-detected when unset)
@@ -53,6 +61,8 @@
 # Exit codes:
 #   0  ok / already latest / downgrade refused / offline (never blocks cold boot)
 #   1  install attempted and FAILED (command failure or verification failure)
+#      · --reinstall with the origin unreachable also exits 1 (explicit
+#        operator action — honest failure, nothing touched, never silent)
 # ============================================================================
 set -u
 
@@ -119,7 +129,7 @@ write_state() {  # $1 = version observed at the origin
 
 MODE="${1:---ensure}"
 case "$MODE" in
-    --ensure|--force|--check|--status|-h|--help) ;;
+    --ensure|--force|--reinstall|--check|--status|-h|--help) ;;
     *) echo "[update] unknown argument: $MODE (use --help)" >&2; exit 1;;
 esac
 
@@ -164,14 +174,18 @@ say "checking origin: $ORIGIN"
 REMOTE_VER="$(timeout 25 git ls-remote --tags --refs --sort=-v:refname "$ORIGIN" 'v[0-9]*' 2>/dev/null \
     | head -1 | awk -F/ '{print $NF}' | sed 's/^v//' | tr -d '[:space:]')"
 if [ -z "$REMOTE_VER" ]; then
+    if [ "$MODE" = "--reinstall" ]; then
+        say "FAILED: origin unreachable — --reinstall was explicitly requested and did NOT happen (nothing was touched)"
+        exit 1
+    fi
     say "origin unreachable or has no release tags — skipped (offline-tolerant; cold boot is never blocked)"
     exit 0
 fi
 say "origin reports: v$REMOTE_VER · local: v$LOCAL_VER"
 
-if [ "$REMOTE_VER" = "$LOCAL_VER" ]; then
+if [ "$REMOTE_VER" = "$LOCAL_VER" ] && [ "$MODE" != "--reinstall" ]; then
     write_state "$REMOTE_VER"
-    say "already latest (v$LOCAL_VER) — nothing to do"
+    say "already latest (v$LOCAL_VER) — nothing to do (same-version repair: --reinstall)"
     exit 0
 fi
 if version_lt "$REMOTE_VER" "$LOCAL_VER"; then
@@ -180,7 +194,7 @@ if version_lt "$REMOTE_VER" "$LOCAL_VER"; then
     exit 0
 fi
 if [ "$MODE" = "--check" ]; then
-    say "UPDATE AVAILABLE: v$LOCAL_VER -> v$REMOTE_VER (--check mode: nothing installed — run --ensure or --force to install)"
+    say "UPDATE AVAILABLE: v$LOCAL_VER -> v$REMOTE_VER (--check mode: nothing installed — run --ensure to install; --reinstall for a same-version repair)"
     exit 0
 fi
 
@@ -194,7 +208,11 @@ if ! command -v npx >/dev/null 2>&1; then
     exit 0
 fi
 
-say "=== UPDATE v$LOCAL_VER -> v$REMOTE_VER START ==="
+if [ "$REMOTE_VER" = "$LOCAL_VER" ]; then
+    say "=== REINSTALL v$LOCAL_VER (same version — repair from origin) START ==="
+else
+    say "=== UPDATE v$LOCAL_VER -> v$REMOTE_VER START ==="
+fi
 say "[1/5] single install flow: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
 if ! timeout 600 npx --yes skills add "$INSTALL_SOURCE" $INSTALL_ARGS; then
     say "FAILED: the install command exited non-zero — update aborted. No fallback exists by design."
@@ -296,7 +314,11 @@ else
 fi
 
 write_state "$REMOTE_VER"
-say "=== UPDATE COMPLETE: v$LOCAL_VER -> v$REMOTE_VER ==="
+if [ "$REMOTE_VER" = "$LOCAL_VER" ]; then
+    say "=== REINSTALL COMPLETE: v$LOCAL_VER (same-version repair done) ==="
+else
+    say "=== UPDATE COMPLETE: v$LOCAL_VER -> v$REMOTE_VER ==="
+fi
 say "RELOAD REQUIRED (owner order, v5.7.0): the running session still holds the v$LOCAL_VER body —"
 say "  re-invoke Skill('stellar-trail') (or re-read SKILL.md) NOW and continue on the new body."
 say "  Never continue work on stale skill logic."

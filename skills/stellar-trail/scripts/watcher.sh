@@ -19,6 +19,13 @@
 #       the activation command; state-gated (.explorer-gap.noticed), the
 #       marker is removed when the gap closes. NOTICE, not alarm — the
 #       watcher never installs anything.
+#   2c. Foreign-dev.sh notice (Task 78 audit, v5.7.5) — .zscripts/dev.sh
+#       exists but carries no bootstrap ownership marker: the boot chain
+#       belongs to another deployment, so skills/ is NOT restored after a
+#       reset (the bootstrap stdout SKIP warning is session-volatile).
+#       ONE notice per episode (state-gated .devsh-foreign.noticed, removed
+#       when ownership is restored), naming --force-devsh. NOTICE, not
+#       alarm — the watcher never installs anything.
 #   3. Release-file guard — .zscripts/stellar-trail-canonical/skill-card.md and
 #      assets/integrity.sha256 are release files that live outside the
 #      checksum manifest (the manifest cannot hash itself, and the skill
@@ -352,6 +359,28 @@ fi
                 fi
             else
                 rm -f "$ZDIR/.explorer-gap.noticed"
+            fi
+
+            # 2c. Foreign-dev.sh notice (Task 78 audit, v5.7.5): dev.sh present
+            #     but NOT bootstrap-owned = the restore chain is hostage to
+            #     another deployment — after one reset skills/ stays gone and
+            #     the Task File Manager dies (the reproduced user report).
+            #     Same constraints as 2b: single-quoted bash -c — NO single
+            #     quotes here; NOTICE only, once per episode, never installs.
+            DSH_FOREIGN=0
+            if [ -f "$ZDIR/dev.sh" ] && ! head -n 2 "$ZDIR/dev.sh" 2>/dev/null | grep -qF "# BOOTSTRAP-GENERATED: stellar-trail bootstrap-sandbox.sh"; then
+                if [ -f "$PROJECT/skills/stellar-trail/scripts/bootstrap-sandbox.sh" ] || [ -f "$CANON_DIR/scripts/bootstrap-sandbox.sh" ]; then
+                    DSH_FOREIGN=1
+                fi
+            fi
+            if [ "$DSH_FOREIGN" = 1 ]; then
+                if [ ! -f "$ZDIR/.devsh-foreign.noticed" ]; then
+                    touch "$ZDIR/.devsh-foreign.noticed"
+                    wlog "NOTICE: .zscripts/dev.sh exists but is NOT bootstrap-owned (foreign deployment) — skills/ is NOT restored automatically after a reset (Task 78 audit: the TFM-missing report). Fix: bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --force-devsh, then one boot. The watcher never installs (verify-only)."
+                    printf "\n> FOREIGN-DEVSH NOTICE %s: .zscripts/dev.sh is owned by another deployment (no bootstrap marker) — after a reset skills/ is not restored and the Task File Manager dies. Run bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --force-devsh (then one boot) to take ownership. The watcher never installs (verify-only notice, once per episode).\n" "$(date "+%F %T")" >> "$PROJECT/worklog.md" 2>/dev/null
+                fi
+            else
+                rm -f "$ZDIR/.devsh-foreign.noticed"
             fi
 
             # 3. Release-file guard (files outside the checksum manifest).
