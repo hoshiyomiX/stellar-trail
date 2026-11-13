@@ -268,6 +268,8 @@ prune_junk() {  # $1=root tree — drop __pycache__/*.pyc/.DS_Store
 # ---------------------------------------------------------------------------
 if [ "$MODE" = "status" ]; then
     echo "=== BOOTSTRAP STATUS (v$BOOT_VERSION) ==="
+    echo "verdict    : $([ -f "$ZDIR/dev.sh" ] && echo "ARMED" || echo 'NOT ARMED — run: bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure')"
+    echo "marker     : $([ -f "$SKILL_ROOT/NOT-ARMED.md" ] && echo 'NOT-ARMED.md present (install landed; arming pending)' || echo 'absent (armed, or a pre-v5.7.7 install)')"
     echo "skill root : $SKILL_ROOT"
     echo "project    : $PROJECT"
     echo "modules    : ${MODULE_LIST}"
@@ -513,6 +515,17 @@ fi
 if [ -d "$DOWNLOAD/stellar-trail" ]; then
     rm -rf "$DOWNLOAD/stellar-trail"
     log "LEGACY CANONICAL PRUNE: removed download/stellar-trail (canonical lives at .zscripts/stellar-trail-canonical since v5.7.4)"
+fi
+
+# v5.7.7 NOT-ARMED MARKER HYGIENE (Task 82 — field-test R1): this dev.sh
+# existing IS the armed state; a NOT-ARMED.md resurrected into the live tree
+# or the snapshot (packer partial-stale class, 2026-11-02/2026-11-13) would
+# signal the opposite. Retire it at every boot (state file, never in the
+# manifest — removing it cannot break any integrity check).
+if [ -f "$PROJECT/skills/stellar-trail/NOT-ARMED.md" ] || [ -f "$CANON/NOT-ARMED.md" ]; then
+    rm -f "$PROJECT/skills/stellar-trail/NOT-ARMED.md" "$CANON/NOT-ARMED.md"
+    for L in "$PROJECT"/skills/@*/stellar-trail/NOT-ARMED.md; do rm -f "$L"; done
+    log "NOT-ARMED MARKER: retired (boot hygiene — this boot hook IS the armed state)"
 fi
 DEVSH_RESTORE
 
@@ -963,6 +976,24 @@ fi
 # ---------------------------------------------------------------------------
 mkdir -p "$ZDIR"
 printf 'v=%s\nm=%s\nd=%s\n' "$BOOT_VERSION" "${MODULE_LIST:-core}" "$NOW" > "$STATE_FILE"
+
+# ---------------------------------------------------------------------------
+# 12b. NOT-ARMED MARKER RETIREMENT (v5.7.7, Task 82 — field-test R1)
+#      The payload ships NOT-ARMED.md at the skill root as a VISIBLE state
+#      signal: install landed, arming never ran (field 2026-11-13: a z.ai
+#      harness that gates skill loading by task-match never executed the
+#      cold-boot arm, and nothing on disk said so). Arming has now succeeded
+#      — retire the marker from BOTH state surfaces: the live installation
+#      and the canonical snapshot. The marker is a STATE file, deliberately
+#      NOT listed in assets/integrity.sha256, so its deletion never breaks
+#      manifest verification. Any later install re-lands it with the fresh
+#      payload; the post-install re-arm (update-skill step 4/5) retires it
+#      again; dev.sh's boot hygiene removes packer-resurrected copies.
+# ---------------------------------------------------------------------------
+if [ -f "$SKILL_ROOT/NOT-ARMED.md" ] || [ -f "$CANON/NOT-ARMED.md" ]; then
+    rm -f "$SKILL_ROOT/NOT-ARMED.md" "$CANON/NOT-ARMED.md"
+    log "not-armed   : marker RETIRED (armed — NOT-ARMED.md removed from the live tree + canonical)"
+fi
 
 echo ""
 log "================= BOOTSTRAP $([ "$ENSURE" = "1" ] && echo 'ENSURE' || echo 'INSTALL') COMPLETE ================="
