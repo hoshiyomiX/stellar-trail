@@ -21,13 +21,17 @@ warn(){ WARN=$((WARN+1)); printf "  ${Y}[WARN]${N} %s\n" "$1"; }
 note(){ printf "  ${B}[NOTE]${N} %s\n" "$1"; }
 
 TASK=""; ARTIFACT=""; LINT_FILES=""; SKILL_DIR=""; WORKLOG=""; TASKID=""; SELFTEST=0
+# v5.7.8 arg guard (field incident 2026-11-13, report-2 F-1): a value-option without its
+# argument left `shift 2` unable to shift ($# stayed 1) and the parse loop spun at 100% CPU
+# until an external timeout killed it. Fail fast with a correct-usage example instead (exit 2).
+need_arg(){ [ "$1" -ge 2 ] || { echo "ERROR: $2 requires an argument — e.g. bash scripts/enforce-gates.sh $2 $3"; exit 2; }; }
 while [ $# -gt 0 ]; do case "$1" in
-  --task) TASK="${2:-}"; shift 2;;
-  --artifact) ARTIFACT="${2:-}"; shift 2;;
+  --task) need_arg "$#" --task '<type>'; TASK="$2"; shift 2;;
+  --artifact) need_arg "$#" --artifact '<path>'; ARTIFACT="$2"; shift 2;;
   --lint) shift; while [ $# -gt 0 ] && [ "${1:0:2}" != "--" ]; do LINT_FILES="$LINT_FILES $1"; shift; done;;
-  --check-skill) SKILL_DIR="${2:-}"; shift 2;;
-  --check-worklog) WORKLOG="${2:-}"; shift 2;;
-  --task-id) TASKID="${2:-}"; shift 2;;
+  --check-skill) need_arg "$#" --check-skill 'skills/stellar-trail'; SKILL_DIR="$2"; shift 2;;
+  --check-worklog) need_arg "$#" --check-worklog 'worklog.md'; WORKLOG="$2"; shift 2;;
+  --task-id) need_arg "$#" --task-id '1'; TASKID="$2"; shift 2;;
   --selftest) SELFTEST=1; shift;;
   -h|--help) sed -n '2,15p' "$0"; exit 0;;
   *) printf "Unknown arg: %s\n" "$1" >&2; exit 2;;
