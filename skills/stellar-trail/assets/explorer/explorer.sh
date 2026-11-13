@@ -1,17 +1,26 @@
 #!/usr/bin/env bash
 # ============================================================================
-# explorer.sh — LAUNCHER v1.5 of the Task Files Explorer (functional
+# explorer.sh — LAUNCHER v1.6 of the Task Files Explorer (functional
 # replacement for the "All files in task" popup).
 #
 # Chain: platform preview -> ingress :81 -> 127.0.0.1:3000 -> explorer.py
 #
-# PORT 3000 PRIORITY: when a package.json exists (Next.js project), Next.js
-# owns port 3000 and the explorer STANDS DOWN (guard below) — the explorer
-# must never break the platform's web project.
+# PORT-REALITY CONTRACT (v1.6, Task 81 — owner order "anti
+# package.json/fullstack-dev"): the package.json STAND-DOWN IS RETIRED. A
+# package.json at the project root never disables the explorer again —
+# PORT REALITY decides: the explorer binds the first FREE port of
+# 3000..3005 (:3000 = primary = the public preview via ingress :81; any
+# other = FALLBACK mode — alive + monitored, auto-RECLAIMING :3000 the
+# moment it frees). An ACTIVE web server that already holds :3000 keeps
+# it (the explorer never fights a live listener); a dead/stale scaffold
+# (package.json present, no server running) leaves :3000 free and the
+# explorer takes the preview — the reported "TFM tidak muncul" class.
+# The serving port is recorded in .zscripts/explorer.port; --ensure
+# re-evaluates it on every run (boot, watcher cycle, manual).
 #
 # Invoked from three paths (same as the watcher):
 #   1. Container boot -> dev.sh (/start.sh hook)
-#   2. watcher.sh -> auto-heal every 30 seconds when healthz fails
+#   2. watcher.sh -> --ensure every cycle (health + port policy + reclaim)
 #   3. Manual
 #
 # WHAT THE LAUNCHER DOES:
@@ -38,13 +47,17 @@
 #   - Heal: alive but pidfile missing (externally deleted — the server writes
 #     pidfile+stamp BEFORE serving) -> restart restores the anchor.
 #   - Start health verdict gets one +2s retry for slow cold starts.
+#   - PORT POLICY (v1.6): no stand-down, ever. First-free of 3000..3005;
+#     a fallback port is logged + visible via --status; :3000 is RECLAIMED
+#     automatically once free (the explorer restarts onto it at the next
+#     --ensure — boot, watcher cycle, or manual).
 #   - Deploy-time activation: bootstrap-sandbox.sh calls --ensure after
-#     deploying the assets — dev.sh covers BOOT, the watcher covers DEATH,
+#     deploying the assets — dev.sh covers BOOT, the watcher covers RUNTIME,
 #     bootstrap covers DEPLOY-TIME. One path per moment.
 #
 # COMMANDS:
-#   bash explorer.sh --ensure   # idempotent: refresh + start when needed
-#   bash explorer.sh --status   # health + freshness check + log tail
+#   bash explorer.sh --ensure   # idempotent: refresh + port policy + start/reclaim when needed
+#   bash explorer.sh --status   # health + port mode + freshness + log tail
 #   bash explorer.sh --stop     # stop the explorer
 # ============================================================================
 # Self-locating: ZDIR = this script's directory, PROJECT = its parent —
@@ -60,8 +73,14 @@ UI="$ZDIR/explorer-ui/index.html"
 LOG="$ZDIR/explorer.log"
 PIDFILE="$ZDIR/explorer.pid"
 STAMP="$ZDIR/explorer.code-stamp"   # v1.5: md5 of the RUNNING server's source
-PORT=3000
-HEALTH="http://127.0.0.1:${PORT}/healthz"
+PORTFILE="$ZDIR/explorer.port"      # v1.6: the port the CURRENT server binds
+PORT_BASE=3000                      # v1.6: first-free pick window (no stand-down)
+PORT_TOP=3005
+cur_port() {  # v1.6: the recorded serving port (missing/corrupt -> PORT_BASE)
+    local p
+    p="$(cat "$PORTFILE" 2>/dev/null)"
+    case "$p" in ''|*[!0-9]*) echo "$PORT_BASE" ;; *) echo "$p" ;; esac
+}
 CANON_EXP="$PROJECT/.zscripts/stellar-trail-canonical/assets/explorer"
 
 # --- v1.3 : AUTO-DEPLOY from the install tree -----------------------
@@ -133,7 +152,15 @@ auto_deploy() {
 }
 auto_deploy "$@"
 
-alive() { curl -fsS -m 2 "$HEALTH" >/dev/null 2>&1; }
+alive() { curl -fsS -m 2 "http://127.0.0.1:$(cur_port)/healthz" >/dev/null 2>&1; }  # v1.6: probes the RECORDED port
+port_held() { (exec 3<>/dev/tcp/127.0.0.1/"$1") 2>/dev/null; }  # v1.6: ANY live listener on $1 (subshell closes the fd)
+pick_port() {  # v1.6: first FREE port of PORT_BASE..PORT_TOP; empty when all held
+    local p
+    for p in $(seq "$PORT_BASE" "$PORT_TOP"); do
+        port_held "$p" || { echo "$p"; return 0; }
+    done
+    return 1
+}
 
 sync_fresh() {  # v1.2: deployment freshness vs canonical; restarts the server when the .py changed
     [ -d "$CANON_EXP" ] || return 0
@@ -155,10 +182,11 @@ sync_fresh() {  # v1.2: deployment freshness vs canonical; restarts the server w
 
 case "$1" in
 --status)
-    echo "=== TASK FILES EXPLORER @ :$PORT ==="
+    _P="$(cur_port)"
+    echo "=== TASK FILES EXPLORER @ :$_P ($([ "$_P" = "$PORT_BASE" ] && echo primary || echo fallback)) ==="
     if alive; then
-        echo "health   : OK  ($HEALTH)"
-        echo "api      : http://127.0.0.1:$PORT/api/files"
+        echo "health   : OK  (http://127.0.0.1:$_P/healthz)"
+        echo "api      : http://127.0.0.1:$_P/api/files"
     else
         echo "health   : DOWN"
     fi
@@ -193,7 +221,7 @@ case "$1" in
         elif [ -n "$pid" ]; then
             echo "[explorer] pidfile pid $pid is not the explorer (recycled?) — not killed"
         fi
-        rm -f "$PIDFILE"
+        rm -f "$PIDFILE" "$PORTFILE"
     fi
     pkill -f "$PY" 2>/dev/null
     exit 0
@@ -215,32 +243,48 @@ case "$1" in
         echo "[$(date '+%F %T')] heal: server alive but pidfile missing -> restart" >> "$LOG"
         kill_wait "$PY"
     fi
-    if alive; then exit 0; fi
-    if [ -f "$PROJECT/package.json" ]; then
-        echo "[explorer] package.json present -> Next.js owns :$PORT, explorer stand-down" >&2
-        exit 0
+    if alive; then
+        # v1.6 RECLAIM: healthy on a FALLBACK port while the primary port is
+        # FREE -> migrate back so the public preview (:81 -> :3000) serves
+        # the explorer again. A live web server on the primary keeps it —
+        # the explorer never fights a live listener.
+        _CUR="$(cur_port)"
+        if [ "$_CUR" != "$PORT_BASE" ] && ! port_held "$PORT_BASE"; then
+            echo "[$(date '+%F %T')] reclaim: primary :$PORT_BASE free (was :$_CUR) -> migrate" >> "$LOG"
+            kill_wait "$PY"
+        else
+            exit 0
+        fi
     fi
     if [ ! -f "$PY" ] || [ ! -f "$UI" ]; then
         echo "[explorer] server/UI files incomplete ($PY / $UI)" >&2
         exit 1
     fi
-    # port held by another process that is not the explorer? do not fight for it
-    if (exec 3<>/dev/tcp/127.0.0.1/$PORT) 2>/dev/null; then
-        exec 3>&- 3<&-
-        echo "[explorer] port $PORT held by another process (not the explorer) — stand down" >&2
+    # v1.6 PORT-REALITY: the package.json stand-down is RETIRED — pick the
+    # first FREE port of 3000..3005. A live web server on :3000 keeps it
+    # (the explorer takes a fallback port and reclaims later); a dead
+    # scaffold leaves :3000 free and the explorer takes the preview.
+    P="$(pick_port)"
+    if [ -z "$P" ]; then
+        echo "[explorer] ports $PORT_BASE-$PORT_TOP all held — cannot start (the explorer never stands down since v1.6)" >&2
         exit 1
     fi
-    echo "[$(date '+%F %T')] explorer.sh start (double-fork orphan)" >> "$LOG"
-    ( setsid python3 "$PY" "$PORT" >> "$LOG" 2>&1 & )
+    echo "[$(date '+%F %T')] explorer.sh start (double-fork orphan, port $P)" >> "$LOG"
+    ( setsid python3 "$PY" "$P" >> "$LOG" 2>&1 & )
+    echo "$P" > "$PORTFILE"
     sleep 1
     if alive; then
-        echo "[explorer] ALIVE on :$PORT (pid $(cat "$PIDFILE" 2>/dev/null))"
+        if [ "$P" = "$PORT_BASE" ]; then
+            echo "[explorer] ALIVE on :$P (primary — the preview URL serves the explorer; pid $(cat "$PIDFILE" 2>/dev/null))"
+        else
+            echo "[explorer] ALIVE on :$P (fallback — :$PORT_BASE held by another server; auto-reclaims when free; pid $(cat "$PIDFILE" 2>/dev/null))"
+        fi
     else
         sleep 2   # v1.5: one retry — a cold FS can be slow to bind
         if alive; then
-            echo "[explorer] ALIVE on :$PORT (pid $(cat "$PIDFILE" 2>/dev/null), slow start)"
+            echo "[explorer] ALIVE on :$P ($([ "$P" = "$PORT_BASE" ] && echo primary || echo fallback), slow start; pid $(cat "$PIDFILE" 2>/dev/null))"
         else
-            echo "[explorer] WARN: not healthy after start — check $LOG" >&2
+            echo "[explorer] WARN: not healthy after start on :$P — check $LOG" >&2
         fi
     fi
     exit 0

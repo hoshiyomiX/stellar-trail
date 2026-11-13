@@ -22,14 +22,20 @@
 #      deliveries) — 25 files out of the platform's "All files in task"
 #      panel, killing the release-day preview-tab bursts at the source.
 #   2. FULLSTACK GUARD: when a package.json exists (Next.js project), this
-#      script delegates to the standard flow (bun install -> db:push ->
-#      dev server + mini-services) so the hook never breaks the web project.
-#      Note: if the fullstack-dev skill writes its own dev.sh, that one wins
-#      (correct behavior).
-#   3. TASK FILES EXPLORER (v1.2): starts explorer.py on 127.0.0.1:3000 —
-#      upstream of the platform preview ingress — as the functional
-#      replacement for the "All files in task" popup. The port-conflict
-#      guard lives in explorer.sh (package.json/Next.js always wins).
+#      script replicates the standard flow (bun install -> db:push ->
+#      dev server + mini-services) so the hook never breaks the web project,
+#      then gives the web flow a short head start on :3000 (v5.7.6 settle
+#      wait) before the explorer decides by port reality. NOTE since v5.7.6
+#      (Task 81, owner order "Basmi rantai dev.sh ASING"): a foreign dev.sh
+#      on the boot chain is AUTO-NEUTRALIZED by bootstrap --ensure (backup
+#      at dev.sh.foreign.bak) — the bootstrap hook owns the chain.
+#   3. TASK FILES EXPLORER (v1.2+): starts explorer.py as the functional
+#      replacement for the "All files in task" popup, upstream of the
+#      platform preview ingress. PORT REALITY since explorer.sh v1.6
+#      (v5.7.6, owner order "anti package.json/fullstack-dev"): NO
+#      package.json stand-down — the explorer binds the first free port of
+#      3000..3005 (fallback beside a live web server, auto-reclaim of
+#      :3000 once it frees).
 #   4. SKILL RESTORE — owned by the bootstrap-generated dev.sh: the
 #      stellar-trail installation is restored by cache-replay from the
 #      canonical copy (.zscripts/stellar-trail-canonical/, manifest SHA-256 verified,

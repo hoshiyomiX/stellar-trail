@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # ============================================================================
 # watcher.sh — runtime watchdog daemon for the stellar-trail persistence layer
-# stellar-trail · watcher v2.3 (runtime watchdog, verify-only)
+# stellar-trail · watcher v2.4 (runtime watchdog, verify-only + local self-heal)
 #
 # WHAT THIS DAEMON DOES (one loop every 30 seconds, WATCHER_INTERVAL to tune):
 #   1. download/ change trigger — when the top level of download/ changes,
 #      run .zscripts/dev.sh (optional; skipped silently when absent).
-#   2. Task Files Explorer health — probe http://127.0.0.1:3000/healthz and
-#      restart the explorer via explorer.sh --ensure when it is down
-#      (skipped when the project has a package.json: a Next.js dev server
-#      owns the preview URL in that case).
+#   2. Task Files Explorer health + PORT POLICY (v2.4, Task 81 — owner order
+#      "anti package.json/fullstack-dev"): run explorer.sh --ensure (v1.6)
+#      EVERY cycle — the launcher owns the decisions: healthz on the
+#      recorded port, first-free 3000..3005 binding (NO package.json
+#      stand-down — retired), fallback mode beside a live web server, and
+#      the auto-RECLAIM of :3000 once it frees. Silent when healthy. The
+#      v2.3 package.json blindness (health probe skipped in fullstack
+#      projects) is RETIRED — the explorer is monitored EVERYWHERE.
 #   2b. Explorer deployment-gap notice — when the skill tree ships the
 #       explorer payload but .zscripts/explorer.sh is not deployed (fresh
 #       install before bootstrap, or a deliberate opt-out), the health guard
@@ -18,14 +22,21 @@
 #       ONE notice per gap episode in this log plus ONE worklog line naming
 #       the activation command; state-gated (.explorer-gap.noticed), the
 #       marker is removed when the gap closes. NOTICE, not alarm — the
-#       watcher never installs anything.
-#   2c. Foreign-dev.sh notice (Task 78 audit, v5.7.5) — .zscripts/dev.sh
-#       exists but carries no bootstrap ownership marker: the boot chain
-#       belongs to another deployment, so skills/ is NOT restored after a
-#       reset (the bootstrap stdout SKIP warning is session-volatile).
-#       ONE notice per episode (state-gated .devsh-foreign.noticed, removed
-#       when ownership is restored), naming --force-devsh. NOTICE, not
-#       alarm — the watcher never installs anything.
+#       watcher never installs anything. (v2.4: the package.json
+#       suppression of this notice is retired — fullstack projects need the
+#       explorer deployed too.)
+#   2c. Foreign-dev.sh AUTO-HEAL (v2.4, Task 81 — owner order "Basmi rantai
+#       dev.sh ASING, TFM harus survive dan persistent"; supersedes the
+#       v5.7.5 notice-only duty): .zscripts/dev.sh exists but carries no
+#       bootstrap ownership marker = the boot chain is hostage to another
+#       deployment — after ONE reset skills/ stays gone and the Task File
+#       Manager dies (Task 78/80 repro C). The watcher now runs the LOCAL
+#       canonical bootstrap-sandbox.sh --ensure (which AUTO-TAKES-OVER the
+#       foreign hook since v5.7.6, backing it up to dev.sh.foreign.bak) ONCE
+#       per episode (state-gated .devsh-foreign.noticed), then verifies and
+#       logs the verdict. LOCAL self-heal only — the watcher still NEVER
+#       performs a network install (D7 doctrine untouched; precedent: the
+#       explorer auto-restart of duty 2).
 #   3. Release-file guard — .zscripts/stellar-trail-canonical/skill-card.md and
 #      assets/integrity.sha256 are release files that live outside the
 #      checksum manifest (the manifest cannot hash itself, and the skill
@@ -329,12 +340,14 @@ fi
                 fi
             fi
 
-            # 2. Task Files Explorer health (skip when a Next.js project owns the URL)
-            if [ -f "$ZDIR/explorer.sh" ] && [ ! -f "$PROJECT/package.json" ]; then
-                curl -fsS -m 2 http://127.0.0.1:3000/healthz >/dev/null 2>&1 || {
-                    wlog "explorer unhealthy -> auto-restart (explorer.sh --ensure)"
-                    bash "$ZDIR/explorer.sh" --ensure >> "$LOG" 2>&1
-                }
+            # 2. Task Files Explorer health + PORT POLICY (v2.4, Task 81):
+            #    explorer.sh --ensure (v1.6) EVERY cycle — it owns healthz on
+            #    the recorded port, first-free 3000..3005 binding (no
+            #    package.json stand-down), fallback mode, and the auto-RECLAIM
+            #    of :3000 once free. Silent when healthy. The v2.3
+            #    package.json blindness is RETIRED.
+            if [ -f "$ZDIR/explorer.sh" ]; then
+                bash "$ZDIR/explorer.sh" --ensure >> "$LOG" 2>&1
             fi
 
             # 2b. Explorer deployment-gap notice (consumer report BUG #3):
@@ -344,13 +357,13 @@ fi
             #     episode; verify-only doctrine — the watcher never installs.
             #     CONSTRAINT (same as duty 7): this block lives inside a
             #     single-quoted bash -c string — NO single quotes here.
+            #     (v2.4: the package.json suppression is retired — the
+            #     explorer must be deployed in fullstack projects too.)
             GAP_ON=0
-            if [ ! -f "$PROJECT/package.json" ]; then
-                for GAP_SK in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
-                    [ -f "$GAP_SK/assets/explorer/explorer.sh" ] && GAP_ON=1
-                done
-                [ -f "$ZDIR/explorer.sh" ] && GAP_ON=0
-            fi
+            for GAP_SK in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
+                [ -f "$GAP_SK/assets/explorer/explorer.sh" ] && GAP_ON=1
+            done
+            [ -f "$ZDIR/explorer.sh" ] && GAP_ON=0
             if [ "$GAP_ON" = 1 ]; then
                 if [ ! -f "$ZDIR/.explorer-gap.noticed" ]; then
                     touch "$ZDIR/.explorer-gap.noticed"
@@ -361,23 +374,40 @@ fi
                 rm -f "$ZDIR/.explorer-gap.noticed"
             fi
 
-            # 2c. Foreign-dev.sh notice (Task 78 audit, v5.7.5): dev.sh present
-            #     but NOT bootstrap-owned = the restore chain is hostage to
-            #     another deployment — after one reset skills/ stays gone and
-            #     the Task File Manager dies (the reproduced user report).
+            # 2c. Foreign-dev.sh AUTO-HEAL (v2.4, Task 81 — owner order "Basmi
+            #     rantai dev.sh ASING, TFM harus survive dan persistent";
+            #     supersedes the v5.7.5 notice-only duty): a foreign dev.sh
+            #     holding the boot chain kills skills/ + TFM at the next
+            #     reset. The watcher runs the LOCAL canonical bootstrap
+            #     --ensure (auto-takeover since v5.7.6, foreign copy backed
+            #     up to dev.sh.foreign.bak) once per episode, then verifies.
+            #     LOCAL self-heal only — NEVER a network install (D7).
             #     Same constraints as 2b: single-quoted bash -c — NO single
-            #     quotes here; NOTICE only, once per episode, never installs.
+            #     quotes here.
             DSH_FOREIGN=0
             if [ -f "$ZDIR/dev.sh" ] && ! head -n 2 "$ZDIR/dev.sh" 2>/dev/null | grep -qF "# BOOTSTRAP-GENERATED: stellar-trail bootstrap-sandbox.sh"; then
-                if [ -f "$PROJECT/skills/stellar-trail/scripts/bootstrap-sandbox.sh" ] || [ -f "$CANON_DIR/scripts/bootstrap-sandbox.sh" ]; then
+                if [ -f "$CANON_DIR/scripts/bootstrap-sandbox.sh" ] || [ -f "$PROJECT/skills/stellar-trail/scripts/bootstrap-sandbox.sh" ]; then
                     DSH_FOREIGN=1
                 fi
             fi
             if [ "$DSH_FOREIGN" = 1 ]; then
                 if [ ! -f "$ZDIR/.devsh-foreign.noticed" ]; then
                     touch "$ZDIR/.devsh-foreign.noticed"
-                    wlog "NOTICE: .zscripts/dev.sh exists but is NOT bootstrap-owned (foreign deployment) — skills/ is NOT restored automatically after a reset (Task 78 audit: the TFM-missing report). Fix: bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --force-devsh, then one boot. The watcher never installs (verify-only)."
-                    printf "\n> FOREIGN-DEVSH NOTICE %s: .zscripts/dev.sh is owned by another deployment (no bootstrap marker) — after a reset skills/ is not restored and the Task File Manager dies. Run bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --force-devsh (then one boot) to take ownership. The watcher never installs (verify-only notice, once per episode).\n" "$(date "+%F %T")" >> "$PROJECT/worklog.md" 2>/dev/null
+                    if [ -f "$CANON_DIR/scripts/bootstrap-sandbox.sh" ]; then
+                        HEAL_SH="$CANON_DIR/scripts/bootstrap-sandbox.sh"
+                    else
+                        HEAL_SH="$PROJECT/skills/stellar-trail/scripts/bootstrap-sandbox.sh"
+                    fi
+                    wlog "FOREIGN-DEVSH AUTO-HEAL: dev.sh not bootstrap-owned -> running local bootstrap --ensure (auto-takeover; backup dev.sh.foreign.bak)"
+                    bash "$HEAL_SH" --ensure >> "$LOG" 2>&1
+                    if head -n 2 "$ZDIR/dev.sh" 2>/dev/null | grep -qF "# BOOTSTRAP-GENERATED: stellar-trail bootstrap-sandbox.sh"; then
+                        wlog "FOREIGN-DEVSH AUTO-HEAL: SUCCESS — boot chain re-owned; skills/ + TFM survive resets"
+                        printf "\n> FOREIGN-DEVSH AUTO-HEAL %s: a foreign .zscripts/dev.sh was detected and AUTO-NEUTRALIZED (local bootstrap --ensure; the previous copy is preserved at .zscripts/dev.sh.foreign.bak). The boot chain is bootstrap-owned again — skills/ + the Task File Manager survive resets. No network install was performed.\n" "$(date "+%F %T")" >> "$PROJECT/worklog.md" 2>/dev/null
+                        rm -f "$ZDIR/.devsh-foreign.noticed"
+                    else
+                        wlog "FOREIGN-DEVSH AUTO-HEAL: FAILED — manual recovery: bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure"
+                        printf "\n> FOREIGN-DEVSH NOTICE %s: a foreign .zscripts/dev.sh holds the boot chain and the watcher auto-heal FAILED — run bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure manually (takeover is automatic since v5.7.6).\n" "$(date "+%F %T")" >> "$PROJECT/worklog.md" 2>/dev/null
+                    fi
                 fi
             else
                 rm -f "$ZDIR/.devsh-foreign.noticed"

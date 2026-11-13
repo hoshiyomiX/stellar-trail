@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.11 (preview-popup kill)
+explorer.py — Task Files Explorer server v1.12 (anti-stand-down)
 =========================================================================
+v1.12 (Task 81 / v5.7.6, owner orders "skill stellar-trail anti
+  package.json/fullstack-dev" + "TFM harus survive dan persistent"): the
+  package.json stand-down is RETIRED — the launcher (explorer.sh v1.6)
+  decides by PORT REALITY (first-free 3000..3005, fallback mode, automatic
+  reclaim of :3000). The guard block stops reporting file-presence
+  (standdown stays in the API for compatibility but is always False) and
+  reports the actual serving mode instead: port_mode = "primary" (:3000,
+  the public preview via ingress :81) | "fallback" (another server holds
+  :3000; the explorer is alive + monitored and reclaims it once free).
+  A package.json at the project root never disables the explorer again.
 v1.11 (Task 77 / v5.7.4, owner order "Set default location at zscripts/,
   bukan download/"): the guard block's canonical-version read moves to
   .zscripts/stellar-trail-canonical/ (the skill canonical relocated out of
@@ -396,7 +406,15 @@ def guard_info():
         "watcher_alive": watcher_alive,
         "watcher_pid": watcher_pid,
         "explorer_code_current": _stamp_current(),
-        "standdown": os.path.isfile(os.path.join(PROJECT, "package.json")),
+        # v1.12 (Task 81, owner order "anti package.json/fullstack-dev"):
+        # the package.json stand-down is RETIRED — the launcher decides by
+        # PORT REALITY (explorer.sh v1.6: first-free 3000..3005, fallback +
+        # auto-reclaim). The legacy `standdown` key stays in the API for
+        # compatibility but is always False; `port_mode` reports the actual
+        # serving mode. A package.json NEVER disables the explorer again.
+        "standdown": False,
+        "port_mode": "fallback" if PORT != 3000 else "primary",
+        "port": PORT,
     }
 
 

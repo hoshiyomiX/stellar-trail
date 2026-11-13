@@ -42,7 +42,7 @@
 #              on; --without-explorer opts out) — plus, a
 #              DEPLOY-TIME activation call at the end of every
 #              bootstrap run (the running server is checked against the
-#              just-deployed code; explorer.sh v1.5 does the content-stamp
+#              just-deployed code; explorer.sh v1.6 does the content-stamp
 #              freshness restart — closes the upgrade-path gap where a
 #              first-hop left the old process serving).
 #   snapshot : installs .zscripts/repo-snapshot.sh and an --apply-auto step in
@@ -89,7 +89,7 @@
 #   bash scripts/bootstrap-sandbox.sh --without-harness-hooks # opt OUT of harness hooks (unmodified seeds removed)
 #   bash scripts/bootstrap-sandbox.sh --status            # read-only report
 #   bash scripts/bootstrap-sandbox.sh --project-dir PATH  # override project-root detection
-#   bash scripts/bootstrap-sandbox.sh --force-devsh       # overwrite a dev.sh owned by another deployment
+#   bash scripts/bootstrap-sandbox.sh --force-devsh       # ALIAS since v5.7.6: foreign-dev.sh takeover is the DEFAULT on every run
 #
 # EXIT: 0 = armed/healthy · 1 = failed (see the last [bootstrap] line)
 # ============================================================================
@@ -174,7 +174,9 @@ STATE_FILE="$ZDIR/bootstrap.state"
 
 # boot.log ledger writer — bootstrap events that must outlive the session
 # (stdout log() vanishes with the terminal; the boot ledger persists).
-# Used for the foreign-dev.sh SKIP/OVERWRITE events (Task 78 audit R2).
+# Used for the foreign-dev.sh AUTO-TAKEOVER events (Task 78 audit R2; takeover
+# is the DEFAULT since v5.7.6 / Task 81 — owner order "Basmi rantai dev.sh
+# ASING": the foreign copy is backed up, never destroyed).
 blog() {
     printf '[%s] [bootstrap] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$ZDIR/boot.log" 2>/dev/null || true
 }
@@ -283,7 +285,7 @@ if [ "$MODE" = "status" ]; then
         if head -n 2 "$ZDIR/dev.sh" | grep -qF "$STATE_MARKER"; then
             echo "dev.sh     : bootstrap-generated ($(sed -n 's/^# .*modules: //p' "$ZDIR/dev.sh" | head -n 1))"
         else
-            echo "dev.sh     : present but NOT owned by bootstrap (skipped without --force-devsh)"
+            echo "dev.sh     : present but NOT owned by bootstrap (foreign — AUTO-TAKEOVER at the next --ensure; backup dev.sh.foreign.bak)"
         fi
     else
         echo "dev.sh     : NOT INSTALLED"
@@ -362,8 +364,14 @@ fi
 #    One restore path: canonical snapshot → skills/stellar-trail (manifest check
 #    + version gate: a live installation NEWER than the snapshot is never
 #    downgraded by the cache replay — validated by lifecycle test T3).
-#    A bootstrap-owned dev.sh is marked; a foreign dev.sh is never overwritten
-#    unless --force-devsh is given.
+#    A bootstrap-owned dev.sh is marked. A FOREIGN dev.sh is AUTO-NEUTRALIZED
+#    (v5.7.6, Task 81, owner order "Basmi rantai dev.sh ASING, TFM harus
+#    survive dan persistent"): the foreign copy is backed up to
+#    dev.sh.foreign.bak (latest only) and the bootstrap hook takes the boot
+#    chain — plain --ensure, no flag. --force-devsh stays as an accepted
+#    alias (no behavioral difference; the pre-v5.7.6 SKIP branch is dead).
+#    Install is ATOMIC (tmp + mv in the same directory): a boot mid-run keeps
+#    executing the old inode — no torn-script risk.
 # ---------------------------------------------------------------------------
 build_devsh() {
     cat <<'DEVSH_HEAD'
@@ -511,8 +519,17 @@ DEVSH_RESTORE
     cat <<'DEVSH_FULLSTACK'
 
 # --- 2. FULLSTACK GUARD ------------------------------------------------------
+# (v5.7.6, Task 81 owner order "anti package.json/fullstack-dev"): this
+# guard KEEPS replicating the platform bun flow (the existence of this
+# dev.sh REPLACES /start.sh's default flow, so the web project must be
+# started from here), but the explorer NO LONGER STANDS DOWN for a
+# package.json — it binds by PORT REALITY (explorer.sh v1.6). To keep an
+# ACTIVE web project on :3000 (the public preview via ingress :81), the
+# web flow gets a short head start before the explorer claims a free
+# :3000; a dead/stale scaffold leaves :3000 free and the explorer takes
+# the preview after the settle window.
 if [ -f "$PROJECT/package.json" ]; then
-    log "package.json detected -> delegating to the standard fullstack boot flow"
+    log "package.json detected -> replicating the standard fullstack boot flow"
     cd "$PROJECT" || true
     bun install        >> "$BOOTLOG" 2>&1 || log "WARN: bun install failed"
     bun run db:push    >> "$BOOTLOG" 2>&1 || log "WARN: db:push failed"
@@ -527,6 +544,26 @@ if [ -f "$PROJECT/package.json" ]; then
         )
         log "mini-service started: $d"
     done
+    # v5.7.6 settle wait: only when :3000 is still free (a fresh-boot race);
+    # when a web server already holds :3000 there is nothing to wait for.
+    # An active project claims it within seconds (early exit); a dead
+    # scaffold leaves it free and the explorer takes the preview after 15s.
+    if ! (exec 3<>/dev/tcp/127.0.0.1/3000) 2>/dev/null; then
+        _sw=0
+        _claimed=0
+        while [ "$_sw" -lt 15 ]; do
+            sleep 1
+            _sw=$((_sw+1))
+            if (exec 3<>/dev/tcp/127.0.0.1/3000) 2>/dev/null; then
+                log "fullstack settle: :3000 claimed by the web project after ${_sw}s — the explorer will take a fallback port"
+                _claimed=1
+                break
+            fi
+        done
+        if [ "$_claimed" = 0 ]; then
+            log "fullstack settle: :3000 still free after 15s — the explorer claims the preview (dead/stale scaffold)"
+        fi
+    fi
 fi
 DEVSH_FULLSTACK
 
@@ -654,15 +691,24 @@ build_devsh > "$DEVSH_SRC"
 bash -n "$DEVSH_SRC" 2>/dev/null || die "generated dev.sh failed its syntax check (bash -n) — this is a package bug; report it"
 
 if [ -f "$ZDIR/dev.sh" ] && ! head -n 2 "$ZDIR/dev.sh" | grep -qF "$STATE_MARKER"; then
-    if [ "$FORCE_DEVSH" = "1" ]; then
-        cp -p "$DEVSH_SRC" "$ZDIR/dev.sh"
-        log "foreign dev.sh OVERWRITTEN (--force-devsh) — the bootstrap version is installed"
-        blog "foreign dev.sh OVERWRITTEN (--force-devsh) — the bootstrap version is installed"
+    # v5.7.6 AUTO-TAKEOVER (owner order "Basmi rantai dev.sh ASING", Task 81):
+    # a FOREIGN dev.sh on the boot chain is the reproduced TFM-killer — at the
+    # next reset /start.sh runs the foreign hook, skills/ is NOT restored, and
+    # the Task File Manager dies (Task 78/80 repro C). Takeover is now the
+    # DEFAULT on every run: the foreign copy is PRESERVED at
+    # dev.sh.foreign.bak (latest only) and the bootstrap-owned hook takes the
+    # chain. The install is atomic (tmp + mv, same directory) so a boot that
+    # is mid-execution keeps its old inode.
+    cp -p "$ZDIR/dev.sh" "$ZDIR/dev.sh.foreign.bak" 2>/dev/null || true
+    if cp -p "$DEVSH_SRC" "$ZDIR/.dev.sh.new" && mv -f "$ZDIR/.dev.sh.new" "$ZDIR/dev.sh"; then
+        log "foreign dev.sh AUTO-NEUTRALIZED (default takeover since v5.7.6; previous copy -> .zscripts/dev.sh.foreign.bak) — the boot chain is bootstrap-owned; skills/ + TFM survive resets"
+        blog "foreign dev.sh AUTO-NEUTRALIZED (default takeover; backup dev.sh.foreign.bak)"
+        if [ "$FORCE_DEVSH" = "1" ]; then
+            log "--force-devsh noted: takeover is the DEFAULT since v5.7.6 (flag kept as an alias)"
+        fi
     else
-        log "SKIP dev.sh: a non-bootstrap dev.sh already exists at $ZDIR (owned by another deployment). Use --force-devsh to overwrite."
-        log "NOTE: without a bootstrap-owned dev.sh, the skill is NOT restored automatically after a reset."
-        blog "SKIP dev.sh: a non-bootstrap dev.sh already exists at $ZDIR (owned by another deployment). Use --force-devsh to overwrite."
-        blog "NOTE: without a bootstrap-owned dev.sh, the skill is NOT restored automatically after a reset."
+        log "WARN: foreign dev.sh takeover FAILED (copy error) — the foreign hook keeps the boot chain; retry bootstrap --ensure"
+        blog "WARN: foreign dev.sh takeover FAILED (copy error)"
     fi
 else
     R=$(write_if_changed "$DEVSH_SRC" "$ZDIR/dev.sh")
