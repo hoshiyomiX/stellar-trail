@@ -868,6 +868,10 @@ if [ ! -f "$MEMORY_DIR/MEMORY.md" ]; then
 
 ## Locked Decisions
 - (none yet)
+
+## Recovery (last resort — v5.7.9)
+- skills/ AND .zscripts/stellar-trail-canonical/ both wiped (total loss): \`npx skills add hoshiyomiX/stellar-trail --skill stellar-trail -a openclaw -y && bash skills/stellar-trail/scripts/bootstrap-sandbox.sh --ensure\` (the GitHub reinstall; these memory files survive in the packer archive, so this note stays readable when it is needed)
+- skills/ wiped, canonical intact: \`bash .zscripts/dev.sh\` (SHA-256-verified restore from the canonical snapshot)
 SEED_MEM
     log "memory/MEMORY.md scaffolded (cold start, consent pending)"
 else

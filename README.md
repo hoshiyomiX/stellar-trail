@@ -58,6 +58,17 @@ The status report opens with a one-glance verdict (`verdict : ARMED` / `NOT ARME
 
 Missing most of this table with the skill files present = not armed; run the bootstrap half of the one-liner. The hooks module seeds `CLAUDE.md` + `AGENTS.md` at the project root (create-if-absent — an existing user file is never touched) so harnesses that auto-read them at session start receive a guaranteed-context activation directive; note the z.ai harness does NOT auto-read these files — there the module is scaffolding for other harnesses only, and cold-start arming relies on agent compliance or the one-liner above.
 
+### After a suspected reset: the persistence probe (v5.7.9)
+
+The platform spec and the field evidence disagree on one point: does `skills/` survive a container recycle? (Spec: the whole project root is preserved. Field: the packer excludes `skills/`.) Settle it for YOUR sandbox with ground truth instead of documentation trust — mark before, check after:
+
+```bash
+bash skills/stellar-trail/scripts/persistence-probe.sh --mark    # before / right now
+bash skills/stellar-trail/scripts/persistence-probe.sh --check   # after any suspected reset
+```
+
+`--mark` records the layer state (skills tree, canonical snapshot, memory files — hashes + counts) into `.zscripts/.persistence-probe`, which sits inside the packer-preserved area by contract. `--check` compares disk against the marker and prints a per-layer SURVIVED/WIPED/REGRESSED verdict plus the exact recovery command for whatever died (`bash .zscripts/dev.sh` for the skill tree, the GitHub one-liner for a total wipe). Exit 0 = all quiet, 1 = reset detected, 3 = no marker yet. The FIRST `--check` after a real recycle replaces the spec-vs-field contradiction with your own measured answer.
+
 ### Activation, honestly measured
 
 The shipped frontmatter description is the best activation captor ever measured for this skill — and honestly imperfect. On the reference battery (10 human first-turn task messages × 3 runs, real distractor skills present, zero errors) it captures **8/10**; the same-day control of the prior formula reproduced its historical 7/10 exactly (no day effect), and the z.ai GLM scoping sentence placed AFTER the fused opening recovered the mixed greeting+task cell — the first variant family ever to win it (a front-prefix variant measured 6/10 and was rejected). The 2 remaining misses are structural, not wording. The formula is wording-frozen by measurement (2026-10-12): a 16-character efficiency trim and a single-variable workflow-sentence swap were both rejected on the mixed cell (0/6 and 1/3 vs the control's 5/6 — 87 calls, zero final errors); the description stays byte-identical at 877/1024. Honest conclusion: wording alone cannot deliver "always load" — the harness hooks add a genuinely guaranteed activation context, and the recovery nets (R1 hooks on the memory headers + every worklog section's first line, the standing worklog-tail guard, rule 6's late-load recovery) catch the remainder.
@@ -65,6 +76,14 @@ The shipped frontmatter description is the best activation captor ever measured 
 **Field evidence (2026-10-21, first documented incident):** a continuation summary carrying heavy technical narrative defeated the 8/10 doorbell in the wild — two sessions of real, high-risk work ran with zero protocol compliance while every machine sentinel stayed silent (the compliance sentinel needed the worklog to grow; these sessions wrote nothing). The user caught it, not the machine. Consequences shipped in v5.4.0: the silent-work sentinel alarms from DISK evidence and raises a user-visible `download/ALERT-ACTIVE.md` (alarms previously reached only files a compliant session would read — the guard-that-cannot-wake-the-guard paradox); M0 gained an artifact-freshness sweep; the external audit runs on a ~6 h schedule with a `silent-work` check. Defense map: doorbell description (8/10) → harness hooks → R1 file hooks + tail guard → rule-6 recovery → duty-6b alarms + ALERT surface → M0 freshness sweep → periodic audit. The LAST layer is the owner's eyes: **audit the responses — every marked response opens with the stellar-trail banner.** A pre-response hook (block the first response until the skill loads) has no harness API — a documented limit, not an implemented feature.
 
 **Field evidence (2026-11-13, the harness-gate cell):** a fresh-install field test on z.ai exposed the one battery cell the 8/10 score never covered — a harness that gates skill LOADING itself by task-match. In a real 3-turn session entirely about stellar-trail (install it, check its logs, write a report for it), the skill body loaded 0/3 times: the frontmatter description never reached a position to execute anything, the cold-boot arm (Activation rule 4) never ran, and the install sat inert — perfect files, zero persistence — with no error, no warning, and no on-disk signal. Effective trigger score for that cell: 0/3. Consequences shipped in v5.7.7: the install+arm one-liner above (the deterministic, user-runnable activation path — now the primary quickstart), the `NOT-ARMED.md` state marker (a disk-level signal that needs no skill load to be seen), the 10-second armed check, and the `--status` verdict line. The doorbell remains the best ever measured; it is an instrument, not a guarantee — the one-liner is the guarantee.
+
+### The standing first instruction (deterministic activation, zero infra — v5.7.9)
+
+Every probabilistic layer above is beaten by one habit on the user side: open each session — and every post-reset continuation — with an explicit instruction:
+
+> **Invoke Skill stellar-trail first — restore M0, then do the task.**
+
+An explicit user instruction is the one activation path no harness gate or task-match filter can defeat: it converts the 8/10 doorbell and the 0/3 harness-gate cell into a guaranteed load, deterministically, in every harness — the instruction is evaluated as a direct order, not as a task-match candidate. It costs nothing, needs no infrastructure, composes with the full defense map above, and it is the ONLY layer that also fixes the restore side (the loaded body immediately runs M0 from the memory files). Recommended as the pinned / first message of any long-running project that uses this skill.
 
 ## What's in the package
 
@@ -78,6 +97,7 @@ The shipped frontmatter description is the best activation captor ever measured 
 | `scripts/snapshot-repo.sh` | Restore-archive refresh: backup-first, verify-before-swap, anti-traversal audit, keep-latest retention, gated `--apply-auto` |
 | `scripts/relock-skill.sh` | Standalone skills-lock.json pin re-pinner (the CLI's exact algorithm); `--check` = verify-only |
 | `scripts/ground-truth.sh` | M0 disk ground-truth card (v5.7.3): emits release/integrity ×3 · git+origin · ledger tail · checkpoint · quarantine tail · arms as grep-first lines — a platform continuation summary is judged against DISK, never trusted (D11 operationalized); read-only, offline-tolerant, always exit 0 |
+| `scripts/persistence-probe.sh` | Reset-experiment instrument (v5.7.9): `--mark` records the layer state (skills tree + canonical + memory: hashes, counts) into the packer-preserved `.zscripts/`; `--check` compares disk vs the marker and prints per-layer SURVIVED/WIPED/REGRESSED verdicts + the exact recovery command — settles the "does the packer preserve skills/?" contradiction with your own ground truth; exit 0 quiet · 1 reset detected · 3 no marker |
 | `assets/explorer/` | Task Files Explorer (server v1.12, launcher v1.6, UI v5.0.2 miuix-vue — content-signature change detection, silent first paint + offscreen card skip, fetch resilience with steady 10 s retry, platform-preview kill + static-copy auto-breakout, zero in-app popups beyond the preview modal): the built-in dashboard on the preview URL |
 | `assets/harness-hooks/` | CLAUDE.md + AGENTS.md templates — guaranteed-context activation for harnesses that auto-read project-root files |
 | `references/` | Six on-demand references: memory-hygiene, ground-base-knowledge, environment-resilience, task-files-explorer, github-repo-structure, android-apk-compose |

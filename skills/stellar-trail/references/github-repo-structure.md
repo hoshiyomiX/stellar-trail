@@ -47,7 +47,8 @@ stellar-trail/
         │   ├── audit-compliance.sh    # external PASS/WARN/FAIL compliance audit
         │   ├── snapshot-repo.sh       # restore-archive refresh (repo.tar)
         │   ├── relock-skill.sh        # skills-lock.json computedHash re-pin
-        │   └── ground-truth.sh        # M0 disk ground-truth card (v5.7.3)
+        │   ├── ground-truth.sh        # M0 disk ground-truth card (v5.7.3)
+        │   └── persistence-probe.sh   # reset-experiment instrument: --mark/--check (v5.7.9)
         └── assets/
             ├── integrity.version   # release pin — live/canonical/dev trees must all match
             ├── integrity.sha256    # per-file checksum manifest (skill-card.md excluded by design)
@@ -63,7 +64,7 @@ stellar-trail/
 | `SKILL.md` | the protocol body — 6 phases, M0–M3, task-table hygiene, dual-track enforcement | frontmatter description is a measured trigger instrument, **wording-frozen**; the banner version string is a release constant (3 slots); validator anchors ride the body |
 | `skill-card.md` | registry card shown by skill marketplaces | carries the version heading `## Skill Version(s):`; intentionally excluded from `integrity.sha256` (guarded by the watcher's release-file guard instead) |
 | `references/*.md` | on-demand depth (GBK, memory-hygiene, env-resilience, TFE, + the two v5.7.3 additions) | never in the M0 read budget; each file keeps its own validator anchors |
-| `scripts/*.sh` | the 8 bundled tools | plain-file, auditable; network ONLY in `update-skill.sh`'s explicit origin probe; `ground-truth.sh` never prints remote URLs (credential hygiene, D15) |
+| `scripts/*.sh` | the 9 bundled tools | plain-file, auditable; network ONLY in `update-skill.sh`'s explicit origin probe; `ground-truth.sh` never prints remote URLs (credential hygiene, D15) |
 | `assets/integrity.version` + `integrity.sha256` | release pin + per-file manifest | all three trees (live `skills/`, canonical `download/`, dev `stellar-trail-dev/`) must match; regen rebuilds from the EXISTING path list — insert new files' paths first, then hash |
 | `assets/explorer/` | the Task Files Explorer deploy payload | the UI is a single-file Vite build; source lives in `explorer-src/` and CI rebuilds it — the committed dist must stay reproducible |
 | `assets/harness-hooks/` | guaranteed-context activation seeds for other harnesses | seeded create-if-absent + refreshed-if-byte-identical; a user-edited file is never touched; hashes registered in `seed-hashes.txt` |
