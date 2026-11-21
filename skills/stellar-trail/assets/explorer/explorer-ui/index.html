@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Task Files Explorer UI v5.0.2 — miuix-vue single-file build (Task 53): Vue 3 + the real miuix-vue component layer, D10 structure locks, the v4.3.1/v4.4 behavioral engine ported verbatim (engine-independent deadlines, steady 10 s loop, static-copy graceful mode with Task-67 auto-breakout to the live root + blocked-navigation fallback button, platform-preview kill: /file/ URLs download by default, ?inline=1 is the modal-only inline path; Task-69 popup kill: the snackbar platform is gone — sr-only aria-live is the feedback channel, the preview modal is the task file manager's own and stays).">
+<meta name="description" content="Task Files Explorer UI v5.1.0 — miuix-vue single-file build (Task 53): Vue 3 + the real miuix-vue component layer, D10 structure locks, the v4.3.1/v4.4 behavioral engine ported verbatim (engine-independent deadlines, steady 10 s loop, static-copy graceful mode with Task-67 auto-breakout to the live root + blocked-navigation fallback button, platform-preview kill: /file/ URLs download by default, ?inline=1 is the modal-only inline path; Task-69 popup kill: the snackbar platform is gone — sr-only aria-live is the feedback channel, the preview modal is the task file manager's own and stays; Task 84: the explorer serves .zscripts/ only — multi-selection (select button / long-press / right-click) with batch delete (permanent + confirm dialog), server-side zip download, move and copy into existing-or-new subfolders; the watcher imports download/ deliveries into .zscripts/).">
 <title>Task Files Explorer</title>
   <script type="module" crossorigin>var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
 (function polyfill() {
@@ -134,12 +134,12 @@ const def = (obj, key, value, writable = false) => {
   });
 };
 const looseToNumber = (val) => {
-  const n = parseFloat(val);
-  return isNaN(n) ? val : n;
+  const n2 = parseFloat(val);
+  return isNaN(n2) ? val : n2;
 };
 const toNumber = (val) => {
-  const n = isString(val) ? Number(val) : NaN;
-  return isNaN(n) ? val : n;
+  const n2 = isString(val) ? Number(val) : NaN;
+  return isNaN(n2) ? val : n2;
 };
 let _globalThis;
 const getGlobalThis = () => {
@@ -2314,6 +2314,36 @@ function withCtx(fn, ctx = currentRenderingInstance, isNonScopedSlot) {
   renderFnWithContext._d = true;
   return renderFnWithContext;
 }
+function withDirectives(vnode, directives) {
+  if (currentRenderingInstance === null) {
+    return vnode;
+  }
+  const instance = getComponentPublicInstance(currentRenderingInstance);
+  const bindings = vnode.dirs || (vnode.dirs = []);
+  for (let i = 0; i < directives.length; i++) {
+    let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i];
+    if (dir) {
+      if (isFunction(dir)) {
+        dir = {
+          mounted: dir,
+          updated: dir
+        };
+      }
+      if (dir.deep) {
+        traverse(value);
+      }
+      bindings.push({
+        dir,
+        instance,
+        value,
+        oldValue: void 0,
+        arg,
+        modifiers
+      });
+    }
+  }
+  return vnode;
+}
 function invokeDirectiveHook(vnode, prevVNode, instance, name) {
   const bindings = vnode.dirs;
   const oldBindings = prevVNode && prevVNode.dirs;
@@ -3577,9 +3607,9 @@ const PublicInstanceProxyHandlers = {
     }
     const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
     if (key[0] !== "$") {
-      const n = accessCache[key];
-      if (n !== void 0) {
-        switch (n) {
+      const n2 = accessCache[key];
+      if (n2 !== void 0) {
+        switch (n2) {
           case 1:
             return setupState[key];
           case 2:
@@ -7179,8 +7209,8 @@ function normalizeDuration(duration) {
   } else if (isObject$1(duration)) {
     return [NumberOf(duration.enter), NumberOf(duration.leave)];
   } else {
-    const n = NumberOf(duration);
-    return [n, n];
+    const n2 = NumberOf(duration);
+    return [n2, n2];
   }
 }
 function NumberOf(val) {
@@ -7845,6 +7875,84 @@ function hasCSSTransform(el, root, moveClass) {
   container.removeChild(clone);
   return hasTransform2;
 }
+const getModelAssigner = (vnode) => {
+  const fn = vnode.props["onUpdate:modelValue"] || false;
+  return isArray(fn) ? (value) => invokeArrayFns(fn, value) : fn;
+};
+function onCompositionStart(e) {
+  e.target.composing = true;
+}
+function onCompositionEnd(e) {
+  const target = e.target;
+  if (target.composing) {
+    target.composing = false;
+    target.dispatchEvent(new Event("input"));
+  }
+}
+const assignKey = /* @__PURE__ */ Symbol("_assign");
+const initialValueKey = /* @__PURE__ */ Symbol("_initialValue");
+function castValue(value, trim, number2) {
+  if (trim) value = value.trim();
+  if (number2) value = looseToNumber(value);
+  return value;
+}
+const vModelText = {
+  created(el, { modifiers: { lazy, trim, number: number2 } }, vnode) {
+    if (el.parentNode) {
+      if (el.type === "text") {
+        el[initialValueKey] = el.defaultValue.replace(/[\r\n]/g, "");
+      } else if (el.type === "textarea") {
+        el[initialValueKey] = el.defaultValue.replace(/\r\n?/g, "\n");
+      }
+    }
+    el[assignKey] = getModelAssigner(vnode);
+    const castToNumber = number2 || vnode.props && vnode.props.type === "number";
+    addEventListener(el, lazy ? "change" : "input", (e) => {
+      if (e.target.composing) return;
+      el[assignKey](castValue(el.value, trim, castToNumber));
+    });
+    if (trim || castToNumber) {
+      addEventListener(el, "change", () => {
+        el.value = castValue(el.value, trim, castToNumber);
+      });
+    }
+    if (!lazy) {
+      addEventListener(el, "compositionstart", onCompositionStart);
+      addEventListener(el, "compositionend", onCompositionEnd);
+      addEventListener(el, "change", onCompositionEnd);
+    }
+  },
+  // set value on mounted so it's after min/max for type="range"
+  mounted(el, { value, modifiers: { trim, number: number2 } }) {
+    const newValue = value == null ? "" : value;
+    const initialValue = el[initialValueKey];
+    delete el[initialValueKey];
+    if (initialValue !== void 0 && (el.type === "text" || el.type === "textarea") && el.value !== initialValue) {
+      el[assignKey](castValue(el.value, trim, number2));
+    } else {
+      el.value = newValue;
+    }
+  },
+  beforeUpdate(el, { value, oldValue, modifiers: { lazy, trim, number: number2 } }, vnode) {
+    el[assignKey] = getModelAssigner(vnode);
+    if (el.composing) return;
+    const elValue = (number2 || el.type === "number") && !/^0\d/.test(el.value) ? looseToNumber(el.value) : el.value;
+    const newValue = value == null ? "" : value;
+    if (elValue === newValue) {
+      return;
+    }
+    const rootNode = el.getRootNode();
+    if ((rootNode instanceof Document || rootNode instanceof ShadowRoot) && rootNode.activeElement === el && el.type !== "range") {
+      if (lazy && value === oldValue) {
+        return;
+      }
+      if (trim && el.value.trim() === newValue) {
+        return;
+      }
+    }
+    el.value = newValue;
+  }
+};
 const systemModifiers = ["ctrl", "shift", "alt", "meta"];
 const modifierGuards = {
   stop: (e) => e.stopPropagation(),
@@ -7913,7 +8021,13 @@ function normalizeContainer(container) {
   }
   return container;
 }
-var u = {
+var n = {
+  regular: {
+    vw: 1227.6,
+    vh: 1227.6,
+    d: "M1022.3 187.8 Q1076.3 215.8 1105.3 270.8 Q1119.3 298.8 1122.3 338.3 Q1125.3 377.8 1125.3 470.8 V655.8 Q1125.3 749.8 1122.3 789.3 Q1119.3 828.8 1105.3 856.8 Q1076.3 910.8 1022.3 939.8 Q994.3 953.8 954.8 956.8 Q915.3 959.8 822.3 959.8 H627.3 Q606.3 959.8 596.8 963.8 Q587.3 967.8 572.3 982.8 L548.3 1007.8 Q523.3 1035.8 510.3 1043.8 Q496.3 1052.8 479.3 1057.8 Q471.3 1059.8 458.3 1060.3 Q445.3 1060.8 427.3 1060.8 H406.3 Q313.3 1060.8 273.3 1057.3 Q233.3 1053.8 205.3 1039.8 Q151.3 1011.8 122.3 956.8 Q108.3 929.8 105.3 889.8 Q102.3 849.8 102.3 756.8 V470.8 Q102.3 377.8 105.3 338.3 Q108.3 298.8 122.3 270.8 Q151.3 215.8 205.3 187.8 Q233.3 173.8 273.3 170.3 Q313.3 166.8 406.3 166.8 H822.3 Q915.3 166.8 954.8 170.3 Q994.3 173.8 1022.3 187.8 Z M247.3 264.8 Q217.3 278.8 199.3 311.8 Q191.3 328.8 189.3 351.3 Q187.3 373.8 187.3 426.8 V800.8 Q187.3 853.8 189.3 876.3 Q191.3 898.8 199.3 915.8 Q217.3 948.8 247.3 962.8 Q263.3 970.8 286.3 972.8 Q309.3 974.8 362.3 974.8 H424.3 Q443.3 974.8 451.8 970.8 Q460.3 966.8 472.3 953.8 L497.3 926.8 L502.3 921.8 Q526.3 895.8 535.3 890.8 Q547.3 882.8 566.3 877.8 Q578.3 874.8 618.3 874.8 H865.3 Q919.3 874.8 941.8 872.8 Q964.3 870.8 980.3 862.8 Q1013.3 844.8 1028.3 814.8 Q1036.3 798.8 1038.3 776.3 Q1040.3 753.8 1040.3 699.8 V426.8 Q1040.3 373.8 1038.3 351.3 Q1036.3 328.8 1028.3 311.8 Q1020.3 296.8 1008.3 284.3 Q996.3 271.8 980.3 264.8 Q964.3 256.8 941.8 254.8 Q919.3 252.8 865.3 252.8 H362.3 Q309.3 252.8 286.3 254.8 Q263.3 256.8 247.3 264.8 Z M657.3 386.8 V757.8 Q657.3 769.8 650.3 777.3 Q643.3 784.8 628.3 784.8 H600.3 Q587.3 784.8 579.8 776.8 Q572.3 768.8 572.3 757.8 V386.8 Q572.3 373.8 580.3 366.8 Q588.3 359.8 601.3 359.8 H629.3 Q642.3 359.8 649.8 366.8 Q657.3 373.8 657.3 386.8 Z M800.3 614.8 H427.3 Q415.3 614.8 407.8 607.8 Q400.3 600.8 400.3 585.8 V557.8 Q400.3 544.8 408.3 537.3 Q416.3 529.8 427.3 529.8 H800.3 Q813.3 529.8 820.3 537.8 Q827.3 545.8 827.3 558.8 V586.8 Q827.3 599.8 820.3 607.3 Q813.3 614.8 800.3 614.8 Z"
+  }
+}, u = {
   regular: {
     vw: 1246.8,
     vh: 1246.8,
@@ -7936,6 +8050,12 @@ var u = {
     vw: 1251.6,
     vh: 1251.6,
     d: "M803.8 126.3 Q857.8 154.3 882.8 205.3 Q897.8 234.3 901.3 275.3 Q904.8 316.3 904.8 412.3 V597.3 Q904.8 693.3 901.3 734.3 Q897.8 775.3 882.8 804.3 Q855.8 856.3 803.8 882.3 Q775.8 898.3 734.8 901.8 Q693.8 905.3 597.8 905.3 H412.8 Q316.8 905.3 275.8 901.8 Q234.8 898.3 205.8 882.3 Q155.8 857.3 126.8 804.3 Q111.8 775.3 108.3 734.3 Q104.8 693.3 104.8 597.3 V412.3 Q104.8 316.3 108.3 275.3 Q111.8 234.3 126.8 205.3 Q153.8 153.3 205.8 126.3 Q234.8 111.3 275.8 107.8 Q316.8 104.3 412.8 104.3 H597.8 Q693.8 104.3 734.8 107.8 Q775.8 111.3 803.8 126.3 Z M247.8 202.3 Q217.8 218.3 202.8 248.3 Q193.8 265.3 191.8 288.3 Q189.8 311.3 189.8 366.3 V642.3 Q189.8 697.3 191.8 721.3 Q193.8 745.3 202.8 761.3 Q210.8 775.3 222.3 787.3 Q233.8 799.3 247.8 806.3 Q263.8 815.3 287.8 817.3 Q311.8 819.3 366.8 819.3 H642.8 Q697.8 819.3 721.8 817.3 Q745.8 815.3 761.8 806.3 Q775.8 799.3 787.8 787.3 Q799.8 775.3 806.8 761.3 Q815.8 745.3 817.8 721.3 Q819.8 697.3 819.8 642.3 V366.3 Q819.8 311.3 817.8 288.3 Q815.8 265.3 806.8 248.3 Q791.8 218.3 761.8 202.3 Q745.8 193.3 721.8 191.3 Q697.8 189.3 642.8 189.3 H366.8 Q311.8 189.3 287.8 191.3 Q263.8 193.3 247.8 202.3 Z M956.8 1147.3 H588.8 Q528.8 1147.3 479.8 1113.3 Q430.8 1079.3 408.8 1019.3 Q402.8 1002.3 411.3 991.8 Q419.8 981.3 436.8 981.3 H465.8 Q476.8 981.3 482.8 985.8 Q488.8 990.3 499.8 1009.3 Q514.8 1033.3 539.8 1047.8 Q564.8 1062.3 593.8 1062.3 H952.8 Q997.8 1062.3 1029.8 1030.3 Q1061.8 998.3 1061.8 952.3 V593.3 Q1061.8 564.3 1047.8 540.3 Q1033.8 516.3 1010.8 501.3 Q1006.8 498.3 1001.8 495.3 Q986.8 486.3 983.8 480.8 Q980.8 475.3 980.8 455.3 V432.3 Q980.8 418.3 993.3 410.3 Q1005.8 402.3 1020.8 409.3 Q1079.8 432.3 1113.3 480.3 Q1146.8 528.3 1146.8 589.3 V957.3 Q1146.8 1009.3 1121.3 1052.8 Q1095.8 1096.3 1052.3 1121.8 Q1008.8 1147.3 956.8 1147.3 Z"
+  }
+}, k = {
+  regular: {
+    vw: 1278,
+    vh: 1278,
+    d: "M900.5 120.5 Q941.5 139.5 962.5 177.5 Q973.5 197.5 978.0 226.0 Q982.5 254.5 986.5 317.5 L1029.5 911.5 H1100.5 Q1110.5 911.5 1118.5 919.5 Q1126.5 927.5 1126.5 939.5 V968.5 Q1126.5 980.5 1118.5 988.5 Q1110.5 996.5 1100.5 996.5 H921.5 Q897.5 996.5 887.5 1002.5 Q877.5 1008.5 868.5 1028.5 L846.5 1075.5 L839.5 1089.5 Q831.5 1107.5 824.5 1120.0 Q817.5 1132.5 809.5 1140.5 Q791.5 1158.5 770.5 1165.5 Q758.5 1169.5 740.0 1170.5 Q721.5 1171.5 695.5 1171.5 H582.5 Q557.5 1171.5 539.0 1170.5 Q520.5 1169.5 508.5 1165.5 Q486.5 1158.5 468.5 1140.5 Q460.5 1131.5 451.5 1115.0 Q442.5 1098.5 431.5 1075.5 L406.5 1023.5 Q398.5 1005.5 390.0 1001.0 Q381.5 996.5 355.5 996.5 H179.5 Q169.5 996.5 160.5 989.0 Q151.5 981.5 151.5 965.5 V941.5 Q151.5 926.5 160.5 919.0 Q169.5 911.5 179.5 911.5 H239.5 L280.5 318.5 Q284.5 254.5 289.0 226.0 Q293.5 197.5 304.5 177.5 Q328.5 138.5 366.5 120.5 Q386.5 110.5 414.5 108.5 Q442.5 106.5 508.5 106.5 H759.5 Q825.5 106.5 853.0 108.5 Q880.5 110.5 900.5 120.5 Z M410.5 200.5 Q390.5 209.5 379.5 229.5 Q374.5 238.5 372.0 256.5 Q369.5 274.5 367.5 299.5 L324.5 911.5 H944.5 L901.5 299.5 Q899.5 274.5 897.0 256.5 Q894.5 238.5 889.5 229.5 Q878.5 209.5 858.5 200.5 Q848.5 195.5 834.5 194.5 Q820.5 193.5 787.5 193.5 H481.5 Q448.5 193.5 434.5 194.5 Q420.5 195.5 410.5 200.5 Z M585.5 357.5 L569.5 773.5 Q568.5 783.5 561.0 791.0 Q553.5 798.5 542.5 798.5 H510.5 Q499.5 798.5 491.5 790.5 Q483.5 782.5 483.5 771.5 L500.5 355.5 Q501.5 344.5 509.0 337.0 Q516.5 329.5 527.5 329.5 H559.5 Q570.5 329.5 578.5 338.0 Q586.5 346.5 585.5 357.5 Z M768.5 355.5 L785.5 771.5 Q785.5 782.5 777.5 790.5 Q769.5 798.5 758.5 798.5 H726.5 Q715.5 798.5 708.0 791.0 Q700.5 783.5 699.5 773.5 L683.5 357.5 Q682.5 346.5 690.5 338.0 Q698.5 329.5 709.5 329.5 H741.5 Q752.5 329.5 760.0 337.0 Q767.5 344.5 768.5 355.5 Z M493.5 1005.5 L515.5 1050.5 Q525.5 1072.5 538.0 1079.0 Q550.5 1085.5 576.5 1085.5 H701.5 Q728.5 1085.5 740.0 1079.0 Q751.5 1072.5 761.5 1052.5 L785.5 1005.5 Q787.5 1002.5 786.0 999.5 Q784.5 996.5 780.5 996.5 H498.5 Q493.5 996.5 492.5 999.0 Q491.5 1001.5 493.5 1005.5 Z"
   }
 }, A = {
   regular: {
@@ -8015,6 +8135,12 @@ var u = {
     vh: 1140,
     d: "M1045.0 922.5 V951.5 Q1045.0 966.5 1036.5 973.0 Q1028.0 979.5 1014.0 979.5 H364.0 Q351.0 979.5 342.0 972.5 Q333.0 965.5 333.0 952.5 V923.5 Q333.0 908.5 341.5 901.5 Q350.0 894.5 364.0 894.5 H1014.0 Q1028.0 894.5 1036.5 901.0 Q1045.0 907.5 1045.0 922.5 Z M209.0 134.5 Q227.0 142.5 235.0 160.5 Q237.0 166.5 237.5 177.0 Q238.0 187.5 238.0 202.5 Q238.0 236.5 235.0 244.5 Q227.0 262.5 209.0 269.5 Q203.0 272.5 192.5 273.0 Q182.0 273.5 167.0 273.5 Q152.0 273.5 141.0 273.0 Q130.0 272.5 124.0 269.5 Q107.0 263.5 99.0 244.5 Q96.0 239.5 95.5 228.5 Q95.0 217.5 95.0 202.5 Q95.0 187.5 95.5 177.0 Q96.0 166.5 99.0 160.5 Q107.0 142.5 124.0 134.5 Q130.0 132.5 141.0 132.0 Q152.0 131.5 167.0 131.5 Q182.0 131.5 192.5 132.0 Q203.0 132.5 209.0 134.5 Z M209.0 502.5 Q227.0 510.5 235.0 529.5 Q237.0 535.5 237.5 545.5 Q238.0 555.5 238.0 570.5 Q238.0 602.5 235.0 611.5 Q227.0 629.5 209.0 637.5 Q203.0 640.5 192.5 641.0 Q182.0 641.5 167.0 641.5 Q152.0 641.5 141.0 641.0 Q130.0 640.5 124.0 637.5 Q107.0 629.5 99.0 611.5 Q96.0 605.5 95.5 595.0 Q95.0 584.5 95.0 570.5 Q95.0 555.5 95.5 545.5 Q96.0 535.5 99.0 529.5 Q107.0 510.5 124.0 502.5 Q130.0 500.5 141.0 500.0 Q152.0 499.5 167.0 499.5 Q182.0 499.5 192.5 500.0 Q203.0 500.5 209.0 502.5 Z M1045.0 188.5 V217.5 Q1045.0 232.5 1036.5 239.0 Q1028.0 245.5 1014.0 245.5 H364.0 Q351.0 245.5 342.0 238.5 Q333.0 231.5 333.0 218.5 V189.5 Q333.0 174.5 341.5 167.5 Q350.0 160.5 364.0 160.5 H1014.0 Q1028.0 160.5 1036.5 167.0 Q1045.0 173.5 1045.0 188.5 Z M209.0 869.5 Q228.0 878.5 235.0 895.5 Q238.0 903.5 238.0 937.5 Q238.0 952.5 237.5 963.0 Q237.0 973.5 235.0 979.5 Q227.0 997.5 209.0 1005.5 Q203.0 1007.5 192.5 1008.0 Q182.0 1008.5 167.0 1008.5 Q152.0 1008.5 141.0 1008.0 Q130.0 1007.5 124.0 1005.5 Q107.0 997.5 99.0 979.5 Q96.0 973.5 95.5 963.0 Q95.0 952.5 95.0 937.5 Q95.0 922.5 95.5 911.5 Q96.0 900.5 99.0 895.5 Q107.0 877.5 124.0 869.5 Q130.0 867.5 141.0 867.0 Q152.0 866.5 167.0 866.5 Q182.0 866.5 192.5 867.0 Q203.0 867.5 209.0 869.5 Z M1045.0 555.5 V584.5 Q1045.0 599.5 1036.5 606.0 Q1028.0 612.5 1014.0 612.5 H364.0 Q351.0 612.5 342.0 605.5 Q333.0 598.5 333.0 585.5 V556.5 Q333.0 541.5 341.5 534.5 Q350.0 527.5 364.0 527.5 H1014.0 Q1028.0 527.5 1036.5 534.0 Q1045.0 540.5 1045.0 555.5 Z"
   }
+}, ue$1 = {
+  regular: {
+    vw: 1293.6,
+    vh: 1293.6,
+    d: "M958.8 213.8 L1174.8 429.8 Q1185.8 440.8 1185.8 456.8 Q1185.8 472.8 1174.8 483.8 L957.8 699.8 Q950.8 707.8 941.3 707.8 Q931.8 707.8 924.8 699.8 L897.8 672.8 Q890.8 665.8 890.8 656.3 Q890.8 646.8 897.8 639.8 L1037.8 499.8 H629.8 Q619.8 499.8 613.3 492.8 Q606.8 485.8 606.8 475.8 V437.8 Q606.8 427.8 613.3 420.8 Q619.8 413.8 629.8 413.8 H1037.8 L898.8 273.8 Q891.8 266.8 891.8 257.3 Q891.8 247.8 898.8 240.8 L925.8 213.8 Q932.8 206.8 942.3 206.8 Q951.8 206.8 958.8 213.8 Z M802.8 212.8 V246.8 Q802.8 259.8 795.8 266.3 Q788.8 272.8 774.8 272.8 H367.8 Q314.8 272.8 291.8 274.8 Q268.8 276.8 252.8 284.8 Q219.8 299.8 204.8 332.8 Q196.8 348.8 194.8 371.8 Q192.8 394.8 192.8 447.8 V846.8 Q192.8 899.8 194.8 922.3 Q196.8 944.8 204.8 961.8 Q220.8 993.8 252.8 1008.8 Q268.8 1016.8 291.8 1018.8 Q314.8 1020.8 367.8 1020.8 H411.8 Q438.8 1020.8 446.8 1018.8 Q460.8 1015.8 469.8 1008.8 Q477.8 1002.8 494.8 984.8 Q527.8 946.8 544.8 935.8 Q567.8 921.8 590.8 915.8 Q601.8 912.8 619.3 912.3 Q636.8 911.8 659.8 911.8 H895.8 Q929.8 911.8 953.8 892.8 Q977.8 873.8 984.8 837.8 Q985.8 834.8 985.8 831.8 Q988.8 812.8 992.3 801.3 Q995.8 789.8 1004.8 781.8 L1061.8 731.8 Q1068.8 725.8 1077.3 729.8 Q1085.8 733.8 1085.8 740.8 Q1085.8 780.8 1081.8 827.8 Q1073.8 905.8 1036.8 946.8 Q999.8 987.8 917.8 994.8 Q885.8 996.8 822.8 996.8 H642.8 Q615.8 996.8 607.8 998.8 Q594.8 1001.8 584.8 1008.8 Q577.8 1013.8 554.8 1039.8 Q529.8 1068.8 511.8 1080.8 Q490.8 1095.8 460.8 1102.8 Q450.8 1105.8 434.8 1106.3 Q418.8 1106.8 396.8 1106.8 Q315.8 1106.8 280.8 1104.3 Q245.8 1101.8 220.8 1090.8 Q188.8 1076.8 163.3 1051.3 Q137.8 1025.8 122.8 992.8 Q112.8 967.8 110.3 932.8 Q107.8 897.8 107.8 816.8 V490.8 Q107.8 397.8 110.8 358.3 Q113.8 318.8 127.8 290.8 Q154.8 236.8 210.8 207.8 Q238.8 193.8 278.3 190.3 Q317.8 186.8 410.8 186.8 H774.8 Q787.8 186.8 795.3 193.8 Q802.8 200.8 802.8 212.8 Z"
+  }
 }, fe = {
   regular: {
     vw: 1220.4,
@@ -8063,6 +8189,12 @@ var u = {
     vh: 1204.8,
     d: "M726.9 366.4 Q746.9 378.4 754.9 377.9 Q762.9 377.4 776.9 363.4 L1027.9 112.4 Q1038.9 101.4 1049.4 100.9 Q1059.9 100.4 1071.9 112.4 L1088.9 129.4 Q1100.9 141.4 1100.9 150.9 Q1100.9 160.4 1088.9 172.4 L834.9 427.4 Q822.9 439.4 823.4 446.9 Q823.9 454.4 836.9 473.4 Q870.9 522.4 889.4 580.9 Q907.9 639.4 907.9 702.4 Q907.9 811.4 853.9 903.9 Q799.9 996.4 707.4 1050.4 Q614.9 1104.4 505.9 1104.4 Q396.9 1104.4 304.4 1050.4 Q211.9 996.4 157.9 903.9 Q103.9 811.4 103.9 702.4 Q103.9 593.4 157.9 500.9 Q211.9 408.4 304.4 354.4 Q396.9 300.4 505.9 300.4 Q565.9 300.4 622.4 317.4 Q678.9 334.4 726.9 366.4 Z M188.9 702.4 Q188.9 788.4 231.4 861.4 Q273.9 934.4 346.9 976.9 Q419.9 1019.4 505.9 1019.4 Q591.9 1019.4 664.4 976.9 Q736.9 934.4 779.4 861.4 Q821.9 788.4 821.9 702.4 Q821.9 616.4 779.4 543.4 Q736.9 470.4 664.4 427.9 Q591.9 385.4 505.9 385.4 Q419.9 385.4 346.9 427.9 Q273.9 470.4 231.4 543.4 Q188.9 616.4 188.9 702.4 Z"
   }
+}, He$1 = {
+  regular: {
+    vw: 1166.4,
+    vh: 1166.4,
+    d: "M359.2 1031.7 L237.2 908.7 Q232.2 903.7 227.7 903.2 Q223.2 902.7 217.2 908.7 L168.2 957.7 Q160.2 965.7 149.7 967.2 Q139.2 968.7 129.2 958.7 L108.2 937.7 Q97.2 926.7 98.2 916.7 Q99.2 906.7 107.2 898.7 L190.2 815.7 Q209.2 796.7 227.7 797.2 Q246.2 797.7 268.2 818.7 L421.2 971.7 Q431.2 981.7 431.7 993.7 Q432.2 1005.7 422.2 1014.7 L402.2 1034.7 Q391.2 1044.7 380.2 1043.2 Q369.2 1041.7 359.2 1031.7 Z M1069.2 551.7 V581.7 Q1069.2 596.7 1060.7 603.2 Q1052.2 609.7 1038.2 609.7 H533.2 Q520.2 609.7 511.2 602.7 Q502.2 595.7 502.2 582.7 V552.7 Q502.2 537.7 510.7 530.7 Q519.2 523.7 533.2 523.7 H1038.2 Q1052.2 523.7 1060.7 530.2 Q1069.2 536.7 1069.2 551.7 Z M1069.2 888.7 V918.7 Q1069.2 933.7 1060.7 940.2 Q1052.2 946.7 1038.2 946.7 H533.2 Q520.2 946.7 511.2 939.7 Q502.2 932.7 502.2 919.7 V889.7 Q502.2 874.7 510.7 867.7 Q519.2 860.7 533.2 860.7 H1038.2 Q1052.2 860.7 1060.7 867.2 Q1069.2 873.7 1069.2 888.7 Z M1069.2 213.7 V243.7 Q1069.2 258.7 1060.7 265.2 Q1052.2 271.7 1038.2 271.7 H533.2 Q520.2 271.7 511.2 264.7 Q502.2 257.7 502.2 244.7 V214.7 Q502.2 199.7 510.7 192.7 Q519.2 185.7 533.2 185.7 H1038.2 Q1052.2 185.7 1060.7 192.2 Q1069.2 198.7 1069.2 213.7 Z M359.2 695.7 L237.2 572.7 Q232.2 567.7 227.7 567.2 Q223.2 566.7 217.2 572.7 L168.2 621.7 Q160.2 629.7 149.7 631.2 Q139.2 632.7 129.2 622.7 L108.2 601.7 Q97.2 590.7 98.2 580.7 Q99.2 570.7 107.2 562.7 L190.2 479.7 Q209.2 460.7 227.7 461.2 Q246.2 461.7 268.2 482.7 L421.2 635.7 Q431.2 645.7 431.7 657.7 Q432.2 669.7 422.2 678.7 L402.2 698.7 Q391.2 708.7 380.2 707.2 Q369.2 705.7 359.2 695.7 Z M359.2 356.7 L237.2 233.7 Q232.2 228.7 227.7 228.2 Q223.2 227.7 217.2 233.7 L168.2 282.7 Q160.2 290.7 149.7 292.2 Q139.2 293.7 129.2 283.7 L108.2 262.7 Q97.2 251.7 98.2 241.7 Q99.2 231.7 107.2 223.7 L190.2 140.7 Q209.2 121.7 227.7 122.2 Q246.2 122.7 268.2 143.7 L421.2 296.7 Q431.2 306.7 431.7 318.7 Q432.2 330.7 422.2 339.7 L402.2 359.7 Q391.2 369.7 380.2 368.2 Q369.2 366.7 359.2 356.7 Z"
+  }
 }, Ue$1 = {
   regular: {
     vw: 1148.4,
@@ -8100,14 +8232,14 @@ var u = {
     d: "M329.4 209.9 Q329.4 242.9 350.4 267.4 Q371.4 291.9 404.4 295.9 L526.4 313.9 Q541.4 315.9 552.4 318.4 Q563.4 320.9 569.4 324.9 Q582.4 332.9 587.4 344.9 Q590.4 350.9 590.9 362.4 Q591.4 373.9 591.4 388.9 V458.9 Q505.4 474.9 435.9 527.9 Q366.4 580.9 326.9 658.9 Q287.4 736.9 287.4 826.9 V1099.9 Q287.4 1113.9 296.9 1123.4 Q306.4 1132.9 319.4 1132.9 H1005.4 Q1019.4 1132.9 1028.9 1123.4 Q1038.4 1113.9 1038.4 1099.9 V826.9 Q1038.4 734.9 996.4 654.9 Q954.4 574.9 881.9 522.4 Q809.4 469.9 720.4 456.9 V388.9 Q720.4 357.9 724.4 346.9 Q729.4 332.9 742.4 324.9 Q748.4 320.9 759.4 318.4 Q770.4 315.9 785.4 313.9 L908.4 295.9 Q940.4 290.9 961.4 266.4 Q982.4 241.9 982.4 209.9 Q982.4 202.9 977.4 197.4 Q972.4 191.9 965.4 191.9 H347.4 Q340.4 191.9 334.9 196.9 Q329.4 201.9 329.4 209.9 Z M110.4 909.9 V1032.9 Q110.4 1052.9 124.4 1067.4 Q138.4 1081.9 158.4 1081.9 H197.4 Q214.4 1081.9 227.4 1068.9 Q240.4 1055.9 240.4 1037.9 V804.9 Q240.4 799.9 236.9 796.9 Q233.4 793.9 228.4 793.9 Q196.4 793.9 169.4 809.4 Q142.4 824.9 126.4 851.9 Q110.4 878.9 110.4 909.9 Z M1084.4 804.9 V1037.9 Q1084.4 1055.9 1097.4 1068.9 Q1110.4 1081.9 1128.4 1081.9 H1166.4 Q1186.4 1081.9 1200.4 1067.4 Q1214.4 1052.9 1214.4 1032.9 V909.9 Q1214.4 877.9 1198.9 851.4 Q1183.4 824.9 1155.9 809.4 Q1128.4 793.9 1096.4 793.9 Q1091.4 793.9 1087.9 796.9 Q1084.4 799.9 1084.4 804.9 Z M654.4 644.9 H697.4 Q704.4 644.9 708.4 648.9 Q712.4 652.9 712.4 659.9 V969.9 Q712.4 976.9 708.4 980.9 Q704.4 984.9 697.4 984.9 H661.4 Q650.4 984.9 642.4 980.9 L574.4 945.9 Q569.4 942.9 566.4 938.4 Q563.4 933.9 563.4 927.9 V883.9 Q563.4 874.9 568.4 871.9 Q573.4 868.9 581.4 872.9 L639.4 902.9 V659.9 Q639.4 652.9 643.4 648.9 Q647.4 644.9 654.4 644.9 Z"
   }
 };
-const _hoisted_1$5 = {
+const _hoisted_1$6 = {
   style: { "display": "none" },
   xmlns: "http://www.w3.org/2000/svg",
   "aria-hidden": "true"
 };
-const _hoisted_2$4 = ["id", "viewBox"];
-const _hoisted_3$4 = ["d", "transform"];
-const _sfc_main$6 = {
+const _hoisted_2$5 = ["id", "viewBox"];
+const _hoisted_3$5 = ["d", "transform"];
+const _sfc_main$7 = {
   __name: "IconSprite",
   setup(__props) {
     const W2 = (i) => i.regular;
@@ -8145,10 +8277,14 @@ const _sfc_main$6 = {
       restart: W2(De),
       restore: W2(Fe),
       backup: W2(u),
-      open: W2(Z)
+      open: W2(Z),
+      select: W2(He$1),
+      delete: W2(k),
+      move: W2(ue$1),
+      newdir: W2(n)
     };
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("svg", _hoisted_1$5, [
+      return openBlock(), createElementBlock("svg", _hoisted_1$6, [
         (openBlock(), createElementBlock(Fragment, null, renderList(glyphs, (g2, id2) => {
           return createBaseVNode("symbol", {
             key: id2,
@@ -8161,8 +8297,8 @@ const _sfc_main$6 = {
               fill: "currentColor",
               "fill-rule": "nonzero",
               "clip-rule": "nonzero"
-            }, null, 8, _hoisted_3$4)
-          ], 8, _hoisted_2$4);
+            }, null, 8, _hoisted_3$5)
+          ], 8, _hoisted_2$5);
         }), 64))
       ]);
     };
@@ -8912,8 +9048,8 @@ function calcGeneratorDuration(generator, timeStep = 50, maxDuration2 = maxGener
   return duration >= maxDuration2 ? Infinity : duration;
 }
 function createGeneratorEasing(options, scale2 = 100, createGenerator) {
-  const { keyframes: k, velocity: v2 } = options;
-  const delta = k && k[k.length - 1] - k[0];
+  const { keyframes: k2, velocity: v2 } = options;
+  const delta = k2 && k2[k2.length - 1] - k2[0];
   const generator = createGenerator({
     ...options,
     velocity: v2 && delta ? v2 * scale2 / delta : v2,
@@ -10598,7 +10734,7 @@ const churnWindow = 100;
 const isNativeEasing = (ease2) => /^(linear|ease(In|Out|InOut))$/.test(ease2);
 const isNear$1 = (a, b) => Math.abs(a - b) <= easingTolerance;
 const byTime = (a, b) => a - b;
-const spread = (from, to, n) => defaultOffset(Array(n + 1)).map((p2) => mixNumber$1(from, to, p2));
+const spread = (from, to, n2) => defaultOffset(Array(n2 + 1)).map((p2) => mixNumber$1(from, to, p2));
 const getOwner = (options) => options.motionValue.owner;
 const getGroup = (element) => transformGroups.get(element);
 const hasEnded = ({ state }) => state === "idle" || state === "finished";
@@ -17328,7 +17464,7 @@ var oe = {
     function I() {
       c.closeOnClickModal && F();
     }
-    return (e2, n) => (openBlock(), createBlock(Teleport, { to: "body" }, [createVNode(unref(AnimatePresence_default), null, {
+    return (e2, n2) => (openBlock(), createBlock(Teleport, { to: "body" }, [createVNode(unref(AnimatePresence_default), null, {
       default: withCtx(() => [c.modelValue ? (openBlock(), createBlock(unref(Motion), {
         key: 0,
         class: normalizeClass(["m-dialog__backdrop", { "m-dialog__backdrop--bottom": !f.value }]),
@@ -17388,7 +17524,7 @@ var oe = {
       let e2 = {};
       return t.color && (e2.color = t.color), t.size != null && (e2.fontSize = typeof t.size == "number" ? `${t.size}px` : t.size), t.weight != null && (e2.fontWeight = String(typeof t.weight == "number" ? t.weight : i[t.weight])), t.align && (e2.textAlign = t.align === "start" ? "left" : t.align === "end" ? "right" : t.align), e2;
     });
-    return (e2, n) => {
+    return (e2, n2) => {
       var _a2;
       return openBlock(), createBlock(resolveDynamicComponent((_a2 = t.as) != null ? _a2 : "span"), {
         class: normalizeClass(["m-text", `m-text--${t.type}`]),
@@ -17414,17 +17550,17 @@ var oe = {
   },
   emits: ["click"],
   setup(e, { emit: t }) {
-    let n = e, r = t;
+    let n2 = e, r = t;
     function i(e2) {
-      n.disabled || r("click", e2);
+      n2.disabled || r("click", e2);
     }
     return (e2, t2) => (openBlock(), createElementBlock("button", {
       type: "button",
       class: normalizeClass(["m-icon-button", {
-        "m-icon-button--disabled": n.disabled,
-        "m-icon-button--hold-down": n.holdDown
+        "m-icon-button--disabled": n2.disabled,
+        "m-icon-button--hold-down": n2.holdDown
       }]),
-      disabled: n.disabled,
+      disabled: n2.disabled,
       onClick: i
     }, [renderSlot(e2.$slots, "default")], 10, He));
   }
@@ -17450,7 +17586,7 @@ var yn = { class: "m-top-app-bar__nav" }, bn = {
   },
   setup(e) {
     let t = e, s = useSlots(), u2 = computed(() => t.subtitle ? "8px" : "4px");
-    return (e2, n) => (openBlock(), createElementBlock("div", {
+    return (e2, n2) => (openBlock(), createElementBlock("div", {
       class: "m-top-app-bar",
       style: normalizeStyle({ background: t.color })
     }, [
@@ -17501,13 +17637,13 @@ var yn = { class: "m-top-app-bar__nav" }, bn = {
     ], 4));
   }
 });
-const _sfc_main$5 = {
+const _sfc_main$6 = {
   __name: "TopBar",
   setup(__props) {
     return (_ctx, _cache) => {
       return openBlock(), createBlock(unref(Cn), {
         title: "Task Files Explorer",
-        subtitle: "Miuix · download/ + archive/ dashboard"
+        subtitle: "Miuix · .zscripts/ task file manager"
       }, {
         navigation: withCtx(() => [..._cache[0] || (_cache[0] = [
           createBaseVNode("span", {
@@ -17525,15 +17661,15 @@ const _sfc_main$5 = {
   }
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const fmtSize = (n) => {
-  if (n < 1024) return n + " B";
+const fmtSize = (n2) => {
+  if (n2 < 1024) return n2 + " B";
   const u2 = ["KB", "MB", "GB"];
   let i = -1;
   do {
-    n /= 1024;
+    n2 /= 1024;
     i++;
-  } while (n >= 1024 && i < 2);
-  return n.toFixed(n >= 100 ? 0 : 1) + " " + u2[i];
+  } while (n2 >= 1024 && i < 2);
+  return n2.toFixed(n2 >= 100 ? 0 : 1) + " " + u2[i];
 };
 const fmtDate = (t) => new Date(t * 1e3).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 const fmtRel = (t) => {
@@ -17587,12 +17723,13 @@ const EXTICON = {
 const TYPEICON = { doc: "doc", pdf: "pdf", img: "img", data: "data", pkg: "pkg", code: "code", office: "office", other: "file" };
 const iconFor = (f) => EXTICON[(f.ext || "").toLowerCase()] || TYPEICON[f.type] || "file";
 const classFor = (f) => EXTICON[(f.ext || "").toLowerCase()] || f.type || "other";
-const S = /* @__PURE__ */ reactive({ q: "", type: "all", task: null, sort: { col: "mtime", dir: "desc" }, root: "all", view: "grid", page: 1 });
+const S = /* @__PURE__ */ reactive({ q: "", type: "all", task: null, sort: { col: "mtime", dir: "desc" }, root: "all", view: "grid", page: 1, selMode: false });
 const PER_PAGE = 100;
 const META = /* @__PURE__ */ shallowRef(null);
 const TASKS = /* @__PURE__ */ shallowRef(null);
 const PAGE = /* @__PURE__ */ shallowRef(null);
 const PAGE_MAP = {};
+const SEL = /* @__PURE__ */ reactive(/* @__PURE__ */ new Set());
 const ui = /* @__PURE__ */ reactive({
   clock: "--:--:--",
   footer: "loading…",
@@ -17666,7 +17803,7 @@ async function loadList(silent) {
   try {
     const d = await (await fetchT(listURL())).json();
     PAGE.value = d;
-    for (const k in PAGE_MAP) delete PAGE_MAP[k];
+    for (const k2 in PAGE_MAP) delete PAGE_MAP[k2];
     d.files.forEach((f) => PAGE_MAP[f.key] = f);
     if (d.page < S.page) S.page = d.page;
     ui.listAnim = !silent;
@@ -17798,6 +17935,90 @@ async function copyPath(f) {
     ui.announce = ok ? "Path copied: " + p2 : "Failed to copy the path";
   }, 50);
 }
+function enterSel(key) {
+  S.selMode = true;
+  if (key) SEL.add(key);
+}
+function toggleSel(key) {
+  if (SEL.has(key)) SEL.delete(key);
+  else SEL.add(key);
+  if (!SEL.size) S.selMode = false;
+}
+function exitSel() {
+  S.selMode = false;
+  SEL.clear();
+}
+async function postJSON(url, body, ms) {
+  ms = ms || 15e3;
+  const p2 = fetch(url, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const bs = new Promise((_, rej) => {
+    setTimeout(() => {
+      const e = new Error("signal timed out");
+      e.name = "AbortError";
+      rej(e);
+    }, ms + 250);
+  });
+  bs.catch(() => {
+  });
+  const r = await Promise.race([p2, bs]);
+  let d = null;
+  try {
+    d = await r.json();
+  } catch (_) {
+  }
+  if (!r.ok) {
+    const e = new Error(d && d.error || "HTTP " + r.status);
+    e.status = r.status;
+    e.data = d;
+    throw e;
+  }
+  return d;
+}
+async function fetchFolders() {
+  const d = await (await fetchT("/api/folders", 8e3)).json();
+  return d && d.folders || [];
+}
+function refreshAfterAction() {
+  probeNow();
+  loadList();
+}
+function announce(msg) {
+  ui.announce = "";
+  setTimeout(() => {
+    ui.announce = msg;
+  }, 50);
+}
+async function actDelete(keys) {
+  const d = await postJSON("/api/delete", { paths: [...keys] });
+  refreshAfterAction();
+  const failed = (d.results || []).filter((r) => !r.ok);
+  announce("Deleted " + d.deleted + " item" + (d.deleted === 1 ? "" : "s") + (failed.length ? " · " + failed.length + " refused (protected)" : ""));
+  return d;
+}
+async function actZip(keys, name) {
+  const d = await postJSON("/api/zip", { paths: [...keys], name: void 0 });
+  refreshAfterAction();
+  announce("Zip created: " + d.name + " — starting the download");
+  const a = document.createElement("a");
+  a.href = d.href;
+  a.download = d.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return d;
+}
+async function actTransfer(kind, keys, dest) {
+  const d = await postJSON("/api/" + kind, { paths: [...keys], dest });
+  refreshAfterAction();
+  const n2 = kind === "move" ? d.moved : d.copied;
+  announce((kind === "move" ? "Moved " : "Copied ") + n2 + " item" + (n2 === 1 ? "" : "s") + (dest ? " to " + dest : ""));
+  return d;
+}
 function boot() {
   ui.static = location.protocol === "file:" || location.pathname !== "/" && location.pathname !== "/index.html";
   pollOnce();
@@ -17813,18 +18034,18 @@ function boot() {
     if (CAN_ABORT || connFails < 3) schedulePoll(POLL_BASE_MS);
   }, BOOT_WATCHDOG_MS);
 }
-const _hoisted_1$4 = { "aria-label": "Dashboard" };
-const _hoisted_2$3 = {
+const _hoisted_1$5 = { "aria-label": "Dashboard" };
+const _hoisted_2$4 = {
   class: "statgrid",
   id: "stats"
 };
-const _hoisted_3$3 = { class: "top" };
-const _hoisted_4$3 = { class: "ic" };
-const _hoisted_5$3 = ["href"];
-const _hoisted_6$3 = { class: "k" };
-const _hoisted_7$3 = { class: "v" };
-const _hoisted_8$3 = { class: "s" };
-const _sfc_main$4 = {
+const _hoisted_3$4 = { class: "top" };
+const _hoisted_4$4 = { class: "ic" };
+const _hoisted_5$4 = ["href"];
+const _hoisted_6$4 = { class: "k" };
+const _hoisted_7$4 = { class: "v" };
+const _hoisted_8$4 = { class: "s" };
+const _sfc_main$5 = {
   __name: "StatsTiles",
   setup(__props) {
     const cells = computed(() => {
@@ -17853,33 +18074,33 @@ const _sfc_main$4 = {
       ];
     });
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$4, [
+      return openBlock(), createElementBlock("section", _hoisted_1$5, [
         _cache[0] || (_cache[0] = createBaseVNode("div", { class: "smalltitle" }, [
           createBaseVNode("svg", { class: "ic" }, [
             createBaseVNode("use", { href: "#i-grid" })
           ]),
           createTextVNode("Dashboard")
         ], -1)),
-        createBaseVNode("div", _hoisted_2$3, [
+        createBaseVNode("div", _hoisted_2$4, [
           (openBlock(true), createElementBlock(Fragment, null, renderList(cells.value, (t, i) => {
             return openBlock(), createElementBlock("div", {
               key: i,
               class: "statcard"
             }, [
-              createBaseVNode("div", _hoisted_3$3, [
+              createBaseVNode("div", _hoisted_3$4, [
                 createBaseVNode("span", {
                   class: normalizeClass(["tile40", "tile40--" + t.cls])
                 }, [
-                  (openBlock(), createElementBlock("svg", _hoisted_4$3, [
+                  (openBlock(), createElementBlock("svg", _hoisted_4$4, [
                     createBaseVNode("use", {
                       href: "#i-" + t.icon
-                    }, null, 8, _hoisted_5$3)
+                    }, null, 8, _hoisted_5$4)
                   ]))
                 ], 2),
-                createBaseVNode("span", _hoisted_6$3, toDisplayString(t.k), 1)
+                createBaseVNode("span", _hoisted_6$4, toDisplayString(t.k), 1)
               ]),
-              createBaseVNode("div", _hoisted_7$3, toDisplayString(t.v), 1),
-              createBaseVNode("div", _hoisted_8$3, [
+              createBaseVNode("div", _hoisted_7$4, toDisplayString(t.v), 1),
+              createBaseVNode("div", _hoisted_8$4, [
                 i === 0 ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
                   createBaseVNode("span", {
                     class: normalizeClass(["gdot", t.dot ? "on" : "off"])
@@ -17896,29 +18117,29 @@ const _sfc_main$4 = {
     };
   }
 };
-const _hoisted_1$3 = { "aria-labelledby": "secTask" };
-const _hoisted_2$2 = {
+const _hoisted_1$4 = { "aria-labelledby": "secTask" };
+const _hoisted_2$3 = {
   class: "taskrail",
   id: "taskRail",
   role: "list",
   tabindex: "0",
   "aria-label": "Task history — scroll horizontally with arrow keys"
 };
-const _hoisted_3$2 = {
+const _hoisted_3$3 = {
   key: 0,
   class: "rail-empty"
 };
-const _hoisted_4$2 = ["data-id", "onClick", "onKeydown"];
-const _hoisted_5$2 = { class: "th" };
-const _hoisted_6$2 = { class: "tid" };
-const _hoisted_7$2 = { class: "tt" };
-const _hoisted_8$2 = { class: "tc" };
-const _hoisted_9$2 = {
+const _hoisted_4$3 = ["data-id", "onClick", "onKeydown"];
+const _hoisted_5$3 = { class: "th" };
+const _hoisted_6$3 = { class: "tid" };
+const _hoisted_7$3 = { class: "tt" };
+const _hoisted_8$3 = { class: "tc" };
+const _hoisted_9$3 = {
   key: 0,
   id: "activeFilter"
 };
-const _hoisted_10$2 = { class: "ichip" };
-const _sfc_main$3 = {
+const _hoisted_10$3 = { class: "ichip" };
+const _sfc_main$4 = {
   __name: "TaskRail",
   setup(__props) {
     const ts = computed(() => TASKS.value ? [...TASKS.value].slice(-14).reverse() : []);
@@ -17944,10 +18165,10 @@ const _sfc_main$3 = {
       loadList();
     }
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$3, [
+      return openBlock(), createElementBlock("section", _hoisted_1$4, [
         _cache[3] || (_cache[3] = createStaticVNode('<div class="smalltitle"><svg class="ic"><use href="#i-task"></use></svg><span id="secTask">Task History</span><span class="note">parsed from worklog.md + worklog-archive.md — full titles, scroll sideways; click a card to filter its related files</span></div>', 1)),
-        createBaseVNode("div", _hoisted_2$2, [
-          !ts.value.length ? (openBlock(), createElementBlock("div", _hoisted_3$2, "the worklog has no Task section yet — this rail fills in automatically once one exists.")) : (openBlock(true), createElementBlock(Fragment, { key: 1 }, renderList(ts.value, (t) => {
+        createBaseVNode("div", _hoisted_2$3, [
+          !ts.value.length ? (openBlock(), createElementBlock("div", _hoisted_3$3, "the worklog has no Task section yet — this rail fills in automatically once one exists.")) : (openBlock(true), createElementBlock(Fragment, { key: 1 }, renderList(ts.value, (t) => {
             return openBlock(), createElementBlock("div", {
               key: t.id,
               class: normalizeClass(["tcard", { active: unref(S).task === t.id }]),
@@ -17957,24 +18178,24 @@ const _sfc_main$3 = {
               onClick: ($event) => go(t.id),
               onKeydown: (e) => onKey(e, t.id)
             }, [
-              createBaseVNode("div", _hoisted_5$2, [
+              createBaseVNode("div", _hoisted_5$3, [
                 _cache[0] || (_cache[0] = createBaseVNode("svg", { class: "ic tick" }, [
                   createBaseVNode("use", { href: "#i-check" })
                 ], -1)),
-                createBaseVNode("span", _hoisted_6$2, "TASK " + toDisplayString(t.id), 1)
+                createBaseVNode("span", _hoisted_6$3, "TASK " + toDisplayString(t.id), 1)
               ]),
-              createBaseVNode("div", _hoisted_7$2, toDisplayString(t.title), 1),
-              createBaseVNode("div", _hoisted_8$2, [
+              createBaseVNode("div", _hoisted_7$3, toDisplayString(t.title), 1),
+              createBaseVNode("div", _hoisted_8$3, [
                 createBaseVNode("span", null, toDisplayString(t.count) + " related files", 1),
                 _cache[1] || (_cache[1] = createBaseVNode("svg", { class: "ic" }, [
                   createBaseVNode("use", { href: "#i-chevr" })
                 ], -1))
               ])
-            ], 42, _hoisted_4$2);
+            ], 42, _hoisted_4$3);
           }), 128))
         ]),
-        activeTask.value ? (openBlock(), createElementBlock("div", _hoisted_9$2, [
-          createBaseVNode("span", _hoisted_10$2, [
+        activeTask.value ? (openBlock(), createElementBlock("div", _hoisted_9$3, [
+          createBaseVNode("span", _hoisted_10$3, [
             createBaseVNode("span", null, "Active filter — TASK " + toDisplayString(activeTask.value.id) + ": " + toDisplayString(activeTask.value.title), 1),
             createBaseVNode("button", {
               class: "x",
@@ -18022,8 +18243,8 @@ function md(src) {
         out.push("</ul>");
         inList = false;
       }
-      const n = h2[1].length;
-      out.push(`<h${n}>` + inline(h2[2]) + `</h${n}>`);
+      const n2 = h2[1].length;
+      out.push(`<h${n2}>` + inline(h2[2]) + `</h${n2}>`);
       continue;
     }
     const li = l.match(/^\s*[-*]\s+(.*)/);
@@ -18057,55 +18278,56 @@ function hlJSON(src) {
   }
   return esc(src).replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g, (m, s, c) => c ? `<span class="k">${s}</span>${c}` : `<span class="s2">${s}</span>`).replace(/\b(-?\d+\.?\d*)\b/g, '<span class="n">$1</span>').replace(/\b(true|false|null)\b/g, '<span class="b2">$1</span>');
 }
-const _hoisted_1$2 = {
+const _hoisted_1$3 = {
   id: "listwrap",
   "aria-label": "Files"
 };
-const _hoisted_2$1 = { id: "listbody" };
-const _hoisted_3$1 = {
+const _hoisted_2$2 = { id: "listbody" };
+const _hoisted_3$2 = {
   key: 0,
   class: "empty"
 };
-const _hoisted_4$1 = { class: "t" };
-const _hoisted_5$1 = {
+const _hoisted_4$2 = { class: "t" };
+const _hoisted_5$2 = {
   key: 1,
   class: "empty"
 };
-const _hoisted_6$1 = {
+const _hoisted_6$2 = {
   key: 2,
   class: "loadcard"
 };
-const _hoisted_7$1 = {
+const _hoisted_7$2 = {
   key: 3,
   class: "empty"
 };
-const _hoisted_8$1 = ["aria-label", "onClick", "onKeydown"];
-const _hoisted_9$1 = { class: "ic" };
-const _hoisted_10$1 = ["href"];
-const _hoisted_11$1 = { class: "fbody" };
-const _hoisted_12$1 = { class: "fbadge" };
-const _hoisted_13$1 = { class: "fnm" };
-const _hoisted_14$1 = { class: "cd" };
-const _hoisted_15$1 = { class: "fmeta" };
-const _hoisted_16$1 = ["title"];
-const _hoisted_17$1 = {
+const _hoisted_8$2 = ["aria-label", "aria-pressed", "onClick", "onKeydown", "onTouchstartPassive", "onContextmenu"];
+const _hoisted_9$2 = { class: "ic" };
+const _hoisted_10$2 = ["href"];
+const _hoisted_11$2 = { class: "fbody" };
+const _hoisted_12$2 = { class: "fbadge" };
+const _hoisted_13$2 = { class: "fnm" };
+const _hoisted_14$2 = { class: "cd" };
+const _hoisted_15$2 = { class: "fmeta" };
+const _hoisted_16$2 = ["title"];
+const _hoisted_17$2 = {
   key: 0,
   class: "ftask"
 };
-const _hoisted_18$1 = { class: "fact" };
-const _hoisted_19$1 = ["aria-label", "onClick"];
-const _hoisted_20$1 = ["href", "download", "title", "aria-label"];
-const _hoisted_21$1 = {
+const _hoisted_18$2 = { class: "fact" };
+const _hoisted_19$2 = ["aria-label", "onClick"];
+const _hoisted_20$2 = ["aria-label", "onClick"];
+const _hoisted_21$2 = ["href", "download", "title", "aria-label"];
+const _hoisted_22$2 = {
   key: 0,
   class: "pager",
   id: "pager"
 };
-const _hoisted_22$1 = ["disabled"];
-const _hoisted_23 = ["disabled"];
-const _hoisted_24 = { class: "pinfo" };
-const _hoisted_25 = ["disabled"];
+const _hoisted_23$1 = ["disabled"];
+const _hoisted_24$1 = ["disabled"];
+const _hoisted_25$1 = { class: "pinfo" };
 const _hoisted_26 = ["disabled"];
-const _sfc_main$2 = {
+const _hoisted_27 = ["disabled"];
+const _sfc_main$3 = {
   __name: "FileList",
   emits: ["preview"],
   setup(__props, { emit: __emit }) {
@@ -18117,20 +18339,44 @@ const _sfc_main$2 = {
     function delay2(i) {
       return Math.min(i * 16, 280) + "ms";
     }
-    function page(n) {
-      S.page = n;
+    function page(n2) {
+      S.page = n2;
       loadList();
     }
     function onCardKey(e, f) {
       if (e.key !== "Enter" && e.key !== " ") return;
       if (e.target.closest("button,a,input,select")) return;
       e.preventDefault();
-      emit2("preview", f);
+      if (S.selMode) toggleSel(f.key);
+      else emit2("preview", f);
+    }
+    function onCardClick(f) {
+      if (S.selMode) toggleSel(f.key);
+      else emit2("preview", f);
+    }
+    let lpTimer = null;
+    function onLPStart(f) {
+      if (S.selMode) return;
+      lpTimer = setTimeout(() => {
+        lpTimer = null;
+        enterSel(f.key);
+      }, 500);
+    }
+    function onLPEnd() {
+      if (lpTimer) {
+        clearTimeout(lpTimer);
+        lpTimer = null;
+      }
+    }
+    function onCtx(e, f) {
+      if (S.selMode) return;
+      e.preventDefault();
+      enterSel(f.key);
     }
     return (_ctx, _cache) => {
-      return openBlock(), createElementBlock("section", _hoisted_1$2, [
-        createBaseVNode("div", _hoisted_2$1, [
-          unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_3$1, [
+      return openBlock(), createElementBlock("section", _hoisted_1$3, [
+        createBaseVNode("div", _hoisted_2$2, [
+          unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_3$2, [
             _cache[11] || (_cache[11] = createBaseVNode("div", {
               class: "e",
               style: { "background": "var(--mx-tertiary-container)", "color": "var(--mx-on-tertiary-container)" }
@@ -18139,7 +18385,7 @@ const _sfc_main$2 = {
                 createBaseVNode("use", { href: "#i-info" })
               ])
             ], -1)),
-            createBaseVNode("div", _hoisted_4$1, toDisplayString(unref(ui).staticLive ? "Static copy — live explorer reachable" : "Static copy — live data unavailable"), 1),
+            createBaseVNode("div", _hoisted_4$2, toDisplayString(unref(ui).staticLive ? "Static copy — live explorer reachable" : "Static copy — live data unavailable"), 1),
             unref(ui).staticLive ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
               _cache[8] || (_cache[8] = createBaseVNode("div", { class: "h" }, "explorer.py answered from this origin — recovering the live view… (Task 67 auto-breakout: the platform file-preview chrome is replaced by the live app; if this frame is still here, top-level navigation was blocked — use the button)", -1)),
               createBaseVNode("button", {
@@ -18155,7 +18401,7 @@ const _sfc_main$2 = {
               _cache[9] || (_cache[9] = createBaseVNode("div", { class: "h" }, "this page was opened as a plain file, without explorer.py — the /api feeds behind the tiles, task rail, and search do not exist on this origin", -1)),
               _cache[10] || (_cache[10] = createBaseVNode("div", { class: "h" }, "the live Task Files Explorer is served at the preview URL root while a session is running", -1))
             ], 64))
-          ])) : unref(ui).error ? (openBlock(), createElementBlock("div", _hoisted_5$1, [
+          ])) : unref(ui).error ? (openBlock(), createElementBlock("div", _hoisted_5$2, [
             _cache[13] || (_cache[13] = createStaticVNode('<div class="e" style="background:var(--mx-error-container);color:var(--mx-on-error-container);"><svg class="ic"><use href="#i-warn"></use></svg></div><div class="t">Failed to load data from explorer.py</div><div class="h">server not responding — the connection may be temporarily down · UI v5.0</div>', 3)),
             createBaseVNode("button", {
               class: "btn",
@@ -18166,11 +18412,11 @@ const _sfc_main$2 = {
               ], -1),
               createTextVNode("Retry", -1)
             ])])
-          ])) : !unref(PAGE) ? (openBlock(), createElementBlock("div", _hoisted_6$1, [..._cache[14] || (_cache[14] = [
+          ])) : !unref(PAGE) ? (openBlock(), createElementBlock("div", _hoisted_6$2, [..._cache[14] || (_cache[14] = [
             createBaseVNode("div", { class: "spinner" }, null, -1),
             createBaseVNode("p", null, "loading file inventory…", -1)
-          ])])) : !unref(PAGE).total ? (openBlock(), createElementBlock("div", _hoisted_7$1, [..._cache[15] || (_cache[15] = [
-            createStaticVNode('<div class="e t-other"><svg class="ic"><use href="#i-search"></use></svg></div><div class="t">No files match the active filters</div><div class="h">no files in download/ + archive/ yet — the list fills in as work produces deliverables</div>', 3)
+          ])])) : !unref(PAGE).total ? (openBlock(), createElementBlock("div", _hoisted_7$2, [..._cache[15] || (_cache[15] = [
+            createStaticVNode('<div class="e t-other"><svg class="ic"><use href="#i-search"></use></svg></div><div class="t">No files match the active filters</div><div class="h">no files in .zscripts/ yet — deliveries import here automatically (the watcher moves download/ files in) as work produces files</div>', 3)
           ])])) : (openBlock(), createElementBlock("div", {
             key: 4,
             class: normalizeClass(["filegrid", { "filegrid--list": unref(S).view === "list", noanim: !unref(ui).listAnim }])
@@ -18178,52 +18424,78 @@ const _sfc_main$2 = {
             (openBlock(true), createElementBlock(Fragment, null, renderList(unref(PAGE).files, (f, i) => {
               return openBlock(), createElementBlock("div", {
                 key: f.key,
-                class: "fcard",
+                class: normalizeClass(["fcard", { sel: unref(S).selMode && unref(SEL).has(f.key), selmode: unref(S).selMode }]),
                 tabindex: "0",
                 role: "button",
-                "aria-label": "Preview " + f.name,
+                "aria-label": (unref(S).selMode ? unref(SEL).has(f.key) ? "Deselect " : "Select " : "Preview ") + f.name,
+                "aria-pressed": unref(S).selMode ? unref(SEL).has(f.key) ? "true" : "false" : void 0,
                 style: normalizeStyle({ animationDelay: unref(ui).listAnim ? delay2(i) : "0ms" }),
-                onClick: ($event) => emit2("preview", f),
-                onKeydown: (e) => onCardKey(e, f)
+                onClick: ($event) => onCardClick(f),
+                onKeydown: (e) => onCardKey(e, f),
+                onTouchstartPassive: ($event) => onLPStart(f),
+                onTouchend: onLPEnd,
+                onTouchmove: onLPEnd,
+                onTouchcancel: onLPEnd,
+                onContextmenu: (e) => onCtx(e, f)
               }, [
+                unref(S).selMode ? (openBlock(), createElementBlock("span", {
+                  key: 0,
+                  class: normalizeClass(["selcheck", { on: unref(SEL).has(f.key) }]),
+                  "aria-hidden": "true"
+                }, [..._cache[16] || (_cache[16] = [
+                  createBaseVNode("svg", { class: "ic" }, [
+                    createBaseVNode("use", { href: "#i-check" })
+                  ], -1)
+                ])], 2)) : createCommentVNode("", true),
                 createBaseVNode("span", {
                   class: normalizeClass(["ftile", "t-" + unref(classFor)(f)])
                 }, [
-                  (openBlock(), createElementBlock("svg", _hoisted_9$1, [
+                  (openBlock(), createElementBlock("svg", _hoisted_9$2, [
                     createBaseVNode("use", {
                       href: "#i-" + unref(iconFor)(f)
-                    }, null, 8, _hoisted_10$1)
+                    }, null, 8, _hoisted_10$2)
                   ]))
                 ], 2),
-                createBaseVNode("div", _hoisted_11$1, [
-                  createBaseVNode("span", _hoisted_12$1, toDisplayString(f.ext || f.type), 1),
-                  createBaseVNode("div", _hoisted_13$1, [
-                    createBaseVNode("span", _hoisted_14$1, toDisplayString(crumb(f).dir), 1),
+                createBaseVNode("div", _hoisted_11$2, [
+                  createBaseVNode("span", _hoisted_12$2, toDisplayString(f.ext || f.type), 1),
+                  createBaseVNode("div", _hoisted_13$2, [
+                    createBaseVNode("span", _hoisted_14$2, toDisplayString(crumb(f).dir), 1),
                     createBaseVNode("span", null, toDisplayString(crumb(f).name), 1)
                   ]),
-                  createBaseVNode("div", _hoisted_15$1, [
+                  createBaseVNode("div", _hoisted_15$2, [
                     createBaseVNode("span", null, toDisplayString(unref(fmtSize)(f.size)), 1),
                     createBaseVNode("span", {
                       title: unref(fmtDate)(f.mtime)
-                    }, toDisplayString(unref(fmtRel)(f.mtime)), 9, _hoisted_16$1)
+                    }, toDisplayString(unref(fmtRel)(f.mtime)), 9, _hoisted_16$2)
                   ]),
-                  f.task ? (openBlock(), createElementBlock("span", _hoisted_17$1, [
-                    _cache[16] || (_cache[16] = createBaseVNode("svg", { class: "ic" }, [
+                  f.task ? (openBlock(), createElementBlock("span", _hoisted_17$2, [
+                    _cache[17] || (_cache[17] = createBaseVNode("svg", { class: "ic" }, [
                       createBaseVNode("use", { href: "#i-check" })
                     ], -1)),
                     createTextVNode("TASK " + toDisplayString(f.task), 1)
                   ])) : createCommentVNode("", true),
-                  createBaseVNode("div", _hoisted_18$1, [
+                  createBaseVNode("div", _hoisted_18$2, [
+                    !unref(S).selMode ? (openBlock(), createElementBlock("button", {
+                      key: 0,
+                      class: "fcpy",
+                      title: "Select (multi-selection)",
+                      "aria-label": "Select " + f.name + " for a batch action",
+                      onClick: withModifiers(($event) => unref(enterSel)(f.key), ["stop"])
+                    }, [..._cache[18] || (_cache[18] = [
+                      createBaseVNode("svg", { class: "ic" }, [
+                        createBaseVNode("use", { href: "#i-select" })
+                      ], -1)
+                    ])], 8, _hoisted_19$2)) : createCommentVNode("", true),
                     createBaseVNode("button", {
                       class: "fcpy",
                       title: "Copy the server path",
                       "aria-label": "Copy the path of " + f.name,
                       onClick: withModifiers(($event) => unref(copyPath)(f), ["stop"])
-                    }, [..._cache[17] || (_cache[17] = [
+                    }, [..._cache[19] || (_cache[19] = [
                       createBaseVNode("svg", { class: "ic" }, [
                         createBaseVNode("use", { href: "#i-copy" })
                       ], -1)
-                    ])], 8, _hoisted_19$1),
+                    ])], 8, _hoisted_20$2),
                     createBaseVNode("a", {
                       href: f.href + "?dl=1",
                       download: f.name,
@@ -18231,51 +18503,51 @@ const _sfc_main$2 = {
                       "aria-label": "Download " + f.name,
                       onClick: _cache[2] || (_cache[2] = withModifiers(() => {
                       }, ["stop"]))
-                    }, [..._cache[18] || (_cache[18] = [
+                    }, [..._cache[20] || (_cache[20] = [
                       createBaseVNode("svg", { class: "ic" }, [
                         createBaseVNode("use", { href: "#i-down" })
                       ], -1)
-                    ])], 8, _hoisted_20$1)
+                    ])], 8, _hoisted_21$2)
                   ])
                 ])
-              ], 44, _hoisted_8$1);
+              ], 46, _hoisted_8$2);
             }), 128))
           ], 2))
         ]),
-        unref(PAGE) && unref(PAGE).pages > 1 && !unref(ui).error && !unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_21$1, [
+        unref(PAGE) && unref(PAGE).pages > 1 && !unref(ui).error && !unref(ui).static ? (openBlock(), createElementBlock("div", _hoisted_22$2, [
           createBaseVNode("button", {
             title: "First page",
             disabled: unref(PAGE).page <= 1,
             onClick: _cache[3] || (_cache[3] = ($event) => page(1))
-          }, [..._cache[19] || (_cache[19] = [
+          }, [..._cache[21] || (_cache[21] = [
             createStaticVNode('<svg class="ic"><use href="#i-chevr"></use></svg><span style="transform:scaleX(-1);display:inline-flex;"><svg class="ic"><use href="#i-chevr"></use></svg></span>', 2)
-          ])], 8, _hoisted_22$1),
+          ])], 8, _hoisted_23$1),
           createBaseVNode("button", {
             title: "Previous page",
             disabled: unref(PAGE).page <= 1,
             onClick: _cache[4] || (_cache[4] = ($event) => page(Math.max(1, unref(PAGE).page - 1)))
-          }, [..._cache[20] || (_cache[20] = [
+          }, [..._cache[22] || (_cache[22] = [
             createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-chev" })
             ], -1)
-          ])], 8, _hoisted_23),
-          createBaseVNode("span", _hoisted_24, toDisplayString(unref(PAGE).page) + " / " + toDisplayString(unref(PAGE).pages), 1),
+          ])], 8, _hoisted_24$1),
+          createBaseVNode("span", _hoisted_25$1, toDisplayString(unref(PAGE).page) + " / " + toDisplayString(unref(PAGE).pages), 1),
           createBaseVNode("button", {
             title: "Next page",
             disabled: unref(PAGE).page >= unref(PAGE).pages,
             onClick: _cache[5] || (_cache[5] = ($event) => page(Math.min(unref(PAGE).pages, unref(PAGE).page + 1)))
-          }, [..._cache[21] || (_cache[21] = [
+          }, [..._cache[23] || (_cache[23] = [
             createBaseVNode("svg", { class: "ic" }, [
               createBaseVNode("use", { href: "#i-chev" })
             ], -1)
-          ])], 8, _hoisted_25),
+          ])], 8, _hoisted_26),
           createBaseVNode("button", {
             title: "Last page",
             disabled: unref(PAGE).page >= unref(PAGE).pages,
             onClick: _cache[6] || (_cache[6] = ($event) => page(unref(PAGE).pages))
-          }, [..._cache[22] || (_cache[22] = [
+          }, [..._cache[24] || (_cache[24] = [
             createStaticVNode('<span style="transform:scaleX(-1);display:inline-flex;"><svg class="ic"><use href="#i-chevr"></use></svg></span><svg class="ic"><use href="#i-chevr"></use></svg>', 2)
-          ])], 8, _hoisted_26)
+          ])], 8, _hoisted_27)
         ])) : createCommentVNode("", true)
       ]);
     };
@@ -18288,58 +18560,58 @@ const _export_sfc = (sfc, props) => {
   }
   return target;
 };
-const _hoisted_1$1 = {
+const _hoisted_1$2 = {
   key: 0,
   class: "mhead"
 };
-const _hoisted_2 = {
+const _hoisted_2$1 = {
   class: "ic",
   id: "mIcon"
 };
-const _hoisted_3 = ["href"];
-const _hoisted_4 = { class: "mnm" };
-const _hoisted_5 = {
+const _hoisted_3$1 = ["href"];
+const _hoisted_4$1 = { class: "mnm" };
+const _hoisted_5$1 = {
   class: "nm",
   id: "mName"
 };
-const _hoisted_6 = {
+const _hoisted_6$1 = {
   class: "meta",
   id: "mMeta"
 };
-const _hoisted_7 = ["href", "download"];
-const _hoisted_8 = {
+const _hoisted_7$1 = ["href", "download"];
+const _hoisted_8$1 = {
   class: "mbody",
   id: "mBody"
 };
-const _hoisted_9 = {
+const _hoisted_9$1 = {
   key: 0,
   class: "truncnote",
   id: "mTrunc"
 };
-const _hoisted_10 = ["href", "download"];
-const _hoisted_11 = {
+const _hoisted_10$1 = ["href", "download"];
+const _hoisted_11$1 = {
   key: 1,
   class: "loadcard"
 };
-const _hoisted_12 = ["src", "alt"];
-const _hoisted_13 = ["src"];
-const _hoisted_14 = {
+const _hoisted_12$1 = ["src", "alt"];
+const _hoisted_13$1 = ["src"];
+const _hoisted_14$1 = {
   key: 4,
   class: "loadcard"
 };
-const _hoisted_15 = { class: "ic" };
-const _hoisted_16 = ["href"];
-const _hoisted_17 = ["innerHTML"];
-const _hoisted_18 = ["href", "download"];
-const _hoisted_19 = ["innerHTML"];
-const _hoisted_20 = ["innerHTML"];
-const _hoisted_21 = ["innerHTML"];
-const _hoisted_22 = {
+const _hoisted_15$1 = { class: "ic" };
+const _hoisted_16$1 = ["href"];
+const _hoisted_17$1 = ["innerHTML"];
+const _hoisted_18$1 = ["href", "download"];
+const _hoisted_19$1 = ["innerHTML"];
+const _hoisted_20$1 = ["innerHTML"];
+const _hoisted_21$1 = ["innerHTML"];
+const _hoisted_22$1 = {
   key: 8,
   class: "loadcard"
 };
 const PREVIEW_CAP = 2e5;
-const _sfc_main$1 = {
+const _sfc_main$2 = {
   __name: "PreviewModal",
   setup(__props, { expose: __expose }) {
     const open = /* @__PURE__ */ ref(false);
@@ -18421,20 +18693,20 @@ const _sfc_main$1 = {
         summary: file.value ? unref(fmtSize)(file.value.size) + " · " + unref(fmtDate)(file.value.mtime) : ""
       }, {
         default: withCtx(() => [
-          file.value ? (openBlock(), createElementBlock("div", _hoisted_1$1, [
+          file.value ? (openBlock(), createElementBlock("div", _hoisted_1$2, [
             createBaseVNode("span", {
               class: normalizeClass(["micon", "t-" + unref(classFor)(file.value)]),
               id: "mIconWrap"
             }, [
-              (openBlock(), createElementBlock("svg", _hoisted_2, [
+              (openBlock(), createElementBlock("svg", _hoisted_2$1, [
                 createBaseVNode("use", {
                   href: "#i-" + unref(iconFor)(file.value)
-                }, null, 8, _hoisted_3)
+                }, null, 8, _hoisted_3$1)
               ]))
             ], 2),
-            createBaseVNode("div", _hoisted_4, [
-              createBaseVNode("div", _hoisted_5, toDisplayString(file.value.rel), 1),
-              createBaseVNode("div", _hoisted_6, toDisplayString(unref(fmtSize)(file.value.size)) + " · " + toDisplayString(unref(fmtDate)(file.value.mtime)), 1)
+            createBaseVNode("div", _hoisted_4$1, [
+              createBaseVNode("div", _hoisted_5$1, toDisplayString(file.value.rel), 1),
+              createBaseVNode("div", _hoisted_6$1, toDisplayString(unref(fmtSize)(file.value.size)) + " · " + toDisplayString(unref(fmtDate)(file.value.mtime)), 1)
             ]),
             createVNode(unref(Ue), {
               title: "Copy the file path on the server",
@@ -18457,7 +18729,7 @@ const _sfc_main$1 = {
                 createBaseVNode("use", { href: "#i-down" })
               ], -1),
               createTextVNode("Download ", -1)
-            ])], 8, _hoisted_7),
+            ])], 8, _hoisted_7$1),
             createVNode(unref(Ue), {
               "aria-label": "Close preview",
               onClick: closeModal
@@ -18470,8 +18742,8 @@ const _sfc_main$1 = {
               _: 1
             })
           ])) : createCommentVNode("", true),
-          createBaseVNode("div", _hoisted_8, [
-            body.trunc && body.kind !== "loading" ? (openBlock(), createElementBlock("div", _hoisted_9, [
+          createBaseVNode("div", _hoisted_8$1, [
+            body.trunc && body.kind !== "loading" ? (openBlock(), createElementBlock("div", _hoisted_9$1, [
               _cache[5] || (_cache[5] = createBaseVNode("svg", { class: "ic" }, [
                 createBaseVNode("use", { href: "#i-info" })
               ], -1)),
@@ -18479,32 +18751,32 @@ const _sfc_main$1 = {
               createBaseVNode("a", {
                 href: file.value.href + "?dl=1",
                 download: file.value.name
-              }, "Download the full file", 8, _hoisted_10)
+              }, "Download the full file", 8, _hoisted_10$1)
             ])) : createCommentVNode("", true),
-            body.kind === "loading" ? (openBlock(), createElementBlock("div", _hoisted_11, [..._cache[6] || (_cache[6] = [
+            body.kind === "loading" ? (openBlock(), createElementBlock("div", _hoisted_11$1, [..._cache[6] || (_cache[6] = [
               createBaseVNode("div", { class: "spinner" }, null, -1),
               createBaseVNode("p", null, "loading preview…", -1)
             ])])) : body.kind === "img" ? (openBlock(), createElementBlock("img", {
               key: 2,
               src: body.href,
               alt: body.name
-            }, null, 8, _hoisted_12)) : body.kind === "pdf" ? (openBlock(), createElementBlock("iframe", {
+            }, null, 8, _hoisted_12$1)) : body.kind === "pdf" ? (openBlock(), createElementBlock("iframe", {
               key: 3,
               src: body.href,
               title: "pdf"
-            }, null, 8, _hoisted_13)) : body.kind === "binary" ? (openBlock(), createElementBlock("div", _hoisted_14, [
+            }, null, 8, _hoisted_13$1)) : body.kind === "binary" ? (openBlock(), createElementBlock("div", _hoisted_14$1, [
               createBaseVNode("div", {
                 class: normalizeClass(["ftile", "t-" + body.cls])
               }, [
-                (openBlock(), createElementBlock("svg", _hoisted_15, [
+                (openBlock(), createElementBlock("svg", _hoisted_15$1, [
                   createBaseVNode("use", {
                     href: "#i-" + body.icon
-                  }, null, 8, _hoisted_16)
+                  }, null, 8, _hoisted_16$1)
                 ]))
               ], 2),
               createBaseVNode("p", {
                 innerHTML: body.msg
-              }, null, 8, _hoisted_17),
+              }, null, 8, _hoisted_17$1),
               createBaseVNode("a", {
                 class: "btn",
                 href: body.href,
@@ -18514,18 +18786,18 @@ const _sfc_main$1 = {
                   createBaseVNode("use", { href: "#i-down" })
                 ], -1)),
                 createTextVNode("Download " + toDisplayString(body.name), 1)
-              ], 8, _hoisted_18)
+              ], 8, _hoisted_18$1)
             ])) : body.kind === "md" ? (openBlock(), createElementBlock("div", {
               key: 5,
               class: "md",
               innerHTML: body.html
-            }, null, 8, _hoisted_19)) : body.kind === "json" ? (openBlock(), createElementBlock("pre", {
+            }, null, 8, _hoisted_19$1)) : body.kind === "json" ? (openBlock(), createElementBlock("pre", {
               key: 6,
               innerHTML: body.html
-            }, null, 8, _hoisted_20)) : body.kind === "text" ? (openBlock(), createElementBlock("pre", {
+            }, null, 8, _hoisted_20$1)) : body.kind === "text" ? (openBlock(), createElementBlock("pre", {
               key: 7,
               innerHTML: body.html
-            }, null, 8, _hoisted_21)) : body.kind === "error" ? (openBlock(), createElementBlock("div", _hoisted_22, [
+            }, null, 8, _hoisted_21$1)) : body.kind === "error" ? (openBlock(), createElementBlock("div", _hoisted_22$1, [
               _cache[8] || (_cache[8] = createBaseVNode("div", {
                 class: "ftile",
                 style: { "background": "var(--mx-error-container)", "color": "var(--mx-on-error-container)" }
@@ -18543,7 +18815,316 @@ const _sfc_main$1 = {
     };
   }
 };
-const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-92276812"]]);
+const PreviewModal = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["__scopeId", "data-v-92276812"]]);
+const _hoisted_1$1 = {
+  key: 0,
+  class: "selbar",
+  role: "toolbar",
+  "aria-label": "Batch actions for the selection"
+};
+const _hoisted_2 = { class: "scount" };
+const _hoisted_3 = { class: "sactions" };
+const _hoisted_4 = ["disabled", "aria-label"];
+const _hoisted_5 = ["disabled", "aria-label"];
+const _hoisted_6 = ["disabled", "aria-label"];
+const _hoisted_7 = ["disabled", "aria-label"];
+const _hoisted_8 = ["disabled"];
+const _hoisted_9 = { class: "ddlg" };
+const _hoisted_10 = { class: "dnames" };
+const _hoisted_11 = {
+  key: 0,
+  class: "dmore"
+};
+const _hoisted_12 = { class: "dbtns" };
+const _hoisted_13 = ["disabled"];
+const _hoisted_14 = ["disabled"];
+const _hoisted_15 = { class: "ddlg" };
+const _hoisted_16 = {
+  class: "destlist",
+  role: "radiogroup",
+  "aria-label": "Destination folder"
+};
+const _hoisted_17 = ["aria-checked"];
+const _hoisted_18 = ["aria-checked", "onClick"];
+const _hoisted_19 = { class: "newdir" };
+const _hoisted_20 = {
+  key: 0,
+  class: "derr"
+};
+const _hoisted_21 = { class: "dbtns" };
+const _hoisted_22 = ["disabled"];
+const _hoisted_23 = ["disabled"];
+const _hoisted_24 = { class: "ic" };
+const _hoisted_25 = ["href"];
+const _sfc_main$1 = {
+  __name: "SelectBar",
+  setup(__props) {
+    const busy = /* @__PURE__ */ ref(false);
+    const dlg = /* @__PURE__ */ ref(null);
+    const destMode = /* @__PURE__ */ ref("move");
+    const folders = /* @__PURE__ */ ref([]);
+    const destPick = /* @__PURE__ */ ref("");
+    const newDir = /* @__PURE__ */ ref("");
+    const destErr = /* @__PURE__ */ ref("");
+    const names = computed(() => [...SEL].map((k2) => k2.includes("/") ? k2.split("/").slice(1).pop() : k2));
+    const preview5 = computed(() => names.value.slice(0, 5));
+    const more = computed(() => Math.max(0, names.value.length - 5));
+    function fail(msg) {
+      ui.announce = "";
+      setTimeout(() => {
+        ui.announce = msg;
+      }, 50);
+    }
+    async function openDest(mode) {
+      destMode.value = mode;
+      dlg.value = "dest";
+      destErr.value = "";
+      newDir.value = "";
+      destPick.value = "";
+      try {
+        folders.value = await fetchFolders();
+      } catch (e) {
+        folders.value = [];
+      }
+    }
+    function chosenDest() {
+      const nd = newDir.value.trim();
+      if (nd) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(nd)) {
+          destErr.value = "Folder name: start with a letter/digit; then letters, digits, space . _ - only";
+          return null;
+        }
+        return nd;
+      }
+      return destPick.value;
+    }
+    async function runDelete() {
+      busy.value = true;
+      try {
+        await actDelete(SEL);
+        dlg.value = null;
+        exitSel();
+      } catch (e) {
+        fail("Delete failed: " + e.message);
+      }
+      busy.value = false;
+    }
+    async function runZip() {
+      busy.value = true;
+      try {
+        await actZip(SEL);
+        exitSel();
+      } catch (e) {
+        fail("Zip failed: " + e.message);
+      }
+      busy.value = false;
+    }
+    async function runDest() {
+      const dest = chosenDest();
+      if (dest === null) return;
+      busy.value = true;
+      try {
+        await actTransfer(destMode.value, SEL, dest);
+        dlg.value = null;
+        exitSel();
+      } catch (e) {
+        destErr.value = e.message;
+      }
+      busy.value = false;
+    }
+    return (_ctx, _cache) => {
+      return openBlock(), createElementBlock(Fragment, null, [
+        unref(S).selMode ? (openBlock(), createElementBlock("div", _hoisted_1$1, [
+          createBaseVNode("span", _hoisted_2, [
+            createBaseVNode("b", null, toDisplayString(unref(SEL).size), 1),
+            _cache[13] || (_cache[13] = createTextVNode(" selected", -1))
+          ]),
+          createBaseVNode("div", _hoisted_3, [
+            createBaseVNode("button", {
+              class: "sbtn",
+              disabled: busy.value,
+              title: "Delete the selection (permanent)",
+              "aria-label": "Delete " + unref(SEL).size + " selected item(s)",
+              onClick: _cache[0] || (_cache[0] = ($event) => dlg.value = "delete")
+            }, [..._cache[14] || (_cache[14] = [
+              createBaseVNode("svg", { class: "ic" }, [
+                createBaseVNode("use", { href: "#i-delete" })
+              ], -1),
+              createBaseVNode("span", null, "Delete", -1)
+            ])], 8, _hoisted_4),
+            createBaseVNode("button", {
+              class: "sbtn",
+              disabled: busy.value,
+              title: "Download the selection as one .zip",
+              "aria-label": "Zip and download " + unref(SEL).size + " selected item(s)",
+              onClick: _cache[1] || (_cache[1] = ($event) => runZip())
+            }, [..._cache[15] || (_cache[15] = [
+              createBaseVNode("svg", { class: "ic" }, [
+                createBaseVNode("use", { href: "#i-down" })
+              ], -1),
+              createBaseVNode("span", null, "Zip", -1)
+            ])], 8, _hoisted_5),
+            createBaseVNode("button", {
+              class: "sbtn",
+              disabled: busy.value,
+              title: "Move the selection into a folder",
+              "aria-label": "Move " + unref(SEL).size + " selected item(s)",
+              onClick: _cache[2] || (_cache[2] = ($event) => openDest("move"))
+            }, [..._cache[16] || (_cache[16] = [
+              createBaseVNode("svg", { class: "ic" }, [
+                createBaseVNode("use", { href: "#i-move" })
+              ], -1),
+              createBaseVNode("span", null, "Move", -1)
+            ])], 8, _hoisted_6),
+            createBaseVNode("button", {
+              class: "sbtn",
+              disabled: busy.value,
+              title: "Copy the selection into a folder",
+              "aria-label": "Copy " + unref(SEL).size + " selected item(s)",
+              onClick: _cache[3] || (_cache[3] = ($event) => openDest("copy"))
+            }, [..._cache[17] || (_cache[17] = [
+              createBaseVNode("svg", { class: "ic" }, [
+                createBaseVNode("use", { href: "#i-copy" })
+              ], -1),
+              createBaseVNode("span", null, "Copy", -1)
+            ])], 8, _hoisted_7)
+          ]),
+          createBaseVNode("button", {
+            class: "scancel",
+            disabled: busy.value,
+            title: "Leave selection mode",
+            "aria-label": "Cancel the selection",
+            onClick: _cache[4] || (_cache[4] = ($event) => unref(exitSel)())
+          }, [..._cache[18] || (_cache[18] = [
+            createBaseVNode("svg", { class: "ic" }, [
+              createBaseVNode("use", { href: "#i-close" })
+            ], -1)
+          ])], 8, _hoisted_8)
+        ])) : createCommentVNode("", true),
+        createVNode(unref(de), {
+          "model-value": dlg.value === "delete",
+          "onUpdate:modelValue": _cache[7] || (_cache[7] = (v2) => !v2 && (dlg.value = null)),
+          title: "Delete selection?",
+          summary: unref(SEL).size + " item(s) — permanent",
+          "close-on-click-modal": ""
+        }, {
+          default: withCtx(() => [
+            createBaseVNode("div", _hoisted_9, [
+              createBaseVNode("ul", _hoisted_10, [
+                (openBlock(true), createElementBlock(Fragment, null, renderList(preview5.value, (n2) => {
+                  return openBlock(), createElementBlock("li", { key: n2 }, toDisplayString(n2), 1);
+                }), 128))
+              ]),
+              more.value ? (openBlock(), createElementBlock("div", _hoisted_11, "…and " + toDisplayString(more.value) + " more", 1)) : createCommentVNode("", true),
+              _cache[20] || (_cache[20] = createBaseVNode("div", { class: "dwarn" }, [
+                createBaseVNode("svg", { class: "ic" }, [
+                  createBaseVNode("use", { href: "#i-warn" })
+                ]),
+                createTextVNode("Permanent — deleted files cannot be recovered. Operational files are refused by the server.")
+              ], -1)),
+              createBaseVNode("div", _hoisted_12, [
+                createBaseVNode("button", {
+                  class: "btn",
+                  disabled: busy.value,
+                  onClick: _cache[5] || (_cache[5] = ($event) => dlg.value = null)
+                }, "Cancel", 8, _hoisted_13),
+                createBaseVNode("button", {
+                  class: "btn danger",
+                  disabled: busy.value,
+                  onClick: _cache[6] || (_cache[6] = ($event) => runDelete())
+                }, [
+                  _cache[19] || (_cache[19] = createBaseVNode("svg", { class: "ic" }, [
+                    createBaseVNode("use", { href: "#i-delete" })
+                  ], -1)),
+                  createTextVNode("Delete " + toDisplayString(unref(SEL).size), 1)
+                ], 8, _hoisted_14)
+              ])
+            ])
+          ]),
+          _: 1
+        }, 8, ["model-value", "summary"]),
+        createVNode(unref(de), {
+          "model-value": dlg.value === "dest",
+          "onUpdate:modelValue": _cache[12] || (_cache[12] = (v2) => !v2 && (dlg.value = null)),
+          title: (destMode.value === "move" ? "Move" : "Copy") + " selection",
+          summary: unref(SEL).size + " item(s) — choose the destination",
+          "close-on-click-modal": ""
+        }, {
+          default: withCtx(() => [
+            createBaseVNode("div", _hoisted_15, [
+              createBaseVNode("div", _hoisted_16, [
+                createBaseVNode("button", {
+                  class: normalizeClass(["destitem", { on: !destPick.value && !newDir.value }]),
+                  role: "radio",
+                  "aria-checked": !destPick.value && !newDir.value ? "true" : "false",
+                  onClick: _cache[8] || (_cache[8] = ($event) => {
+                    destPick.value = "";
+                    newDir.value = "";
+                  })
+                }, [..._cache[21] || (_cache[21] = [
+                  createBaseVNode("svg", { class: "ic" }, [
+                    createBaseVNode("use", { href: "#i-logo" })
+                  ], -1),
+                  createTextVNode(".zscripts/ (root) ", -1)
+                ])], 10, _hoisted_17),
+                (openBlock(true), createElementBlock(Fragment, null, renderList(folders.value, (fd) => {
+                  return openBlock(), createElementBlock("button", {
+                    key: fd,
+                    class: normalizeClass(["destitem", { on: destPick.value === fd && !newDir.value }]),
+                    role: "radio",
+                    "aria-checked": destPick.value === fd && !newDir.value ? "true" : "false",
+                    onClick: ($event) => {
+                      destPick.value = fd;
+                      newDir.value = "";
+                    }
+                  }, [
+                    _cache[22] || (_cache[22] = createBaseVNode("svg", { class: "ic" }, [
+                      createBaseVNode("use", { href: "#i-logo" })
+                    ], -1)),
+                    createTextVNode(toDisplayString(fd), 1)
+                  ], 10, _hoisted_18);
+                }), 128))
+              ]),
+              createBaseVNode("label", _hoisted_19, [
+                _cache[23] || (_cache[23] = createBaseVNode("svg", { class: "ic" }, [
+                  createBaseVNode("use", { href: "#i-newdir" })
+                ], -1)),
+                withDirectives(createBaseVNode("input", {
+                  "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => newDir.value = $event),
+                  placeholder: "…or a new folder name",
+                  maxlength: "64"
+                }, null, 512), [
+                  [vModelText, newDir.value]
+                ])
+              ]),
+              destErr.value ? (openBlock(), createElementBlock("div", _hoisted_20, toDisplayString(destErr.value), 1)) : createCommentVNode("", true),
+              createBaseVNode("div", _hoisted_21, [
+                createBaseVNode("button", {
+                  class: "btn",
+                  disabled: busy.value,
+                  onClick: _cache[10] || (_cache[10] = ($event) => dlg.value = null)
+                }, "Cancel", 8, _hoisted_22),
+                createBaseVNode("button", {
+                  class: "btn",
+                  disabled: busy.value,
+                  onClick: _cache[11] || (_cache[11] = ($event) => runDest())
+                }, [
+                  (openBlock(), createElementBlock("svg", _hoisted_24, [
+                    createBaseVNode("use", {
+                      href: destMode.value === "move" ? "#i-move" : "#i-copy"
+                    }, null, 8, _hoisted_25)
+                  ])),
+                  createTextVNode(toDisplayString(destMode.value === "move" ? "Move" : "Copy") + " " + toDisplayString(unref(SEL).size), 1)
+                ], 8, _hoisted_23)
+              ])
+            ])
+          ]),
+          _: 1
+        }, 8, ["model-value", "title", "summary"])
+      ], 64);
+    };
+  }
+};
 function bootTheme(onTheme) {
   let saved = null;
   try {
@@ -18569,16 +19150,19 @@ const _sfc_main = {
       bootTheme((t) => {
         ui.themeDark = t === "dark";
       });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && S.selMode && !e.target.closest("input,textarea")) exitSel();
+      });
       boot();
     });
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
+        createVNode(_sfc_main$7),
         createVNode(_sfc_main$6),
-        createVNode(_sfc_main$5),
         createBaseVNode("main", null, [
+          createVNode(_sfc_main$5),
           createVNode(_sfc_main$4),
-          createVNode(_sfc_main$3),
-          createVNode(_sfc_main$2, {
+          createVNode(_sfc_main$3, {
             onPreview: _cache[0] || (_cache[0] = (f) => modal.value && modal.value.open(f))
           })
         ]),
@@ -18586,6 +19170,7 @@ const _sfc_main = {
           ref_key: "modal",
           ref: modal
         }, null, 512),
+        createVNode(_sfc_main$1),
         createBaseVNode("div", _hoisted_1, toDisplayString(unref(ui).announce), 1)
       ], 64);
     };
@@ -19139,6 +19724,93 @@ section{margin-bottom:26px}
   .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
   .m-icon-button .ic{width:20px;height:20px}
 }
+
+/* ================= v5.1.0 (Task 84) — multi-selection + file manager ============ */
+/* Selection mode: cards toggle selection instead of previewing; the selected
+   card carries the primary ring + a corner check badge; the SelectBar (fixed
+   bottom, above the appbar at 60, below the modal at 100) carries the four
+   batch actions + cancel. D10: compact 14/12/11px typography, official miuix
+   icons only, card/page palette untouched. */
+.fcard.sel{
+  outline:2px solid var(--mx-primary);
+  outline-offset:-2px;
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--mx-primary) 18%,transparent),var(--mx-shadow-lg);
+}
+.fcard.selmode:hover{transform:none}          /* selection mode: no lift — the ring is the state */
+.selcheck{
+  position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:var(--mx-radius-full);
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mx-card);border:1.5px solid var(--mx-outline);color:transparent;
+  transition:background var(--mx-dur) var(--mx-ease),border-color var(--mx-dur) var(--mx-ease);
+}
+.selcheck .ic{width:14px;height:14px;fill:currentColor}
+.selcheck.on{background:var(--mx-primary);border-color:var(--mx-primary);color:var(--mx-on-primary)}
+.selbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:70;
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));
+  background:var(--mx-card);border-top:1px solid var(--mx-divider);
+  box-shadow:var(--mx-shadow-lg);
+  animation:selbarin var(--mx-dur-med) var(--mx-ease-spring) both;
+}
+@keyframes selbarin{from{transform:translateY(100%)}to{transform:none}}
+.selbar .scount{font-size:12px;color:var(--mx-text-2);white-space:nowrap}
+.selbar .scount b{font-size:14px;color:var(--mx-on-card);margin-right:2px}
+.selbar .sactions{display:flex;gap:4px;flex:1;justify-content:center;min-width:0;overflow-x:auto}
+.sbtn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-width:56px;padding:7px 10px;border-radius:var(--mx-radius-m);
+  background:transparent;border:0;color:var(--mx-on-card-2);
+  font:inherit;font-size:11px;cursor:pointer;
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.sbtn .ic{width:20px;height:20px;fill:currentColor}
+.sbtn:hover{background:var(--mx-hover);color:var(--mx-primary)}
+.sbtn:disabled{opacity:.45;cursor:default}
+.scancel{
+  width:36px;height:36px;border-radius:var(--mx-radius-full);flex:none;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mx-secondary-container);border:0;color:var(--mx-on-card-2);cursor:pointer;
+}
+.scancel .ic{width:16px;height:16px;fill:currentColor}
+.scancel:hover{background:var(--mx-hover)}
+body:has(.selbar) main{padding-bottom:76px}   /* the fixed bar must not cover the last card row */
+
+/* SelectBar dialogs (the task file manager's own surfaces — same clause as the
+   preview modal): delete confirm + move/copy destination picker */
+.dnames{margin:2px 0 6px;padding-left:20px;font-size:12px;line-height:1.6;color:var(--mx-on-card);word-break:break-all}
+.dnames li+li{margin-top:2px}
+.dmore{font-size:11px;color:var(--mx-text-2);margin-bottom:6px}
+.dwarn{
+  display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:var(--mx-radius-s);
+  background:var(--mx-error-container);color:var(--mx-on-error-container);font-size:11px;line-height:1.45;
+}
+.dwarn .ic{width:14px;height:14px;fill:currentColor;flex:none;margin-top:1px}
+.dbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.btn.danger{background:var(--mx-error);color:#fff}
+.btn.danger:hover{filter:brightness(1.1)}
+.destlist{display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow:auto;margin:2px 0 8px}
+.destitem{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--mx-radius-m);
+  background:transparent;border:0;color:var(--mx-on-card);font:inherit;font-size:13px;
+  cursor:pointer;text-align:left;word-break:break-all;
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.destitem .ic{width:18px;height:18px;fill:var(--mx-text-2);flex:none}
+.destitem:hover{background:var(--mx-hover)}
+.destitem.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.destitem.on .ic{fill:var(--mx-on-tertiary-container)}
+.newdir{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--mx-radius-m);
+  background:var(--mx-secondary-container);
+}
+.newdir .ic{width:16px;height:16px;fill:var(--mx-text-2);flex:none}
+.newdir input{
+  flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--mx-on-card);
+  font:inherit;font-size:13px;padding:2px 0;
+}
+.newdir input::placeholder{color:var(--mx-text-3)}
+.derr{font-size:11px;color:var(--mx-error);margin-top:6px}
 
 .truncnote[data-v-92276812]{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--mx-surface-variant);color:var(--mx-on-surface-variant);font-size:12px}
 .truncnote .ic[data-v-92276812]{width:14px;height:14px;fill:currentColor;flex:none}

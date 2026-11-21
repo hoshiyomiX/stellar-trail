@@ -1,8 +1,14 @@
 <script setup>
-// explorer UI v5.0 — file list, a verbatim port of the v4.4 renderList/renderError/
+// explorer UI v5.1 — file list, a verbatim port of the v4.4 renderList/renderError/
 // renderStatic/cardHTML/pager + the v4.1 silent-refresh animation rule.
-import { computed } from 'vue'
-import { S, PAGE, META, ui, PAGE_MAP, loadList, resetErrorAndRetry, goLive, copyPath, fetchT } from '../explorer.js'
+// v5.1.0 (Task 84, owner order "Add feature Task File Manager: delete files dan
+// multi selection action option"): multi-selection — a select IconButton enters
+// selection mode from any card action row (long-press / right-click too); in
+// selection mode a card click TOGGLES the selection instead of previewing, and
+// the SelectBar (App.vue) carries the batch actions. The card keeps the Task-66
+// center-click preview contract OUTSIDE selection mode.
+import { S, PAGE, META, ui, PAGE_MAP, loadList, resetErrorAndRetry, goLive, copyPath, fetchT,
+         SEL, enterSel, toggleSel } from '../explorer.js'
 import { fmtSize, fmtDate, fmtRel, iconFor, classFor } from '../util.js'
 import { md, hlJSON } from '../preview.js'
 
@@ -21,8 +27,18 @@ function page(n){ S.page = n; loadList() }
 function onCardKey(e, f){
   if (e.key !== 'Enter' && e.key !== ' ') return
   if (e.target.closest('button,a,input,select')) return
-  e.preventDefault(); emit('preview', f)
+  e.preventDefault()
+  if (S.selMode) toggleSel(f.key); else emit('preview', f)
 }
+function onCardClick(f){
+  if (S.selMode) toggleSel(f.key); else emit('preview', f)
+}
+/* v5.1.0 selection entry: long-press (touch, 500 ms) or right-click enters
+   selection mode with that card selected — the mobile file-manager idiom */
+let lpTimer = null
+function onLPStart(f){ if (S.selMode) return; lpTimer = setTimeout(() => { lpTimer = null; enterSel(f.key) }, 500) }
+function onLPEnd(){ if (lpTimer) { clearTimeout(lpTimer); lpTimer = null } }
+function onCtx(e, f){ if (S.selMode) return; e.preventDefault(); enterSel(f.key) }
 </script>
 <template>
   <section id="listwrap" aria-label="Files">
@@ -53,13 +69,19 @@ function onCardKey(e, f){
       <div v-else-if="!PAGE.total" class="empty">
         <div class="e t-other"><svg class="ic"><use href="#i-search"/></svg></div>
         <div class="t">No files match the active filters</div>
-        <div class="h">no files in download/ + archive/ yet — the list fills in as work produces deliverables</div>
+        <div class="h">no files in .zscripts/ yet — deliveries import here automatically (the watcher moves download/ files in) as work produces files</div>
       </div>
       <!-- the grid / list -->
       <div v-else class="filegrid" :class="{ 'filegrid--list': S.view === 'list', noanim: !ui.listAnim }">
         <div v-for="(f, i) in PAGE.files" :key="f.key" class="fcard" tabindex="0" role="button"
-             :aria-label="'Preview ' + f.name" :style="{ animationDelay: ui.listAnim ? delay(i) : '0ms' }"
-             @click="emit('preview', f)" @keydown="e => onCardKey(e, f)">
+             :class="{ sel: S.selMode && SEL.has(f.key), selmode: S.selMode }"
+             :aria-label="(S.selMode ? (SEL.has(f.key) ? 'Deselect ' : 'Select ') : 'Preview ') + f.name"
+             :aria-pressed="S.selMode ? (SEL.has(f.key) ? 'true' : 'false') : undefined"
+             :style="{ animationDelay: ui.listAnim ? delay(i) : '0ms' }"
+             @click="onCardClick(f)" @keydown="e => onCardKey(e, f)"
+             @touchstart.passive="onLPStart(f)" @touchend="onLPEnd" @touchmove="onLPEnd" @touchcancel="onLPEnd"
+             @contextmenu="e => onCtx(e, f)">
+          <span v-if="S.selMode" class="selcheck" :class="{ on: SEL.has(f.key) }" aria-hidden="true"><svg class="ic"><use href="#i-check"/></svg></span>
           <span class="ftile" :class="'t-' + classFor(f)"><svg class="ic"><use :href="'#i-' + iconFor(f)"/></svg></span>
           <div class="fbody">
             <!-- Task 66: fbadge moved INSIDE .fbody as a right float — the
@@ -71,6 +93,7 @@ function onCardKey(e, f){
             <div class="fmeta"><span>{{ fmtSize(f.size) }}</span><span :title="fmtDate(f.mtime)">{{ fmtRel(f.mtime) }}</span></div>
             <span v-if="f.task" class="ftask"><svg class="ic"><use href="#i-check"/></svg>TASK {{ f.task }}</span>
             <div class="fact">
+              <button v-if="!S.selMode" class="fcpy" :title="'Select (multi-selection)'" :aria-label="'Select ' + f.name + ' for a batch action'" @click.stop="enterSel(f.key)"><svg class="ic"><use href="#i-select"/></svg></button>
               <button class="fcpy" :title="'Copy the server path'" :aria-label="'Copy the path of ' + f.name" @click.stop="copyPath(f)"><svg class="ic"><use href="#i-copy"/></svg></button>
               <a :href="f.href + '?dl=1'" :download="f.name" :title="'Download ' + f.name" :aria-label="'Download ' + f.name" @click.stop><svg class="ic"><use href="#i-down"/></svg></a>
             </div>

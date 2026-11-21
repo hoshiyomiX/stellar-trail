@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # watcher.sh — runtime watchdog daemon for the stellar-trail persistence layer
-# stellar-trail · watcher v2.4 (runtime watchdog, verify-only + local self-heal)
+# stellar-trail · watcher v2.5 (runtime watchdog, verify-only + local self-heal)
 #
 # WHAT THIS DAEMON DOES (one loop every 30 seconds, WATCHER_INTERVAL to tune):
 #   1. download/ change trigger — when the top level of download/ changes,
@@ -37,6 +37,17 @@
 #       logs the verdict. LOCAL self-heal only — the watcher still NEVER
 #       performs a network install (D7 doctrine untouched; precedent: the
 #       explorer auto-restart of duty 2).
+#   2d. download/ -> .zscripts/ import (v2.5, Task 84 / v5.7.10 — owner order
+#       "add force copy files ke ..zscripts/ jika di folder download (default
+#       z.ai path) masih ada"; owner-confirmed semantics: MOVE — force-copy,
+#       byte-verify, remove the source; ALL top-level entries; watcher-
+#       periodic trigger): run scripts/import-download.sh (canonical copy
+#       first, live tree fallback) EVERY cycle, BEFORE the duty-1 hash so a
+#       delivery imports and the download/ hash settles within one pass.
+#       The importer skips ^ALERT files (the ALERT surface stays in
+#       download/ for the platform panel) and protected operational names
+#       (once-per-episode-set notice); idempotent; failures retried next
+#       cycle. Pairs with explorer.py v1.13 ROOTS = .zscripts/ only.
 #   3. Release-file guard — .zscripts/stellar-trail-canonical/skill-card.md and
 #      assets/integrity.sha256 are release files that live outside the
 #      checksum manifest (the manifest cannot hash itself, and the skill
@@ -65,7 +76,10 @@
 #      EVIDENCE-PENDING (user field evidence unprocessed by any logged
 #      session, >2 h). Alarms append to the worklog (1 h debounce per class)
 #      AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
-#      file list, because worklog/watcher.log are only read when the
+#      file list (v2.5: mirrored to .zscripts/ALERT-ACTIVE.md as well, since
+#      the Task Files Explorer serves .zscripts/ only since explorer.py
+#      v1.13 — the download/ copy keeps the platform-panel visibility),
+#      because worklog/watcher.log are only read when the
 #      protocol already runs (the 2026-10-21 incident ran its full course
 #      with zero machine alarms; the USER caught it). The ALERT file is
 #      excluded from the duty-1 hash and removed automatically when every
@@ -316,6 +330,16 @@ fi
         CYCLES=0
         CANON_DIR="$PROJECT/.zscripts/stellar-trail-canonical"
         GUARD_STATE="$ZDIR/.guard-release.state"
+        # duty 2d importer resolution (resolved once per daemon life; the
+        # canonical copy survives a skills/ wipe, the live tree is the
+        # pre-bootstrap fallback)
+        IMP_SH="$CANON_DIR/scripts/import-download.sh"
+        [ -f "$IMP_SH" ] || IMP_SH="$PROJECT/skills/stellar-trail/scripts/import-download.sh"
+        if [ ! -f "$IMP_SH" ]; then
+            for G_IMP in "$PROJECT"/skills/@*/stellar-trail/scripts/import-download.sh; do
+                [ -f "$G_IMP" ] && IMP_SH="$G_IMP" && break
+            done
+        fi
         # duty 1 hashes the top level of download/ EXCEPT the ALERT surface —
         # an alarm file appearing/clearing must never trigger dev.sh (the
         # sentinel does not get to kick the boot hook)
@@ -327,6 +351,18 @@ fi
                 exit 0
             fi
             sleep "$INTERVAL"
+
+            # 2d. download/ -> .zscripts/ import (v2.5, Task 84 — owner
+            #     order "add force copy files ke ..zscripts/ jika di folder
+            #     download (default z.ai path) masih ada"; MOVE semantics,
+            #     ALL entries, watcher-periodic). Runs BEFORE the duty-1
+            #     hash on purpose: the import empties download/ first, so
+            #     the hash settles in one pass instead of flip-flopping a
+            #     second dev.sh run. CONSTRAINT: this block lives inside a
+            #     single-quoted bash -c string — NO single quotes here.
+            if [ -n "$IMP_SH" ]; then
+                bash "$IMP_SH" >> "$LOG" 2>&1
+            fi
 
             # 1. download/ change trigger (dev.sh is optional; ALERT files
             #    are excluded from the hash — see the LAST= note above)
@@ -623,18 +659,28 @@ fi
                     # class set changes; removed on all-clear (self-heals a
                     # manual deletion while classes remain active).
                     SW_ALERT="$DOWNLOAD/ALERT-ACTIVE.md"
+                    # v2.5 (Task 84): the TFM serves .zscripts/ only since
+                    # explorer.py v1.13 — the ALERT surface is MIRRORED there
+                    # so it stays visible in the file manager; the download/
+                    # copy keeps the platform-panel visibility. Same content,
+                    # same lifecycle (refreshed on class-set change, removed on
+                    # all-clear). NO single quotes in this block.
+                    SW_ALERT2="$ZDIR/ALERT-ACTIVE.md"
                     if [ "$SW_ANY" = 1 ]; then
                         SW_PREV="-"
                         [ -f "$ZDIR/.alert-classes.last" ] && SW_PREV=$(cat "$ZDIR/.alert-classes.last" 2>/dev/null)
-                        if [ "$SW_PREV" != "$SW_CLASSES" ] || [ ! -f "$SW_ALERT" ]; then
+                        if [ "$SW_PREV" != "$SW_CLASSES" ] || [ ! -f "$SW_ALERT" ] || [ ! -f "$SW_ALERT2" ]; then
                             printf "%s\n" "$SW_CLASSES" > "$ZDIR/.alert-classes.last" 2>/dev/null
                             printf "> stellar-trail WATCHDOG ALERT — active since %s\n> Active classes:%s\n> Meaning: work artifacts or user evidence are running ahead of the last memory checkpoint, the worklog is growing without one, or an installation failed its checksum manifest (INTEGRITY class) — the protocol is not running as specified.\n> Agent remediation: invoke Skill(stellar-trail), run M0, apply the rule-6 unverified-input posture over any unlogged work found on disk.\n> User remediation: audit the agent responses — every marked response opens with the stellar-trail banner; this file is removed automatically once every class clears (watcher = verify-only, it never repairs).\n" "$(date "+%F %T")" "$SW_CLASSES" > "$SW_ALERT" 2>/dev/null
-                            wlog "ALERT surface refreshed:$SW_CLASSES"
+                            cp -f "$SW_ALERT" "$SW_ALERT2" 2>/dev/null
+                            wlog "ALERT surface refreshed:$SW_CLASSES (download/ + .zscripts/ mirrors)"
                         fi
-                    elif [ -f "$SW_ALERT" ]; then
-                        rm -f "$SW_ALERT"
-                        printf "%s\n" "-" > "$ZDIR/.alert-classes.last" 2>/dev/null
-                        wlog "silent-work sentinel: all clear — download/ALERT-ACTIVE.md removed"
+                    else
+                        if [ -f "$SW_ALERT" ] || [ -f "$SW_ALERT2" ]; then
+                            rm -f "$SW_ALERT" "$SW_ALERT2"
+                            printf "%s\n" "-" > "$ZDIR/.alert-classes.last" 2>/dev/null
+                            wlog "silent-work sentinel: all clear — ALERT-ACTIVE.md removed (download/ + .zscripts/)"
+                        fi
                     fi
                 fi
             fi

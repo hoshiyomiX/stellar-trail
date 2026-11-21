@@ -26,10 +26,13 @@
 // Task 63 order #1: the Dashboard section title (ex-Release Health) moved off the
 // TopDownloads trophy onto grid→GridView (the dashboard-grid metaphor); spark stays
 // in the sprite as a spare glyph (33 symbols unchanged).
+// v5.1.0 (Task 84, official miuix glyphs — D10 clause): select→SelectAll ·
+// delete→Delete · move→MoveFile · newdir→AddFolder — the multi-select +
+// file-manager action set (37 symbols).
 import { Search, Close, Ok, GridView, ListView, Theme, ExpandLess, ExpandMore,
   ChevronForward, Download, Show, Notes, File, Folder, FolderFill, Image, Layers, Edit, Store,
   ScreenMirroring, Recent, Tasks, Report, Info, TopDownloads, Copy, Send,
-  Refresh, Reset, Backup, Link } from 'miuix-vue/icons'
+  Refresh, Reset, Backup, Link, SelectAll, Delete, MoveFile, AddFolder } from 'miuix-vue/icons'
 
 const W = i => i.regular
 
@@ -78,6 +81,10 @@ const glyphs = {
   restart: W(Refresh),
   restore: W(Reset),
   backup: W(Backup),
-  open: W(Link)
+  open: W(Link),
+  select: W(SelectAll),
+  delete: W(Delete),
+  move: W(MoveFile),
+  newdir: W(AddFolder)
 }
 </script>

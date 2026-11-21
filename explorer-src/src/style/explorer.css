@@ -544,3 +544,90 @@ section{margin-bottom:26px}
   .m-icon-button{width:34px;height:34px;min-width:34px;min-height:34px}
   .m-icon-button .ic{width:20px;height:20px}
 }
+
+/* ================= v5.1.0 (Task 84) — multi-selection + file manager ============ */
+/* Selection mode: cards toggle selection instead of previewing; the selected
+   card carries the primary ring + a corner check badge; the SelectBar (fixed
+   bottom, above the appbar at 60, below the modal at 100) carries the four
+   batch actions + cancel. D10: compact 14/12/11px typography, official miuix
+   icons only, card/page palette untouched. */
+.fcard.sel{
+  outline:2px solid var(--mx-primary);
+  outline-offset:-2px;
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--mx-primary) 18%,transparent),var(--mx-shadow-lg);
+}
+.fcard.selmode:hover{transform:none}          /* selection mode: no lift — the ring is the state */
+.selcheck{
+  position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:var(--mx-radius-full);
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mx-card);border:1.5px solid var(--mx-outline);color:transparent;
+  transition:background var(--mx-dur) var(--mx-ease),border-color var(--mx-dur) var(--mx-ease);
+}
+.selcheck .ic{width:14px;height:14px;fill:currentColor}
+.selcheck.on{background:var(--mx-primary);border-color:var(--mx-primary);color:var(--mx-on-primary)}
+.selbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:70;
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));
+  background:var(--mx-card);border-top:1px solid var(--mx-divider);
+  box-shadow:var(--mx-shadow-lg);
+  animation:selbarin var(--mx-dur-med) var(--mx-ease-spring) both;
+}
+@keyframes selbarin{from{transform:translateY(100%)}to{transform:none}}
+.selbar .scount{font-size:12px;color:var(--mx-text-2);white-space:nowrap}
+.selbar .scount b{font-size:14px;color:var(--mx-on-card);margin-right:2px}
+.selbar .sactions{display:flex;gap:4px;flex:1;justify-content:center;min-width:0;overflow-x:auto}
+.sbtn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-width:56px;padding:7px 10px;border-radius:var(--mx-radius-m);
+  background:transparent;border:0;color:var(--mx-on-card-2);
+  font:inherit;font-size:11px;cursor:pointer;
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.sbtn .ic{width:20px;height:20px;fill:currentColor}
+.sbtn:hover{background:var(--mx-hover);color:var(--mx-primary)}
+.sbtn:disabled{opacity:.45;cursor:default}
+.scancel{
+  width:36px;height:36px;border-radius:var(--mx-radius-full);flex:none;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mx-secondary-container);border:0;color:var(--mx-on-card-2);cursor:pointer;
+}
+.scancel .ic{width:16px;height:16px;fill:currentColor}
+.scancel:hover{background:var(--mx-hover)}
+body:has(.selbar) main{padding-bottom:76px}   /* the fixed bar must not cover the last card row */
+
+/* SelectBar dialogs (the task file manager's own surfaces — same clause as the
+   preview modal): delete confirm + move/copy destination picker */
+.dnames{margin:2px 0 6px;padding-left:20px;font-size:12px;line-height:1.6;color:var(--mx-on-card);word-break:break-all}
+.dnames li+li{margin-top:2px}
+.dmore{font-size:11px;color:var(--mx-text-2);margin-bottom:6px}
+.dwarn{
+  display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:var(--mx-radius-s);
+  background:var(--mx-error-container);color:var(--mx-on-error-container);font-size:11px;line-height:1.45;
+}
+.dwarn .ic{width:14px;height:14px;fill:currentColor;flex:none;margin-top:1px}
+.dbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.btn.danger{background:var(--mx-error);color:#fff}
+.btn.danger:hover{filter:brightness(1.1)}
+.destlist{display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow:auto;margin:2px 0 8px}
+.destitem{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--mx-radius-m);
+  background:transparent;border:0;color:var(--mx-on-card);font:inherit;font-size:13px;
+  cursor:pointer;text-align:left;word-break:break-all;
+  transition:background var(--mx-dur) var(--mx-ease);
+}
+.destitem .ic{width:18px;height:18px;fill:var(--mx-text-2);flex:none}
+.destitem:hover{background:var(--mx-hover)}
+.destitem.on{background:var(--mx-tertiary-container);color:var(--mx-on-tertiary-container)}
+.destitem.on .ic{fill:var(--mx-on-tertiary-container)}
+.newdir{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--mx-radius-m);
+  background:var(--mx-secondary-container);
+}
+.newdir .ic{width:16px;height:16px;fill:var(--mx-text-2);flex:none}
+.newdir input{
+  flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--mx-on-card);
+  font:inherit;font-size:13px;padding:2px 0;
+}
+.newdir input::placeholder{color:var(--mx-text-3)}
+.derr{font-size:11px;color:var(--mx-error);margin-top:6px}

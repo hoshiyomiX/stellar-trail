@@ -14,12 +14,16 @@ import { reactive, shallowRef } from 'vue'
 import { fmtDur } from './util.js'
 
 /* ================= state ================= */
-export const S=reactive({q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1});
+export const S=reactive({q:"",type:"all",task:null,sort:{col:"mtime",dir:"desc"},root:"all",view:"grid",page:1,selMode:false});
 export const PER_PAGE=100;
 export const META=shallowRef(null);        // per-poll feed (stats/chips/footer read this)
 export const TASKS=shallowRef(null);       // rail data — replaced ONLY on real change (content signature)
 export const PAGE=shallowRef(null);
 export const PAGE_MAP={};                  // key -> file (server page map)
+/* v5.1.0 (Task 84): multi-selection state — SEL holds file keys
+   ("zscripts/<rel>") across pages/filters; selMode rides S so every
+   component reacts. Vue 3 tracks Set mutations natively. */
+export const SEL=reactive(new Set());
 export const ui=reactive({
   clock:"--:--:--", footer:"loading…", lastScan:"—", announce:"",
   error:false, static:false, staticLive:false, listAnim:true,
@@ -176,6 +180,66 @@ export async function copyPath(f){
      clear-then-set so identical consecutive copies re-announce */
   ui.announce="";
   setTimeout(()=>{ui.announce=ok?("Path copied: "+p):"Failed to copy the path"},50);
+}
+
+/* ================= v5.1.0 selection (Task 84) ================= */
+export function enterSel(key){ S.selMode=true; if(key) SEL.add(key) }
+export function toggleSel(key){
+  if(SEL.has(key)) SEL.delete(key); else SEL.add(key);
+  if(!SEL.size) S.selMode=false;   /* last deselection leaves selection mode */
+}
+export function exitSel(){ S.selMode=false; SEL.clear() }
+
+/* ================= v5.1.0 file-manager write API (Task 84) =================
+   The server (explorer.py v1.13) owns enforcement — protection, path
+   safety, cache invalidation; the client owns confirmation UX. The JSON
+   content-type is the CSRF posture: a cross-site form can never send it. */
+export async function postJSON(url,body,ms){
+  ms=ms||15000;
+  const p=fetch(url,{method:"POST",cache:"no-store",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const bs=new Promise((_,rej)=>{setTimeout(()=>{const e=new Error("signal timed out");e.name="AbortError";rej(e)},ms+250)});
+  bs.catch(()=>{});
+  const r=await Promise.race([p,bs]);
+  let d=null; try{ d=await r.json() }catch(_){ /* non-JSON error body */ }
+  if(!r.ok){
+    const e=new Error((d&&d.error)||("HTTP "+r.status)); e.status=r.status; e.data=d; throw e;
+  }
+  return d;
+}
+export async function fetchFolders(){
+  const d=await(await fetchT("/api/folders",8000)).json();
+  return (d&&d.folders)||[];
+}
+function refreshAfterAction(){
+  probeNow();          /* meta poll -> content_sig flips -> list refreshes on change */
+  loadList();          /* belt-and-suspenders: the list refreshes NOW, not on the next 10 s poll */
+}
+function announce(msg){
+  ui.announce=""; setTimeout(()=>{ ui.announce=msg },50);   /* clear-then-set (Task-69 announcer) */
+}
+export async function actDelete(keys){
+  const d=await postJSON("/api/delete",{paths:[...keys]});
+  refreshAfterAction();
+  const failed=(d.results||[]).filter(r=>!r.ok);
+  announce("Deleted "+d.deleted+" item"+(d.deleted===1?"":"s")+
+    (failed.length?(" · "+failed.length+" refused (protected)"):""));
+  return d;
+}
+export async function actZip(keys,name){
+  const d=await postJSON("/api/zip",{paths:[...keys],name:name||undefined});
+  refreshAfterAction();
+  announce("Zip created: "+d.name+" — starting the download");
+  const a=document.createElement("a");           /* a download, never a popup */
+  a.href=d.href; a.download=d.name; document.body.appendChild(a); a.click(); a.remove();
+  return d;
+}
+export async function actTransfer(kind,keys,dest){
+  const d=await postJSON("/api/"+kind,{paths:[...keys],dest:dest});
+  refreshAfterAction();
+  const n=(kind==="move")?d.moved:d.copied;
+  announce((kind==="move"?"Moved ":"Copied ")+n+" item"+(n===1?"":"s")+(dest?(" to "+dest):""));
+  return d;
 }
 
 /* ================= boot + watchdog ================= */

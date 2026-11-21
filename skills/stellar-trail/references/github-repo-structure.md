@@ -48,11 +48,12 @@ stellar-trail/
         │   ├── snapshot-repo.sh       # restore-archive refresh (repo.tar)
         │   ├── relock-skill.sh        # skills-lock.json computedHash re-pin
         │   ├── ground-truth.sh        # M0 disk ground-truth card (v5.7.3)
-        │   └── persistence-probe.sh   # reset-experiment instrument: --mark/--check (v5.7.9)
+        │   ├── persistence-probe.sh   # reset-experiment instrument: --mark/--check (v5.7.9)
+        │   └── import-download.sh    # download/ → .zscripts/ importer, watcher duty 2d (v5.7.10)
         └── assets/
             ├── integrity.version   # release pin — live/canonical/dev trees must all match
             ├── integrity.sha256    # per-file checksum manifest (skill-card.md excluded by design)
-            ├── explorer/           # Task Files Explorer payload (explorer.py v1.10 + UI v5.0.2
+            ├── explorer/           # Task Files Explorer payload (explorer.py v1.13 + UI v5.1.0
             │                       #  single-file build + explorer.sh launcher + dev.sh.template)
             └── harness-hooks/      # CLAUDE.md/AGENTS.md seeds + seed-hashes.txt registry
 ```
@@ -65,7 +66,7 @@ stellar-trail/
 | `skill-card.md` | registry card shown by skill marketplaces | carries the version heading `## Skill Version(s):`; intentionally excluded from `integrity.sha256` (guarded by the watcher's release-file guard instead) |
 | `references/*.md` | on-demand depth (GBK, memory-hygiene, env-resilience, TFE, + the two v5.7.3 additions) | never in the M0 read budget; each file keeps its own validator anchors |
 | `scripts/*.sh` | the 9 bundled tools | plain-file, auditable; network ONLY in `update-skill.sh`'s explicit origin probe; `ground-truth.sh` never prints remote URLs (credential hygiene, D15) |
-| `assets/integrity.version` + `integrity.sha256` | release pin + per-file manifest | all three trees (live `skills/`, canonical `download/`, dev `stellar-trail-dev/`) must match; regen rebuilds from the EXISTING path list — insert new files' paths first, then hash |
+| `assets/integrity.version` + `integrity.sha256` | release pin + per-file manifest | all three trees (live `skills/`, canonical `.zscripts/stellar-trail-canonical/`, dev `stellar-trail-dev/`) must match; regen rebuilds from the EXISTING path list — insert new files' paths first, then hash |
 | `assets/explorer/` | the Task Files Explorer deploy payload | the UI is a single-file Vite build; source lives in `explorer-src/` and CI rebuilds it — the committed dist must stay reproducible |
 | `assets/harness-hooks/` | guaranteed-context activation seeds for other harnesses | seeded create-if-absent + refreshed-if-byte-identical; a user-edited file is never touched; hashes registered in `seed-hashes.txt` |
 | `explorer-src/` | UI source project | the ONLY place to edit the UI; the committed dist is a build product |

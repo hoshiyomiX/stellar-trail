@@ -1,7 +1,7 @@
 {
   "name": "stellar-trail-explorer-ui",
   "private": true,
-  "version": "5.0.2",
+  "version": "5.1.0",
   "type": "module",
   "scripts": {
     "build": "vite build"

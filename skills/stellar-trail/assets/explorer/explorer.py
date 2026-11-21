@@ -1,7 +1,31 @@
 #!/usr/bin/env python3
 """
-explorer.py — Task Files Explorer server v1.12 (anti-stand-down)
+explorer.py — Task Files Explorer server v1.13 (zscripts-root + file manager)
 =========================================================================
+v1.13 (Task 84 / v5.7.10, owner orders "Task File Explorer hanya mengolah
+direktori .zscripts/ saja" + "Add feature Task File Manager: delete files
+dan multi selection action option" + "add force copy files ke ..zscripts/
+jika di folder download (default z.ai path) masih ada"):
+  · ROOTS = .zscripts/ ONLY — the download/ + archive/ roots are retired;
+    owner deliveries reach the file manager via the watcher v2.5 duty-2d
+    importer (download/ -> .zscripts/, MOVE semantics) instead of being
+    served in place.
+  · Operational files are HIDDEN at the .zscripts root (dev.sh, explorer.*,
+    watcher.*, stellar-trail-canonical/, *.pid/*.log/... — the persistence
+    layer's own surface) and WRITE-PROTECTED: the delete/zip/move/copy
+    endpoints refuse any path whose first component is operational, and
+    any path with a dotfile component.
+  · NEW file-manager write API (POST, JSON): /api/delete (permanent, with
+    per-path results), /api/zip (server-side zipfile -> .zscripts/<name>.zip,
+    a normal managed file), /api/move + /api/copy (dest = existing-or-new
+    subfolder under .zscripts/; existing targets refused, never silently
+    overwritten), and GET /api/folders (destination picker data). The UI
+    owns confirmation dialogs (owner: permanent + miuix confirm); the API
+    owns enforcement (protection + path safety + cache invalidation).
+  · CSRF posture: the write API requires Content-Type: application/json
+    (a non-simple content type — a cross-site form can never send it
+    without a CORS preflight, which this server never answers) and, when
+    the Origin header is present, it must match the request Host.
 v1.12 (Task 81 / v5.7.6, owner orders "skill stellar-trail anti
   package.json/fullstack-dev" + "TFM harus survive dan persistent"): the
   package.json stand-down is RETIRED — the launcher (explorer.sh v1.6)
@@ -83,7 +107,8 @@ Endpoints:
                              large inventories (the UI polls a slim
                              /api/files?max=0 for tiles and pages through
                              /api/list for the cards):
-                               root=download|archive|all   (default all)
+                               root=zscripts|all          (default all;
+                               v1.13: the single root is .zscripts/)
                                q=<substring>               (name/path)
                                type=doc|pdf|img|data|pkg|code|office|other|all
                                task=<task id>              (worklog mapping)
@@ -102,6 +127,31 @@ Endpoints:
                              path (the preview modal's img/iframe);
                              ?dl=1 = explicit attachment (unchanged)
   GET /healthz               health check for explorer.sh / watcher.sh
+  GET /api/folders           v1.13: destination-picker data — owner-writable
+                             subfolders of .zscripts/ (operational surface +
+                             dotfiles excluded), depth 2, for the move/copy
+                             dialogs
+  POST /api/delete           v1.13 file-manager write API (JSON bodies;
+                             Content-Type: application/json REQUIRED — a
+                             non-simple type is preflight-protected, so a
+                             cross-site form can never reach these; Origin,
+                             when present, must match Host). {paths:[key..]}
+                             permanently deletes (the UI confirmed); every
+                             path is re-validated server-side: inside the
+                             root, no traversal, no dotfile component, and
+                             NOT operational surface (dev.sh, explorer.*,
+                             watcher.*, canonical/, *.pid... are refused);
+                             per-path results + cache invalidation on change
+  POST /api/zip              {paths:[..], name?} -> server-side zip written
+                             to .zscripts/<name|batch-ts>.zip (a normal
+                             managed file: listed, downloadable, deletable;
+                             never overwrites — -2, -3... on collision);
+                             response carries the new key + href?dl=1
+  POST /api/move             {paths:[..], dest:"zscripts/<subfolder"|""}
+                             moves the selection into dest (created when
+                             missing); an existing same-named target is
+                             REFUSED per-path (never silently overwritten)
+  POST /api/copy             same contract as move, duplicating instead
 
 v1.5 scalability contract (Task 30, evidence 2026-10-23 — v1.4 paid
 ~420 ms + 4.9 MB PER /api/files hit at 22k files, re-paid every 10 s poll;
@@ -144,9 +194,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import time
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote
 
@@ -160,25 +212,38 @@ WORKLOG_ARCHIVE = os.path.join(PROJECT, "worklog-archive.md")  # v1.9: merged in
 SESSION_STATE = os.path.join(PROJECT, "memory", "SESSION-STATE.md")
 
 # label -> absolute path (the label is used in /file/<label>/ URLs)
+# v1.13 (Task 84, owner order "Task File Explorer hanya mengolah direktori
+# .zscripts/ saja"): the single root is .zscripts/ — owner deliveries are
+# IMPORTED there by the watcher v2.5 duty-2d importer (MOVE semantics), so
+# the explorer serves exactly what the file manager manages.
 ROOTS = [
-    ("download", os.path.join(PROJECT, "download")),
-    ("archive", os.path.join(PROJECT, "archive")),
+    ("zscripts", ZDIR),
 ]
 ROOTMAP = dict(ROOTS)
-# v1.7: per-root TOP-LEVEL directory exclusions — a listed subtree is skipped
-# by the scan entirely (never walked, never stat'd, never listed, never mapped
-# to tasks). The skill's own canonical copy (.zscripts/stellar-trail-canonical/
-# since v5.7.4 — download/stellar-trail/ until then) is
-# restore infrastructure, not a task deliverable — the owner ordered it hidden
-# from the explorer view (2026-10-25: 20 files, 48% of the download listing;
-# the download-root entry below stays as a legacy-resurrection guard).
-# Direct /file/<label>/<rel> links into an excluded subtree STILL WORK
-# (safe_path never consults this list), so tooling and shared links are
-# unaffected; only the listing drops them. Depth-below-root scoping keeps
-# fixture trees (task30/task37) that happen to carry the same directory name
-# at a deeper level unaffected.
+# v1.13: operational surface of the .zscripts root — HIDDEN from the listing
+# (the file manager shows owner files only, per the Task-84 view-scope
+# answer) and WRITE-PROTECTED in the delete/zip/move/copy API (never
+# deletable via the UI). KEEP IN SYNC with scripts/import-download.sh
+# (PROTECTED_DIRS/FILES/SUFFIXES) — the two lists are a pair.
+HIDE_DIRS = {
+    "explorer-ui",                # the deployed UI (single-file build)
+    "stellar-trail-canonical",    # the skill canonical copy (restore source)
+}
+HIDE_FILES = {
+    "dev.sh", "dev.sh.foreign.bak",       # boot chain
+    "explorer.py", "explorer.sh",         # the explorer itself
+    "watcher.sh", "repo-snapshot.sh",     # persistence layer
+    "import-download.sh",                 # the deployed importer (v1.13 copy)
+    "explorer.log", "watcher.log", "boot.log",
+    "explorer.pid", "watcher.pid", "explorer.port", "explorer.code-stamp",
+    "bootstrap.state",
+}
+HIDE_SUFFIXES = (".pid", ".log", ".port", ".state", ".code-stamp", ".noticed", ".stop")
+# v1.7 ROOT_EXCLUDES mechanism kept (root-level dir prune) — now carries the
+# v1.13 hide set; the legacy "download": ("stellar-trail",) entry is retired
+# with the download root itself.
 ROOT_EXCLUDES = {
-    "download": ("stellar-trail",),
+    "zscripts": tuple(HIDE_DIRS),
 }
 SKILL_DIR = os.path.join(PROJECT, "skills", "stellar-trail")
 WATCHER_PID = os.path.join(ZDIR, "watcher.pid")
@@ -193,6 +258,71 @@ MAX_DEPTH = 4  # walk depth limit per root
 CACHE_TTL = 12.0                # v1.6: > the 10 s UI poll so most polls hit the warm cache; a change shows within ~2 polls (~22 s). v1.5's 3 s made every poll a cold rebuild — the timestamp flip then triggered spurious client re-renders every 10 s (measured)
 API_FILES_DEFAULT_MAX = 1000    # default per-root cap on /api/files arrays
 API_LIST_MAX_PER_PAGE = 500     # hard ceiling for /api/list per_page
+
+# v1.13 file-manager write API knobs
+FM_MAX_PATHS = 200              # hard cap on paths[] per write request
+FM_MAX_BODY = 2 * 1024 * 1024   # JSON body cap (2 MB)
+FM_ZIP_MAX_TOTAL = 512 * 1024 * 1024  # server-side zip source cap (512 MB)
+
+
+def _hidden_at_root(name: str) -> bool:
+    """v1.13: True when a ROOT-LEVEL entry is operational surface — hidden
+    from the listing (HIDE_FILES exact names + HIDE_SUFFIXES + dotfiles).
+    Deeper levels are unaffected: a task artifact named boot.log inside an
+    owner subfolder stays visible; only the .zscripts root itself is the
+    persistence layer's operational surface."""
+    if name.startswith(".") or name in HIDE_FILES or name in HIDE_DIRS:
+        return True
+    return name.endswith(HIDE_SUFFIXES)
+
+
+def _write_denied(rel: str) -> str:
+    """v1.13: None when rel is a legal WRITE target ('' = the root itself,
+    legal as a move/copy destination), else the denial reason. The FIRST
+    path component decides operational collisions; dotfiles are refused at
+    ANY depth (the hidden state layer is never writable via the API)."""
+    if rel.startswith("/") or "\\" in rel:
+        return "absolute or backslash path refused"
+    parts = [p for p in unquote(rel).split("/") if p not in ("", ".")]
+    if not parts:
+        return None  # the bare root: legal destination only
+    if ".." in parts:
+        return "path traversal refused"
+    first = parts[0]
+    if _hidden_at_root(first):
+        return "operational path refused (protected: %s)" % first
+    for p in parts:
+        if p.startswith("."):
+            return "hidden path component refused (%s)" % p
+    return None
+
+
+def _resolve_write(label: str, rel: str, need_exists=True):
+    """v1.13: ('<abs>', None) when key label/rel is a legal write source,
+    else (None, reason). need_exists=False allows a not-yet-existing
+    destination (move/copy dest, new zip name)."""
+    root = ROOTMAP.get(label)
+    if not root:
+        return None, "unknown root %r" % label
+    if rel.startswith("/"):
+        return None, "absolute path refused"
+    reason = _write_denied(rel)
+    if reason:
+        return None, reason
+    p = os.path.normpath(os.path.join(root, unquote(rel)))
+    rp, rb = os.path.realpath(p), os.path.realpath(root)
+    if not rp.startswith(rb + os.sep) and rp != rb:
+        return None, "outside the root refused"
+    if need_exists and not os.path.exists(p):
+        return None, "not found"
+    return p, None
+
+
+def _invalidate_cache():
+    """v1.13: force the next /api request to rebuild the inventory after a
+    successful mutation (delete/zip/move/copy)."""
+    with _cache_lock:
+        _cache["built_at"] = 0.0
 
 
 def ftype(ext: str) -> str:
@@ -239,9 +369,11 @@ def walk_root(label: str, root: str):
         depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
         if depth >= MAX_DEPTH:
             dirnames[:] = []
-        if rel_dir == ".":  # v1.7: the root's own children — apply exclusions
+        if rel_dir == ".":  # v1.7 root dirs + v1.13 root operational FILES
             dirnames[:] = sorted(d for d in dirnames
                                  if not d.startswith(".") and d not in skip_top)
+            filenames = [fn for fn in filenames
+                         if not _hidden_at_root(fn)]
         else:
             dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
         for fn in sorted(filenames):
@@ -746,6 +878,218 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):  # noqa: N802
         self.do_GET()
 
+    # ---- v1.13 file-manager write API ---------------------------------
+    def _write_request_guard(self):
+        """CSRF + shape guard shared by every write endpoint. Returns None
+        when the request may proceed, else (code, message) to send."""
+        origin = self.headers.get("Origin")
+        if origin:
+            host = self.headers.get("Host", "")
+            # same-origin only: http(s)://<host> (the preview ingress and
+            # 127.0.0.1 both satisfy this; a foreign origin is refused)
+            if origin not in ("http://%s" % host, "https://%s" % host):
+                return 403, "cross-origin write refused"
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            # a non-simple content type is preflight-protected by the browser
+            # itself; requiring it also rejects every plain-form cross-site
+            # attempt that somehow reaches us
+            return 415, "Content-Type: application/json required"
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length <= 0 or length > FM_MAX_BODY:
+            return 400, "missing or oversized JSON body"
+        return None
+
+    def _read_json(self):
+        """Read + parse the guarded JSON body (caller ran _write_request_guard)."""
+        try:
+            raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            data = json.loads(raw.decode("utf-8"))
+        except (OSError, ValueError, UnicodeDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    @staticmethod
+    def _key_split(key):
+        """'zscripts/<rel>' -> (label, rel); malformed keys are refused."""
+        if not isinstance(key, str):
+            return None, None
+        label, sep, rel = key.partition("/")
+        if not sep or not label or not rel:
+            return None, None
+        return label, rel
+
+    def do_POST(self):  # noqa: N802
+        path, _, _query = self.path.partition("?")
+        guard = self._write_request_guard()
+        if guard:
+            self._send(guard[0], guard[1])
+            return
+        data = self._read_json()
+        if data is None:
+            self._send(400, "invalid JSON body")
+            return
+        paths = data.get("paths")
+        if not isinstance(paths, list) or not paths or len(paths) > FM_MAX_PATHS:
+            self._send(400, "paths[] required (1..%d entries)" % FM_MAX_PATHS)
+            return
+        for k in paths:
+            if not isinstance(k, str):
+                self._send(400, "paths[] must be strings")
+                return
+
+        if path == "/api/delete":
+            # permanent delete — the UI confirmed; the API enforces protection
+            results, deleted = [], 0
+            for k in paths:
+                label, rel = self._key_split(k)
+                if rel is None:
+                    results.append({"key": k, "ok": False, "error": "malformed key"})
+                    continue
+                p, reason = _resolve_write(label, rel, need_exists=True)
+                if reason:
+                    results.append({"key": k, "ok": False, "error": reason})
+                    continue
+                try:
+                    if os.path.isdir(p) and not os.path.islink(p):
+                        shutil.rmtree(p)
+                    else:
+                        os.remove(p)
+                    deleted += 1
+                    results.append({"key": k, "ok": True})
+                except OSError as e:
+                    results.append({"key": k, "ok": False, "error": str(e)})
+            if deleted:
+                _invalidate_cache()
+            self._send(200, json.dumps({"deleted": deleted, "results": results},
+                                       ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+
+        if path == "/api/zip":
+            srcs, total = [], 0
+            for k in paths:
+                label, rel = self._key_split(k)
+                if rel is None:
+                    self._send(400, "malformed key: %r" % k)
+                    return
+                p, reason = _resolve_write(label, rel, need_exists=True)
+                if reason:
+                    self._send(403, "refused %s: %s" % (k, reason))
+                    return
+                try:
+                    total += os.path.getsize(p) if os.path.isfile(p) else 0
+                except OSError:
+                    pass
+                srcs.append(p)
+            if total > FM_ZIP_MAX_TOTAL:
+                self._send(413, "selection too large to zip (cap %d MB)"
+                           % (FM_ZIP_MAX_TOTAL // (1024 * 1024)))
+                return
+            name = data.get("name")
+            if not (isinstance(name, str) and name and
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", name)
+                    and not name.startswith(".")):
+                name = "batch-" + time.strftime("%Y%m%d-%H%M%S")
+            if not name.lower().endswith(".zip"):
+                name += ".zip"
+            zpath, reason = _resolve_write("zscripts", name, need_exists=False)
+            if reason:
+                self._send(400, "zip name refused: %s" % reason)
+                return
+            # never overwrite: batch-<ts>-2.zip, -3.zip, ... on collision
+            base, n = zpath, 1
+            while os.path.exists(zpath):
+                n += 1
+                zpath = "%s-%d.zip" % (base[:-4], n)
+            try:
+                with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for p in srcs:
+                        if os.path.isfile(p):
+                            zf.write(p, os.path.basename(p))
+                        else:
+                            for dirpath, dirnames, filenames in os.walk(p):
+                                dirnames[:] = sorted(d for d in dirnames
+                                                     if not d.startswith("."))
+                                for fn in sorted(filenames):
+                                    if fn.startswith("."):
+                                        continue
+                                    fp = os.path.join(dirpath, fn)
+                                    zf.write(fp, os.path.relpath(fp, os.path.dirname(p)))
+            except OSError as e:
+                try:
+                    os.remove(zpath)
+                except OSError:
+                    pass
+                self._send(500, "zip failed: %s" % e)
+                return
+            _invalidate_cache()
+            self._send(200, json.dumps(
+                {"ok": True, "name": os.path.basename(zpath),
+                 "key": "zscripts/%s" % os.path.basename(zpath),
+                 "href": "/file/zscripts/%s?dl=1" % os.path.basename(zpath),
+                 "size": os.path.getsize(zpath)}, ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+
+        if path in ("/api/move", "/api/copy"):
+            dest = data.get("dest")
+            if not isinstance(dest, str):
+                self._send(400, "dest required (a subfolder key or \"\" for the root)")
+                return
+            dlabel, dsep, drel = dest.partition("/")
+            if not dsep:
+                # bare folder name = that folder under the root; "" = the root
+                dlabel, drel = "zscripts", dest
+            drel = drel.rstrip("/")
+            dpath, reason = _resolve_write(dlabel, drel, need_exists=False)
+            if reason:
+                self._send(400, "dest refused: %s" % reason)
+                return
+            try:
+                os.makedirs(dpath, exist_ok=True)
+            except OSError as e:
+                self._send(500, "dest not creatable: %s" % e)
+                return
+            results, done = [], 0
+            for k in paths:
+                label, rel = self._key_split(k)
+                if rel is None:
+                    results.append({"key": k, "ok": False, "error": "malformed key"})
+                    continue
+                p, r2 = _resolve_write(label, rel, need_exists=True)
+                if r2:
+                    results.append({"key": k, "ok": False, "error": r2})
+                    continue
+                target = os.path.join(dpath, os.path.basename(p))
+                if os.path.exists(target):
+                    results.append({"key": k, "ok": False,
+                                    "error": "destination already has %s" % os.path.basename(p)})
+                    continue
+                try:
+                    if path == "/api/move":
+                        shutil.move(p, target)
+                    elif os.path.isdir(p) and not os.path.islink(p):
+                        shutil.copytree(p, target)
+                    else:
+                        shutil.copy2(p, target)
+                    done += 1
+                    results.append({"key": k, "ok": True,
+                                    "dest": "%s/%s" % (drel, os.path.basename(p))})
+                except OSError as e:
+                    results.append({"key": k, "ok": False, "error": str(e)})
+            if done:
+                _invalidate_cache()
+            self._send(200, json.dumps({"moved" if path == "/api/move" else "copied": done,
+                                        "results": results}, ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+
+        self._send(404, "Not Found")
+
     def do_GET(self):  # noqa: N802
         path, _, query = self.path.partition("?")
         q = parse_qs(query, keep_blank_values=True)
@@ -774,6 +1118,28 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/tasks":
             self._send(200, json.dumps(session_tasks(), ensure_ascii=False),
+                       "application/json; charset=utf-8")
+            return
+        if path == "/api/folders":
+            # v1.13: destination-picker data — owner-writable subfolders of
+            # the root (operational surface + dotfiles excluded), depth 2.
+            folders = []
+            for dirpath, dirnames, _fns in os.walk(ZDIR):
+                rel_dir = os.path.relpath(dirpath, ZDIR)
+                depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
+                if rel_dir == ".":
+                    dirnames[:] = sorted(
+                        d for d in dirnames
+                        if not d.startswith(".") and not _hidden_at_root(d))
+                else:
+                    dirnames[:] = sorted(
+                        d for d in dirnames if not d.startswith("."))
+                    if depth <= 2:
+                        folders.append(rel_dir)
+                if depth >= 2:
+                    dirnames[:] = []
+            self._send(200, json.dumps({"root": "zscripts", "folders": folders},
+                                       ensure_ascii=False),
                        "application/json; charset=utf-8")
             return
         if path.startswith("/file/"):

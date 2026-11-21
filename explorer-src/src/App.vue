@@ -1,5 +1,5 @@
 <script setup>
-// explorer UI v5.0 (Task 62 amend, ref #61) — Task Files Explorer, fully
+// explorer UI v5.1 (Task 84) — Task Files Explorer, fully
 // migrated to miuix-vue (Task 53). Task 61 retired the body chrome on the
 // owner order "hapus semua button & label di bawah 'Task File Manager'";
 // Task 62 corrects the scope on the owner's clarification ("'below" means the
@@ -19,6 +19,12 @@
 // announcer below; the error card (FileList) keeps the dead-first-load
 // state with its Retry. The PreviewModal stays: it is the task file
 // manager's own preview.
+// v5.1.0 (Task 84, owner order "Add feature Task File Manager: delete files
+// dan multi selection action option"): the SelectBar joins — the fixed
+// bottom action bar + its confirm/destination dialogs while selection mode
+// is active. Its dialogs are the task file manager's own surfaces (same
+// clause as the preview modal); Escape leaves selection mode (and closes
+// any dialog first — the dialog component handles its own Escape).
 import { onMounted, ref } from 'vue'
 import IconSprite from './components/IconSprite.vue'
 import TopBar from './components/TopBar.vue'
@@ -26,13 +32,17 @@ import StatsTiles from './components/StatsTiles.vue'
 import TaskRail from './components/TaskRail.vue'
 import FileList from './components/FileList.vue'
 import PreviewModal from './components/PreviewModal.vue'
-import { ui, boot } from './explorer.js'
+import SelectBar from './components/SelectBar.vue'
+import { ui, boot, S, exitSel } from './explorer.js'
 import { bootTheme } from './theme.js'
 
 const modal = ref(null)
 
 onMounted(() => {
   bootTheme(t => { ui.themeDark = (t === 'dark') })
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && S.selMode && !e.target.closest('input,textarea')) exitSel()
+  })
   boot()                                                    /* engine boot: static detection, guarded poll, first list, watchdog */
 })
 </script>
@@ -45,5 +55,6 @@ onMounted(() => {
     <FileList @preview="f => modal && modal.open(f)"/>
   </main>
   <PreviewModal ref="modal"/>
+  <SelectBar/>
   <div class="sr-live" aria-live="polite">{{ ui.announce }}</div>
 </template>
