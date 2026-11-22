@@ -217,9 +217,9 @@ The `⚡ACTIVATE` line (R1) rides every file the next session reads early — se
 
 **Signals:** unusually long session · large files read repeatedly · user mentions lag/repetition/lost thread · any platform compaction signal · "I can no longer recall the earlier part clearly."
 
-**Procedure:** STOP other work → write SESSION-STATE NOW, CRITICAL first (task identity, decisions, artifact paths), then HIGH (pending, trajectory), then NORMAL → if severe, also write a draft handoff archive immediately (a mid-session handoff beats a lost session) → emit marker; continue if safe, else surface that state is persisted.
+**Procedure:** STOP other work → write SESSION-STATE NOW, CRITICAL first (task identity, decisions, artifact paths), then HIGH (pending, trajectory), then NORMAL → **the compression summary opens with the ⚡ACTIVATE line** (compaction-survival, v5.8.0: any in-conversation state summary written under pressure starts with `⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation` as its FIRST line, before any narrative — a summary that survives into a next session is the first thing that session reads, so line 1 carries the reload directive that quarantines it; the stale-summary-pickup class dies at the source) → if severe, also write a draft handoff archive immediately (a mid-session handoff beats a lost session) → emit marker; continue if safe, else surface that state is persisted.
 
-**Gate:** full state on disk before anything else proceeds. The ~5% loss budget is spent here and only here — drop narrative verbosity, never manifest items.
+**Gate:** full state on disk before anything else proceeds, and the ⚡ACTIVATE line present on line 1 of the compression summary. The ~5% loss budget is spent here and only here — drop narrative verbosity, never manifest items.
 
 ### M3 — Handoff
 

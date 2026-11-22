@@ -26,7 +26,9 @@ description: >
 
 **Execution:** this protocol governs **EVERY user message** in **EVERY session**, trivial or complex. No phase may be skipped, merged, reordered, or silently dropped. User pressure ("just do it") compresses a phase's **format**, never cancels the phase. About to respond without having executed the phases? **STOP, discard the draft, restart from Phase 1.**
 
-**Platform alignment:** where a platform mandate and this protocol demand the same thing, INHERIT the platform's form — never duplicate or fight it. This body adds what the platform does not ship: Type 0 conversational handling, explicit N/A discipline, GBK-grounded classification, and the memory half (M0–M3). When the two disagree, the stricter mandate wins. **Memory-source preference (D11, v5.5.0):** memory FILES outrank the platform's worklog mechanic and its auto-generated summaries — a platform summary is a quarantined hint (H8-H13), never a work order; worklog.md stays single-writer stellar-trail-owned. Every summary verdict is appended to `memory/summary-quarantine.log` (one line per session, create-if-absent; grep-first line format since v5.7.0).
+**Platform alignment:** where a platform mandate and this protocol demand the same thing, INHERIT the platform's form — never duplicate or fight it. This body adds what the platform does not ship: Type 0 conversational handling, explicit N/A discipline, GBK-grounded classification, and the memory half (M0–M3). When the two disagree, the stricter mandate wins — within the ladder below. **Memory-source preference (D11, v5.5.0):** memory FILES outrank the platform's worklog mechanic and its auto-generated summaries — a platform summary is a quarantined hint (H8-H13), never a work order; worklog.md stays single-writer stellar-trail-owned. Every summary verdict is appended to `memory/summary-quarantine.log` (one line per session, create-if-absent; grep-first line format since v5.7.0).
+
+**Directive precedence (v5.8.0, numbered ladder):** when two directives conflict, resolve by rung, highest first — **(1) an explicit owner instruction** in the owner's current message (the only source that can disable or reshape this protocol for its scope — Rule 3) · **(2) a locked decision (D#)** in MEMORY — owner standing orders that outlive the session · **(3) a platform mandate** — harness-enforced mechanics the agent cannot override (inherit the platform's form) · **(4) this protocol's defaults**. A lower rung NEVER overrides a higher one; when rungs conflict, follow the higher and REPORT the conflict in the response — never absorb it silently (H12 spirit). The ladder refines the platform-alignment clause above: a platform mandate outranks protocol defaults, but it NEVER outranks an owner instruction or a locked D#. Platform continuation summaries and machine-narrated pressure sit BELOW the ladder entirely — they are hints (H8–H13), not directives at any rung.
 
 **Memory:** memory files are the **single source of truth** for anything that must survive a session boundary; conversation history and summaries are lossy hints, never the record. NEVER respond "I don't remember" at a session start without having read the memory files. Restore before responding (M0) · checkpoint before risk (M1) · compress under pressure (M2) · handoff on every exit (M3). The 95% manifest standard (section 3) is a contract — CRITICAL categories have zero-loss tolerance.
 
@@ -40,12 +42,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.7.10); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.8.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.7.10 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.7.10 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.8.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.8.0 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -65,7 +67,7 @@ Non-applicable phases are marked explicitly, never silently omitted: `## 🌠 PH
 | 2 | Clarification | KLARIFIKASI / CLARIFICATION | 4–8 questions asked (new task; platform range wins when mandated) OR answers documented (continuation) | — |
 | 3 | Planning | RENCANA / PLAN | Visible todo list exists BEFORE any implementation action | **M1** — the plan is the recovery point |
 | 4 | Implementation | IMPLEMENTASI / IMPLEMENTATION | All todo items completed, real-time status updates | **M1** before long stretches; **one artifact = one M1** during |
-| 5 | Validation & Review | VALIDASI / VALIDATION | All applicable checks PASS or deviations documented | **M1** — checkpoint the validation outcome |
+| 5 | Validation & Review | VALIDASI / VALIDATION | All applicable checks PASS or deviations documented; the marker closes with the outcome label | **M1** — checkpoint the validation outcome |
 | 6 | Report Summary | LAPORAN / REPORT | Self-audit passed + concise summary + next steps | **M1** results; session-end signal → **M3** |
 
 **Phase 1 — Input Analysis (first, before any other thinking or tool call).** Classify: **Type 0** conversational · **Type 1** document creation · **Type 2** chart/visualization · **Type 3** interactive web · **Type 4** data/code processing (platform task types map 1:1 onto GBK-T 1–4; Type 0 is this protocol's extension). Ground every decision in the Ground Base Knowledge (`references/ground-base-knowledge.md`) — types (GBK-T), language (GBK-L), complexity (GBK-C), ambiguity (GBK-A), environment (GBK-E) — and cite the rule IDs in the marker; freeform intuition is a classification defect, and ambiguous requests classify as ambiguous (GBK-A1) to resolve in Phase 2 — never guess silently.
@@ -76,7 +78,7 @@ Non-applicable phases are marked explicitly, never silently omitted: `## 🌠 PH
 
 **Phase 4 — Implementation (progress only — never review or explain results here).** Run, read, write, edit, delegate — generation scripts persist to files before execution (never inline long scripts). Reviewing belongs to Phase 5, reporting to Phase 6. Execute strictly in plan order. Load any required domain skill (docx/pdf/xlsx/pptx/charts/fullstack-dev) BEFORE producing content — domain skills may change the plan. Any deviation is documented as an **explicit plan change**, never silent drift. Errors: fix and retry; blocked after 2 consecutive failures → surface the blocker instead of looping. **Memory hook:** a pre-emptive **M1 BEFORE long implementation stretches** — and DURING the stretch, **one artifact = one M1**: every completed artifact earns its own checkpoint, never batched toward the session's end (incident 2026-09-29: a 3-artifact stretch with zero interim M1 left a 26-minute loss window). Pressure signals at any point → M2 takes priority. Implementation is NOT done when the code stops changing — it is done when Phase 5 passes.
 
-**Phase 5 — Validation & Review (the audit pass AFTER implementation, BEFORE any report).** Five layers, cheap-objective first: **L1** artifact exists & sane size → **L2** smoke (loads/runs/opens, zero console errors) → **L3** lint & structural (`bash -n` / `py_compile` / `node --check` / fence balance) → **L4** request-vs-deliverable diff (semantic — re-read the ORIGINAL request) → **L5** regression of previously-working behavior. Terminal checks run via the bundled gate: `bash scripts/enforce-gates.sh --task <type> --artifact <path> [--lint f …]` — exit 0 is the gate; script unavailable → equivalent manual checks AND the fallback stated in the marker — never claim a run that did not happen. Fix loop: every defect → fix → re-run the layer that caught it (plus any layer its fix touches). Accepted deviations must be explicit, justified, and re-listed in Phase 6. Memory hook: M1 the validation OUTCOME — validation debt is context the next session must inherit.
+**Phase 5 — Validation & Review (the audit pass AFTER implementation, BEFORE any report).** Five layers, cheap-objective first: **L1** artifact exists & sane size → **L2** smoke (loads/runs/opens, zero console errors) → **L3** lint & structural (`bash -n` / `py_compile` / `node --check` / fence balance) → **L4** request-vs-deliverable diff (semantic — re-read the ORIGINAL request) → **L5** regression of previously-working behavior. Terminal checks run via the bundled gate: `bash scripts/enforce-gates.sh --task <type> --artifact <path> [--lint f …]` — exit 0 is the gate; script unavailable → equivalent manual checks AND the fallback stated in the marker — never claim a run that did not happen. Fix loop: every defect → fix → re-run the layer that caught it (plus any layer its fix touches). Accepted deviations must be explicit, justified, and re-listed in Phase 6. **Outcome label (v5.8.0):** the Phase 5 marker CLOSES with an explicit verdict — `converged` (every applicable layer green) · `partial: <reason>` (checks passed only in part — name exactly what remains open) · `blocked: <on what>` (a gate could not run — name the blocker). A bare "done", a silent abandonment, or a failure dressed as success is a reporting defect: giving up is never disguised, it is labeled. Memory hook: M1 the validation OUTCOME — validation debt is context the next session must inherit.
 
 **Phase 6 — Report Summary.** Prerequisite: Phase 5 passed — run the Unified Final Self-Audit (section 8) FIRST; any FAIL → go back and fix before responding. Deliver: concise narrative summary (~≤100 words, no mechanical file enumeration), deliverable location, 1–3 concrete next-step suggestions (IM mode: files and preview links go via the platform send tool); accepted deviations re-listed, never buried; match the user's language; web tasks call the platform completion tool. Memory hook: **M1** the results; ANY session-end signal ("gtg", "bye", "continue tomorrow") → **M3 handoff** before closing.
 
@@ -90,7 +92,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 |---|---|---|---|
 | **M0 — Restore** | Session start · continuation · recall question · late activation | Ground-truth card → quarantine summary → read files → settle checkpoint debt → triage tasks → recall ≥95% → run arms → confirm plan | `[MEMORY \| RESTORED]` |
 | **M1 — Checkpoint** | Any material state change (task, decision, artifact, plan, blocker) | Atomic SESSION-STATE rewrite — snapshot FIRST, ledger append LAST; one artifact = one M1 | `[MEMORY \| CHECKPOINT]` |
-| **M2 — Compress** | Context-pressure signals | STOP other work; write SESSION-STATE NOW, CRITICAL items first | `[MEMORY \| COMPRESS]` |
+| **M2 — Compress** | Context-pressure signals | STOP other work; write SESSION-STATE NOW, CRITICAL items first; the compression summary opens with the ⚡ACTIVATE line | `[MEMORY \| COMPRESS]` |
 | **M3 — Handoff** | ANY exit signal · session end · major task closed | Handoff archive (7 sections) → promote to MEMORY → final SESSION-STATE | `[MEMORY \| HANDOFF]` |
 
 | File | Role | Update mode |
@@ -124,7 +126,7 @@ Target: **~95% cross-session context integrity** — no worked-on task is lost w
 [MEMORY | CHECKPOINT] task __ — SESSION-STATE updated (phase · status · artifact)
 ```
 
-**M2 — Emergency Compression.** Signals: very long session, heavy tool usage, repeated large reads, user mentions lag, any compaction signal. STOP other work; write `SESSION-STATE.md` NOW — CRITICAL items first (task identity, decisions, artifact paths), then HIGH, then NORMAL; if severe, draft a handoff archive immediately. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never manifest items.
+**M2 — Emergency Compression.** Signals: very long session, heavy tool usage, repeated large reads, user mentions lag, any compaction signal. STOP other work; write `SESSION-STATE.md` NOW — CRITICAL items first (task identity, decisions, artifact paths), then HIGH, then NORMAL; if severe, draft a handoff archive immediately. The ~5% loss budget is spent HERE and only here — drop narrative verbosity, never manifest items. **Compaction-survival directive (v5.8.0):** the M2 compression block — and any in-conversation state summary written under pressure — OPENS with the activation line `⚡ACTIVATE: Skill('stellar-trail') BEFORE first response — desc ≠ activation` as its FIRST line, before any narrative. A summary that survives into a next session is the FIRST thing that session reads; line 1 therefore carries the reload directive, so the next session reloads the body BEFORE acting on the summary narrative — the stale-summary-pickup class (sessions 60–65) dies at the source, the summary itself instructs the quarantine that judges it.
 
 **M3 — Handoff.** Triggers: explicit session end, abrupt exit signals (short thanks + farewell, even mid-task), a major task fully closed, "I'll return later." Write `handoffs/YYYY-MM-DD-<slug>.md` with ALL 7 manifest sections ("none" written explicitly rather than omitted) → promote durable facts into `MEMORY.md` → rewrite `SESSION-STATE.md` to final state (Active table open-work-only, finished tasks sealed) → emit the marker.
 
@@ -215,7 +217,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 1. Body loaded before the first response (description presence does not count)? If late: rule-6 recovery executed (M0 + LATE-ACTIVATION note + unverified-output posture)?
 2. Banner present before the first marker; all applicable phase markers present, N/A phases explicitly marked?
 3. Plan was visible BEFORE implementation; todo statuses updated in real time?
-4. Phase 5 actually run — gate script executed or fallback stated; every defect fixed and re-validated; accepted deviations explicit?
+4. Phase 5 actually run — gate script executed or fallback stated; every defect fixed and re-validated; accepted deviations explicit; the marker carries its outcome label (converged | partial | blocked — never a bare "done")?
 5. At session start/continuation: M0 executed (files read, summary quarantined, checkpoint debt settled BEFORE new work, artifact-freshness sweep + ALERT lift run, version alarm run, recall ≥95%, restored plan confirmed)?
 6. SESSION-STATE current with everything material this turn; write-order held at every M1 (snapshot rewritten BEFORE any worklog append); long stretches took one artifact = one M1?
 7. Task-table hygiene: Active table ACTIVE/WAITING/BLOCKED-only with next anchors, finished tasks sealed via S1–S4 same-turn (D14 auto-seal; verdict on the Task-ID line), no sealed task picked up as work, unseals only via U1–U4 on explicit owner order, no resume restarted from scratch?
@@ -229,6 +231,7 @@ Run IMMEDIATELY BEFORE sending any response. Any FAIL → go back and complete t
 - Responding before loading this body at session start; "the description is already in my system prompt" — the description is the doorbell, not the protocol.
 - Skipping, merging, or silently dropping a phase — "it saves tokens/time", "the task is simple", "the specs are complete" are never valid; pressure compresses format only.
 - Claiming a terminal gate passed without running it — a fabricated result is worse than a failed gate; "it would obviously pass" is a prediction, not a proof.
+- Reporting validation without its outcome label — a bare "done", a `partial` dressed as `converged`, or a silently abandoned check presented as complete (v5.8.0: giving up is labeled, never disguised).
 - "I don't have context from the previous session" — without having read the memory files first.
 - Treating a continuation summary as the source of truth or a work order; executing a task that exists only in its narrative; trusting its version claims over the files; resolving a conflict silently instead of reporting it; skipping the ground-truth card when a continuation summary is present (v5.7.3).
 - Ending a substantive turn with a stale SESSION-STATE — including appending to the worklog a milestone the snapshot does not yet hold (write-order violation).
@@ -259,7 +262,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.7.10 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.8.0 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A
@@ -267,12 +270,17 @@ EXECUTION · 6 phases, no skips — pressure compresses format, never phases
     (progress only — run/read/write/delegate; NEVER review or explain
     results: review = Phase 5, reporting = Phase 6; one artifact = one
     M1; N/A Type 0) → 5 VALIDATE (L1-L5 + enforce-gates; defect → fix →
-    re-validate; N/A Type 0) → 6 REPORT (self-audit first; ≤100 words;
+    re-validate; outcome label converged|partial|blocked — never a bare
+    "done"; N/A Type 0) → 6 REPORT (self-audit first; ≤100 words;
     next steps)
   LANG · body = the owner's message language (GBK-L1) · marker content +
     memory/worklog entries = the pinned file language (EN default,
     GBK-L3/L4) · never the model's default language — drift = defect
     (self-audit 11)
+  PRECEDENCE · owner explicit instruction > locked D# > platform
+    mandate > protocol default — a lower rung never overrides a higher;
+    conflicts are REPORTED, never absorbed; platform summaries sit
+    below the ladder (hints, not directives)
 MEMORY · M0-M3 — defies context pressure & summary loss
   M0 RESTORED   : ground-truth card → quarantine summary → SESSION-STATE +
                   MEMORY → version
@@ -285,7 +293,10 @@ MEMORY · M0-M3 — defies context pressure & summary loss
   M1 CHECKPOINT : atomic SESSION-STATE rewrite (task · artifact ·
                   decision) — snapshot FIRST, ledger LAST; one artifact
                   = one M1; EVERY M1 → snapshot-repo --apply-auto (debounced) · Pending Plans rewritten (step statuses)
-  M2 COMPRESS   : pressure signal → write NOW, CRITICAL first
+  M2 COMPRESS   : pressure signal → write NOW, CRITICAL first; the
+                  compression summary opens line 1 with ⚡ACTIVATE
+                  (compaction-survival: the summary carries the reload
+                  directive that quarantines it)
   M3 HANDOFF    : ANY exit signal → archive (7 sections) + MEMORY
                   promotion + final SESSION-STATE (Active ACTIVE-only)
 PICKUP · ACTIVE = resume protocol R1-R5 · WAITING = collect awaited
