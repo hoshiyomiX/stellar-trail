@@ -22,6 +22,12 @@
 #      After a successful update the script prints a RELOAD directive: the
 #      running session's loaded body is stale and MUST be re-read before any
 #      further work (never continue on stale skill logic — owner order #2).
+#      (v5.8.1) The install runs with its working directory PINNED to the
+#      project root: the skills CLI installs CWD-relative ($CWD/skills/<name>/
+#      + $CWD/skills-lock.json), so an unpinned run invoked from the skill
+#      directory lands the update NESTED inside the live tree instead of
+#      replacing it. Remnants of misdirected installs from older builds are
+#      swept before the install runs.
 # There is NO fallback source and NO alternate repair path. If the install
 # fails, it fails loudly (exit 1) and this script has touched nothing —
 # the user retries the same command.
@@ -203,8 +209,8 @@ fi
 # ============================================================================
 INSTALL_ARGS="${STELLAR_INSTALL_ARGS:---skill stellar-trail -a openclaw -y}"
 if ! command -v npx >/dev/null 2>&1; then
-    say "npx is not available — cannot run the install command; run it manually when node tooling is present:"
-    say "    npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
+    say "npx is not available — cannot run the install command; run it manually when node tooling is present (from the project root):"
+    say "    cd \"$PROJECT\" && npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
     exit 0
 fi
 
@@ -213,10 +219,29 @@ if [ "$REMOTE_VER" = "$LOCAL_VER" ]; then
 else
     say "=== UPDATE v$LOCAL_VER -> v$REMOTE_VER START ==="
 fi
-say "[1/5] single install flow: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
-if ! timeout 600 npx --yes skills add "$INSTALL_SOURCE" $INSTALL_ARGS; then
+# --- CWD PIN + REMNANT SWEEP (v5.8.1, Task 87 field incident) -----------------
+# The skills CLI installs CWD-RELATIVE: it writes $CWD/skills/<name>/ and
+# $CWD/skills-lock.json. Without a pinned working directory an --ensure run
+# invoked from the skill directory (the M0 convention) lands the install
+# NESTED inside the live tree (skills/stellar-trail/skills/stellar-trail)
+# while the live root stays on the old version — the field incident this
+# fixes: origin v5.8.0, live pinned v5.0.0 across every retry, and the
+# watcher origin probe read the nested copy as "live", silencing the alarm.
+# (1) sweep remnants of misdirected installs from older builds. Safe mid-run:
+#     this script re-execs from a temp copy — the tree below is data, not the
+#     running code.
+for REMNANT in "$SKILL_ROOT/skills" "$SKILL_ROOT/skills-lock.json" "$SKILL_ROOT/.agents"; do
+    if [ -e "$REMNANT" ]; then
+        rm -rf "$REMNANT"
+        say "       swept misdirected-install remnant: ${REMNANT#"$PROJECT"/}"
+    fi
+done
+# (2) pin the install working directory to the project root — the CLI always
+#     targets $PROJECT/skills/stellar-trail, wherever this script was called from.
+say "[1/5] single install flow: npx skills add $INSTALL_SOURCE $INSTALL_ARGS (cwd pinned: $PROJECT)"
+if ! ( cd "$PROJECT" && timeout 600 npx --yes skills add "$INSTALL_SOURCE" $INSTALL_ARGS ); then
     say "FAILED: the install command exited non-zero — update aborted. No fallback exists by design."
-    say "Retry the same command manually: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
+    say "Retry the same command manually (from the project root): cd \"$PROJECT\" && npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
     exit 1
 fi
 
@@ -237,7 +262,7 @@ done
 shopt -u nullglob
 if [ "$UPDATED" -ne 1 ]; then
     say "FAILED: no installation reports version v$REMOTE_VER after the install command finished."
-    say "Retry manually: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
+    say "Retry manually (from the project root): cd \"$PROJECT\" && npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
     exit 1
 fi
 
@@ -247,7 +272,7 @@ if ( cd "$UPDATED_DIR" && LC_ALL=C sha256sum -c assets/integrity.sha256 --quiet 
     say "       manifest $MANIFEST_N/$MANIFEST_N entries OK"
 else
     say "FAILED: manifest verification failed for $UPDATED_DIR — the installed package is inconsistent."
-    say "Retry manually: npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
+    say "Retry manually (from the project root): cd \"$PROJECT\" && npx skills add $INSTALL_SOURCE $INSTALL_ARGS"
     exit 1
 fi
 
