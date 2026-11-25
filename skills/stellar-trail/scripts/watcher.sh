@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # watcher.sh — runtime watchdog daemon for the stellar-trail persistence layer
-# stellar-trail · watcher v2.5 (runtime watchdog, verify-only + local self-heal)
+# stellar-trail · watcher v2.6 (runtime watchdog, verify-only + local self-heal)
 #
 # WHAT THIS DAEMON DOES (one loop every 30 seconds, WATCHER_INTERVAL to tune):
 #   1. download/ change trigger — when the top level of download/ changes,
@@ -75,16 +75,16 @@
 #      checkpoint: WORK-SILENCE (work without the protocol, >30 min) and
 #      EVIDENCE-PENDING (user field evidence unprocessed by any logged
 #      session, >2 h). Alarms append to the worklog (1 h debounce per class)
-#      AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
-#      file list (v2.5: mirrored to .zscripts/ALERT-ACTIVE.md as well, since
-#      the Task Files Explorer serves .zscripts/ only since explorer.py
-#      v1.13 — the download/ copy keeps the platform-panel visibility),
-#      because worklog/watcher.log are only read when the
-#      protocol already runs (the 2026-10-21 incident ran its full course
-#      with zero machine alarms; the USER caught it). The ALERT file is
-#      excluded from the duty-1 hash and removed automatically when every
-#      class clears. Thresholds env-tunable: STELLAR_SILENCE_WORK_SECS,
-#      STELLAR_SILENCE_EVIDENCE_SECS.
+#       AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
+#       file list (v2.5: mirrored to .zscripts/ALERT-ACTIVE.md as well, since
+#       the Task Files Explorer serves .zscripts/ only since explorer.py
+#       v1.13 — the download/ copy keeps the platform-panel visibility),
+#       because worklog/watcher.log are only read when the
+#       protocol already runs (the 2026-10-21 incident ran its full course
+#       with zero machine alarms; the USER caught it). The ALERT file is
+#       excluded from the duty-1 hash and removed automatically when every
+#       class clears. Thresholds env-tunable: STELLAR_SILENCE_WORK_SECS,
+#       STELLAR_SILENCE_EVIDENCE_SECS.
 #   7. Origin release probe (every ~24 hours, epoch-state-gated so container
 #      reboots do not reset the clock) — compare the origin's latest release
 #      tag with the live installation. A NEWER origin tag appends a one-line
@@ -201,11 +201,29 @@ case "$1" in
         # invokes this same mode: single source of truth). Prints the verdict;
         # appends a one-line worklog alarm when the origin carries a NEWER
         # release tag (once per unseen version). NEVER installs anything.
-        LIVE_VER=""
+        # LIVE-SOURCE AUDIT (v2.6, Task 87 field incident): the probe reads ONLY
+        # the direct live roots and NAMES the source in every verdict — a
+        # NESTED copy (<live>/skills/stellar-trail, the remnant of a misdirected
+        # CWD-relative CLI install) is never a version source. Field incident:
+        # the v5.8.0-era probe once reported "origin v5.8.0 == live v5.8.0 — up
+        # to date" off a nested copy while the live root sat on v5.0.0 — the
+        # alarm was silenced by the very failure it should have caught. A
+        # detected nested remnant now raises a once-per-episode NOTICE naming
+        # the sweep remedy (update-skill.sh --ensure sweeps it since v5.8.1).
+        LIVE_VER=""; LIVE_SRC=""
         for LV in "$PROJECT/skills/stellar-trail" "$PROJECT"/skills/@*/stellar-trail; do
             if [ -f "$LV/assets/integrity.version" ]; then
                 LIVE_VER="$(tr -d '[:space:]' < "$LV/assets/integrity.version")"
+                LIVE_SRC="$LV"
                 break
+            fi
+        done
+        for NESTED in "$PROJECT"/skills/stellar-trail/skills/stellar-trail "$PROJECT"/skills/@*/stellar-trail/skills/stellar-trail; do
+            if [ -d "$NESTED" ] && [ ! -f "$ZDIR/.nested-remnant.noticed" ]; then
+                date +%s > "$ZDIR/.nested-remnant.noticed" 2>/dev/null
+                wlog "NESTED-REMNANT NOTICE: misdirected-install remnant at ${NESTED#"$PROJECT"/} — never a live source; remedy: bash skills/stellar-trail/scripts/update-skill.sh --ensure (sweeps it)"
+                printf "\n> NESTED-REMNANT NOTICE %s: misdirected-install remnant at %s — the live-version probe reads ONLY the direct live roots; remedy: bash skills/stellar-trail/scripts/update-skill.sh --ensure.\n" \
+                    "$(date '+%F %T')" "${NESTED#"$PROJECT"/}" >> "$PROJECT/worklog.md" 2>/dev/null
             fi
         done
         if [ -z "$LIVE_VER" ]; then
@@ -231,18 +249,18 @@ case "$1" in
         fi
         if [ "$ORIGIN_VER" = "$LIVE_VER" ]; then
             echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
-            echo "[watcher] probe-origin: origin v$ORIGIN_VER == live v$LIVE_VER — up to date"
+            echo "[watcher] probe-origin: origin v$ORIGIN_VER == live v$LIVE_VER — up to date (live source: ${LIVE_SRC#"$PROJECT"/})"
         elif version_lt "$ORIGIN_VER" "$LIVE_VER"; then
             echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
-            echo "[watcher] probe-origin: origin v$ORIGIN_VER < live v$LIVE_VER (dev install ahead) — no action"
+            echo "[watcher] probe-origin: origin v$ORIGIN_VER < live v$LIVE_VER (dev install ahead) — no action (live source: ${LIVE_SRC#"$PROJECT"/})"
         elif [ "$O_ALARMED" = "$ORIGIN_VER" ]; then
             echo "$O_NOW $O_ALARMED" > "$ORIGIN_STATE" 2>/dev/null
             echo "[watcher] probe-origin: origin v$ORIGIN_VER > live v$LIVE_VER — alarm already sent for this version, not repeating"
         else
             echo "$O_NOW $ORIGIN_VER" > "$ORIGIN_STATE" 2>/dev/null
-            printf "\n> ORIGIN-RELEASE-ALARM %s: the origin carries a NEWER release v%s (live installation: v%s). At the next session start run: bash skills/stellar-trail/scripts/update-skill.sh --ensure — or manually: %s. The watcher NEVER installs (alarm-only; the single install flow is the only installer).\n" \
-                "$(date '+%F %T')" "$ORIGIN_VER" "$LIVE_VER" "$INSTALL_HINT" >> "$PROJECT/worklog.md" 2>/dev/null
-            echo "[watcher] probe-origin: ALARM — newer release v$ORIGIN_VER at the origin (live v$LIVE_VER); one-line alarm appended to the worklog"
+            printf "\n> ORIGIN-RELEASE-ALARM %s: the origin carries a NEWER release v%s (live installation: v%s, source: %s). At the next session start run: bash skills/stellar-trail/scripts/update-skill.sh --ensure — or manually: %s. The watcher NEVER installs (alarm-only; the single install flow is the only installer).\n" \
+                "$(date '+%F %T')" "$ORIGIN_VER" "$LIVE_VER" "${LIVE_SRC#"$PROJECT"/}" "$INSTALL_HINT" >> "$PROJECT/worklog.md" 2>/dev/null
+            echo "[watcher] probe-origin: ALARM — newer release v$ORIGIN_VER at the origin (live v$LIVE_VER, source: ${LIVE_SRC#"$PROJECT"/}); one-line alarm appended to the worklog"
         fi
         exit 0
         ;;
