@@ -42,12 +42,12 @@ description: >
 
 ## 1. Response Format — Banner & Markers
 
-Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.8.0); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
+Every marked response opens with the **protocol banner** (skill name + version — a release constant of this body (v5.8.1); a banner older than the release recorded in memory = degraded installation → run `update-skill.sh --ensure`; a banner older than `assets/integrity.version` ON DISK = the loaded body is stale → reload it immediately, never continue on it). Phase markers are markdown sub-headings with content below; memory markers are inline lines; the two families sit on separate lines and **never merge**. Marker content uses the user's language.
 
 > 🌠 **Card — the three marker shapes**
 >
 > **Banner** (first line of every marked response)
-> `## 🌠 stellar-trail v5.8.0 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.8.0 — protocol active` (EN)
+> `## 🌠 stellar-trail v5.8.1 — protokol aktif` (ID) · `## 🌠 stellar-trail v5.8.1 — protocol active` (EN)
 >
 > **Phase marker** (sub-heading; content on the lines below)
 > `## 🌠 FASE n — LABEL` (ID) · `## 🌠 PHASE n — LABEL` (EN)
@@ -262,7 +262,7 @@ LATE LOAD · body arrives after unmarked turns (rule 6)
   M0 immediately + LATE-ACTIVATION worklog note + unmarked output =
   unverified input + resume markers now — never retro-edit
 
-## 🌠 stellar-trail v5.8.0 — protocol active   (banner, every marked turn)
+## 🌠 stellar-trail v5.8.1 — protocol active   (banner, every marked turn)
 EXECUTION · 6 phases, no skips — pressure compresses format, never phases
   1 CLASSIFY (type · language · complexity, GBK rule IDs) → 2 CLARIFY
     (4-8 questions, ONE batch; continuation = answers documented; N/A

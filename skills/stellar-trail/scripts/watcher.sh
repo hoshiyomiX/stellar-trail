@@ -75,16 +75,16 @@
 #      checkpoint: WORK-SILENCE (work without the protocol, >30 min) and
 #      EVIDENCE-PENDING (user field evidence unprocessed by any logged
 #      session, >2 h). Alarms append to the worklog (1 h debounce per class)
-#       AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
-#       file list (v2.5: mirrored to .zscripts/ALERT-ACTIVE.md as well, since
-#       the Task Files Explorer serves .zscripts/ only since explorer.py
-#       v1.13 — the download/ copy keeps the platform-panel visibility),
-#       because worklog/watcher.log are only read when the
-#       protocol already runs (the 2026-10-21 incident ran its full course
-#       with zero machine alarms; the USER caught it). The ALERT file is
-#       excluded from the duty-1 hash and removed automatically when every
-#       class clears. Thresholds env-tunable: STELLAR_SILENCE_WORK_SECS,
-#       STELLAR_SILENCE_EVIDENCE_SECS.
+#      AND refresh download/ALERT-ACTIVE.md — a surface in the user-visible
+#      file list (v2.5: mirrored to .zscripts/ALERT-ACTIVE.md as well, since
+#      the Task Files Explorer serves .zscripts/ only since explorer.py
+#      v1.13 — the download/ copy keeps the platform-panel visibility),
+#      because worklog/watcher.log are only read when the
+#      protocol already runs (the 2026-10-21 incident ran its full course
+#      with zero machine alarms; the USER caught it). The ALERT file is
+#      excluded from the duty-1 hash and removed automatically when every
+#      class clears. Thresholds env-tunable: STELLAR_SILENCE_WORK_SECS,
+#      STELLAR_SILENCE_EVIDENCE_SECS.
 #   7. Origin release probe (every ~24 hours, epoch-state-gated so container
 #      reboots do not reset the clock) — compare the origin's latest release
 #      tag with the live installation. A NEWER origin tag appends a one-line
